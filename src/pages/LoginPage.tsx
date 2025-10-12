@@ -50,7 +50,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
                     
                     // Đăng nhập thành công, chuyển hướng người dùng đến Dashboard
                     console.log('Đăng nhập thành công, UID:', userCredential.user.uid);
-                    onNavigate('dashboard'); 
+                    //onNavigate('dashboard'); 
                     return; // Thoát khỏi vòng lặp và hàm
                 } catch (apiError) {
                     attempts++;
