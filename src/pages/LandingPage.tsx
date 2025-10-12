@@ -1,38 +1,61 @@
 import React from 'react';
+import { type User } from 'firebase/auth';
 
 // Định nghĩa props để nhận hàm điều hướng từ App.tsx
 // Các trang đích có thể là 'login' hoặc 'register'
 interface LandingPageProps {
-  onNavigate: (page: 'login' | 'register') => void;
+    onNavigate: (page: 'landing' | 'register' | 'login') => void;
+    user: User | null; // Cho phép truyền thông tin người dùng
+    onLogout: () => Promise<void>; // Cho phép truyền hàm đăng xuất
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4 font-sans">
-      <div className="bg-gray-800 p-10 rounded-xl shadow-2xl w-full max-w-md text-center border border-indigo-700/50">
-        
-        {/* Tiêu đề chính */}
-        <h1 className="text-4xl font-extrabold mb-4 text-indigo-400">👋 VideoHub Platform</h1>
-        <p className="text-gray-300 mb-8">Nền tảng quản lý và phân phối nội dung video.</p>
-        
-        {/* Khu vực nút bấm */}
-        <div className="space-y-4">
-          <button
-            onClick={() => onNavigate('login')}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-lg transition duration-200 transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-indigo-500/50"
-          >
-            Đăng Nhập
-          </button>
-          <button
-            onClick={() => onNavigate('register')}
-            className="w-full py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg shadow-lg transition duration-200 transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-gray-500/50"
-          >
-            Đăng Ký
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+// Nằm sau interface LandingPageProps
+export default function LandingPage({ onNavigate, user, onLogout }: LandingPageProps) {
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+            <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg">
+                <h1 className="text-4xl font-extrabold text-indigo-700 mb-6 text-center">
+                    Tài Chính Cá Nhân [Tên App]
+                </h1>
 
-export default LandingPage;
+                {user ? (
+                    // --- HIỂN THỊ KHI ĐÃ ĐĂNG NHẬP ---
+                    <div className="text-center">
+                        <p className="text-lg font-semibold text-green-600 mb-4">
+                            Đã Đăng nhập thành công!
+                        </p>
+                        <p className="text-sm text-gray-700 mb-6">
+                            UID: <span className="font-mono bg-gray-100 p-1 rounded-md text-sm break-all">{user.uid}</span>
+                        </p>
+                        <p className="text-md text-gray-600 mb-8">
+                            Bây giờ bạn có thể bắt đầu xây dựng Dashboard!
+                        </p>
+
+                        <button
+                            onClick={onLogout}
+                            className="w-full bg-red-500 text-white py-3 px-6 rounded-lg font-bold hover:bg-red-600 transition duration-200 shadow-md"
+                        >
+                            Đăng Xuất
+                        </button>
+                    </div>
+                ) : (
+                    // --- HIỂN THỊ KHI CHƯA ĐĂNG NHẬP ---
+                    <div className="space-y-4">
+                        <button
+                            onClick={() => onNavigate('login')}
+                            className="w-full bg-indigo-600 text-white py-3 px-6 rounded-lg font-bold hover:bg-indigo-700 transition duration-200 shadow-md"
+                        >
+                            Đăng Nhập
+                        </button>
+                        <button
+                            onClick={() => onNavigate('register')}
+                            className="w-full bg-gray-200 text-indigo-600 py-3 px-6 rounded-lg font-bold hover:bg-gray-300 transition duration-200 shadow-md"
+                        >
+                            Đăng Ký
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
