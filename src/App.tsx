@@ -46,13 +46,12 @@ const App: React.FC = () => {
 
     // Cấu hình dự phòng cho môi trường Local PC
     const FALLBACK_FIREBASE_CONFIG = {
-        apiKey: "AIzaSyAq8YhrxqhFAPaReQ_frgzUMiJiPimMtww",
-        authDomain: "video-hub-1.firebaseapp.com",
-        projectId: "video-hub-1",
-        storageBucket: "video-hub-1.firebasestorage.app",
-        messagingSenderId: "165232200741",
-        appId: "1:165232200741:web:d34258d29e98f52d7c83cc",
-        measurementId: "G-VNF11FGSVK"
+        apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "API_KEY_NOT_SET",
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
+        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+        appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
     };
 
     useEffect(() => {
