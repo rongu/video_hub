@@ -1,168 +1,189 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import React, { useEffect, useState, useCallback } from 'react';
+import { type User } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
+
+// Imports các services cần thiết cho Video Hub
 import { 
-    getAuth, 
-    signInAnonymously, 
-    signInWithCustomToken, 
-    onAuthStateChanged, 
-    type Auth, 
-    type User,
-    signOut 
-} from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+    initializeAndAuthenticate, 
+    getFirebaseAuth, 
+    getFirestoreDb, 
+    handleSignOut, 
+    getUserDocumentPath 
+} from './services/firebase';
 
-// Imports các Component (SỬA LỖI: Bỏ đuôi .tsx và KHÔNG import DashboardPage)
+// Imports các trang giao diện 
 import LandingPage from './pages/LandingPage';
-import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
+import RegisterPage from './pages/RegisterPage';
+import UserCoursesPage from './pages/UserCoursesPage'; 
+import AdminDashboard from './pages/AdminDashboard'; 
 
-// Định nghĩa các loại trang mà ứng dụng có thể hiển thị
-type Page = 'landing' | 'login' | 'register' | 'dashboard';
+type PageType = 'landing' | 'login' | 'register' | 'user' | 'admin';
+type UserRole = 'user' | 'admin' | 'guest';
 
-
+// Component chính của ứng dụng
 const App: React.FC = () => {
-    // State quản lý trang hiện tại. Khởi tạo là 'landing'
-    const [currentPage, setCurrentPage] = useState<Page>('landing');
-    const [user, setUser] = useState<User | null>(null); // Lưu trữ đối tượng User đang đăng nhập
-    const [isAuthReady, setIsAuthReady] = useState(false); // Trạng thái sẵn sàng của Auth
-    const [db, setDb] = useState<Firestore | null>(null); // Instance Firestore
-    const [auth, setAuth] = useState<Auth | null>(null); // Instance Auth
+    const [isAuthReady, setIsAuthReady] = useState(false);
+    const [user, setUser] = useState<User | null>(null);
+    const [currentPage, setCurrentPage] = useState<PageType>('landing');
+    const [role, setRole] = useState<UserRole>('guest'); 
 
-    const onNavigate = useCallback((page: Page) => {
+    // =================================================================
+    // 1. AUTHENTICATION & INITIALIZATION 
+    // =================================================================
+    useEffect(() => {
+        let authUnsubscribe: (() => void) | undefined;
+        
+        const setupAuthListener = async () => {
+            await initializeAndAuthenticate(); 
+
+            try {
+                const auth = getFirebaseAuth(); 
+                
+                authUnsubscribe = auth.onAuthStateChanged((currentUser) => {
+                    setUser(currentUser);
+                    if (!currentUser) {
+                        setRole('guest');
+                        setCurrentPage('landing');
+                    }
+                    setIsAuthReady(true);
+                });
+        
+            } catch (e) {
+                console.error("Không thể thiết lập Auth Listener.", e);
+                setIsAuthReady(true); 
+            }
+        };
+
+        setupAuthListener();
+        
+        return () => {
+            if (authUnsubscribe) {
+                authUnsubscribe();
+            }
+        };
+
+    }, []);
+
+    // =================================================================
+    // 2. ROLE ROUTING & CLEANUP (Sửa lỗi 400 Bad Request ở đây)
+    // =================================================================
+    useEffect(() => {
+        // Nếu người dùng chưa sẵn sàng hoặc không tồn tại, không làm gì cả
+        if (!user) {
+            // Khi user là null (đăng xuất), chúng ta đã đặt role='guest' ở Auth listener
+            return; 
+        }
+
+        let unsubscribeRole: () => void;
+        
+        try {
+            const db = getFirestoreDb();
+            const userDocRef = getUserDocumentPath(user.uid);
+            
+            // Bắt đầu lắng nghe Role khi user đã có
+            unsubscribeRole = onSnapshot(userDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const userData = docSnap.data();
+                    const userRole = userData.role as UserRole || 'user';
+                    setRole(userRole);
+                    
+                    if (userRole === 'admin') {
+                        setCurrentPage('admin');
+                    } else {
+                        setCurrentPage('user'); 
+                    }
+                    console.log(`User role set to: ${userRole}`);
+                } else {
+                    setRole('guest');
+                    console.warn(`User document for UID ${user.uid} not found. Role set to guest.`);
+                }
+            }, (error) => {
+                console.error("Error reading user role (Likely permissions error):", error);
+                setRole('guest'); 
+                // Đăng xuất nếu lỗi quyền truy cập nghiêm trọng để reset
+                handleSignOut(); 
+            });
+
+            // HÀM CLEANUP: Đây là phần quan trọng nhất.
+            // Khi `user` thay đổi (tức là đăng xuất), hàm này sẽ được gọi
+            // để hủy `onSnapshot` trước khi Auth bị hủy hoàn toàn.
+            return () => {
+                console.log("Hủy lắng nghe role Firestore.");
+                unsubscribeRole();
+            };
+
+        } catch (e) {
+            console.error("Lỗi khi thiết lập Role Listener.", e);
+            return () => {}; // Trả về cleanup function rỗng nếu có lỗi khởi tạo
+        }
+    }, [user]); // Chỉ phụ thuộc vào user
+
+    // =================================================================
+    // 3. HANDLERS
+    // =================================================================
+    
+    const onNavigate = useCallback((page: PageType) => {
         setCurrentPage(page);
     }, []);
 
-    // Xử lý Đăng xuất
-    const handleLogout = async () => {
-        if (auth) {
-            try {
-                await signOut(auth);
-                // Sau khi đăng xuất, onAuthStateChanged sẽ cập nhật user về null
-            } catch (error) {
-                console.error("Lỗi khi đăng xuất:", error);
-            }
-        }
-    };
-
-    // Cấu hình dự phòng cho môi trường Local PC
-    const FALLBACK_FIREBASE_CONFIG = {
-        apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "API_KEY_NOT_SET",
-        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-        appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
-    };
-
-    useEffect(() => {
-        let firebaseApp: FirebaseApp;
-        let configToUse;
-        let initialAuthToken = undefined;
-
-        // 1. Lấy Config
-        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-            configToUse = JSON.parse(__firebase_config);
-            initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
-        } else {
-            console.log("Sử dụng cấu hình Firebase dự phòng (Local PC)");
-            configToUse = FALLBACK_FIREBASE_CONFIG;
-        }
-
-        try {
-            // 2. KHẮC PHỤC LỖI DUPLICATE APP
-            if (getApps().length === 0) {
-                firebaseApp = initializeApp(configToUse);
-            } else {
-                firebaseApp = getApp(); // Lấy app đã được khởi tạo
-            }
-
-            const currentAuth = getAuth(firebaseApp);
-            const currentDb = getFirestore(firebaseApp);
-
-            setAuth(currentAuth);
-            setDb(currentDb);
-
-            // 3. Thực hiện Đăng nhập ban đầu (Custom Token hoặc Ẩn danh)
-            const authenticate = async () => {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(currentAuth, initialAuthToken);
-                } else {
-                    await signInAnonymously(currentAuth);
-                }
-            };
-
-            // 4. Thiết lập Listener (Theo dõi trạng thái Auth)
-            const unsubscribe = onAuthStateChanged(currentAuth, (currentUser) => {
-                setUser(currentUser);
-                console.log('currentUser login Firebase:', currentUser);
-                if (currentUser) {
-                    // Đã đăng nhập: Chuyển sang Dashboard
-                    setCurrentPage('dashboard'); // MỚI
-                } else {
-                    setCurrentPage('landing'); 
-                }
-                setIsAuthReady(true);
-            });
-            
-            authenticate();
-
-            return () => unsubscribe();
-        } catch (error) {
-            // Lỗi này có thể vẫn là Invalid API Key nếu config sai
-            console.error('Lỗi khởi tạo Firebase:', error);
-        }
+    const handleLogout = useCallback(async () => {
+        await handleSignOut();
+        // Sau khi đăng xuất, Auth listener sẽ tự động set user=null, 
+        // kích hoạt cleanup ở useEffect [user] và điều hướng về 'landing'.
     }, []);
 
-    // **Logic Render Bắt đầu từ đây:**
-    // Hiển thị Loading trong khi Auth đang được thiết lập
-    if (!isAuthReady) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="text-xl font-semibold text-indigo-600 animate-pulse">
-                    Đang kết nối dịch vụ...
+    // =================================================================
+    // 4. CONTENT RENDERING (Không đổi)
+    // =================================================================
+
+    const renderContent = (): React.ReactElement => { 
+        if (!isAuthReady || (user && role === 'guest')) {
+            return (
+                <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                    <p className="text-xl text-indigo-600">Đang tải ứng dụng và kiểm tra quyền...</p>
                 </div>
+            );
+        }
+
+        if (user && role !== 'guest') {
+            if (role === 'admin') {
+                return <AdminDashboard onLogout={handleLogout} user={user} />;
+            }
+            return <UserCoursesPage onLogout={handleLogout} user={user} />;
+        }
+
+        let ComponentToRender: React.ReactElement; 
+
+        switch (currentPage) {
+            case 'login':
+                ComponentToRender = <LoginPage onNavigate={onNavigate} />;
+                break;
+            case 'register':
+                ComponentToRender = <RegisterPage onNavigate={onNavigate} />;
+                break;
+            case 'landing':
+            case 'user': 
+            case 'admin':
+            default:
+                ComponentToRender = (
+                    <LandingPage 
+                        onNavigate={onNavigate} 
+                        user={null} 
+                        onLogout={handleLogout} 
+                    />
+                );
+                break;
+        }
+
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50 font-sans">
+                {ComponentToRender}
             </div>
         );
-    }
+    };
 
-    let ComponentToRender;
-
-    // 2. Nếu ĐÃ đăng nhập: Luôn hiển thị Dashboard (trừ khi Logout)
-    if (user) {
-        // Nếu đã đăng nhập, ta bỏ qua logic switch, chỉ hiển thị Dashboard
-        // và chỉ chuyển về 'landing' khi user gọi hàm onLogout (handleLogout)
-        return <DashboardPage onLogout={handleLogout} />;
-    }
-
-    // 3. Nếu CHƯA đăng nhập: Chỉ định tuyến giữa các trang công khai/đăng nhập/đăng ký
-
-    switch (currentPage) {
-        case 'login':
-            ComponentToRender = <LoginPage onNavigate={onNavigate} />;
-            break;
-        case 'register':
-            ComponentToRender = <RegisterPage onNavigate={onNavigate} />;
-            break;
-        case 'landing':
-        default:
-            // Trang Landing khi chưa đăng nhập
-            ComponentToRender = (
-                <LandingPage 
-                    onNavigate={onNavigate} 
-                    user={null} // Đã chắc chắn là null ở đây
-                    onLogout={handleLogout} 
-                />
-            );
-            break;
-    }
-
-    // Bọc các Component không phải Dashboard (Landing, Login, Register) trong layout căn giữa
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
-            {ComponentToRender}
-        </div>
-    );
-}
+    return renderContent();
+};
 
 export default App;
