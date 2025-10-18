@@ -19,9 +19,12 @@ import {
     addDoc,
     Timestamp, 
     serverTimestamp, 
-    writeBatch, 
+    writeBatch,
     increment,
-} from 'firebase/firestore';
+    orderBy,                 
+    QueryDocumentSnapshot,   
+    type DocumentData
+} from 'firebase/firestore';;
 
 // =================================================================
 // 1. CẤU HÌNH CỐ ĐỊNH (LOCAL PC CONFIG)
@@ -53,9 +56,12 @@ let auth: Auth | null = null;
 export interface Video {
     id: string;
     title: string;
-    url: string; 
-    duration: number; 
+    url: string;
+    duration: number; // Tính bằng giây
     order: number;
+    adminId: string;
+    // FIX LỖI: Cần thêm createdAt (là number - milliseconds)
+    createdAt: number; 
 }
 
 export interface Course {
@@ -221,6 +227,9 @@ export async function addCourse(title: string, description: string, adminId: str
     });
 }
 
+// =================================================================
+// 8. VIDEO MANAGEMENT FUNCTIONS
+// =================================================================
 /** Admin thêm một video mới vào Sub-Collection của một Khóa học. */
 export async function addVideo(courseId: string, videoData: Omit<Video, 'id'>, adminId: string): Promise<void> {
     const db = getFirestoreDb();
@@ -252,3 +261,51 @@ export async function addVideo(courseId: string, videoData: Omit<Video, 'id'>, a
     await batch.commit();
     console.log(`Video "${videoData.title}" đã được thêm vào khóa học ${courseId} thành công.`);
 }
+
+/**
+ * Lắng nghe real-time danh sách Video của một Khóa học.
+ * @param courseId ID của Khóa học cha.
+ * @param callback Hàm callback được gọi mỗi khi dữ liệu video thay đổi.
+ * @returns Hàm unsubscribe để dừng lắng nghe.
+ */
+export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) => void): () => void => {
+    const videosRef = getVideosCollectionRef(courseId);
+    
+    // FIX LỖI INDEX: Bỏ orderBy() để tránh yêu cầu Composite Index.
+    const q = query(videosRef);
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        let videos: Video[] = snapshot.docs.map((doc: QueryDocumentSnapshot) => {
+            const data = doc.data();
+            
+            const createdAtTimestamp = data.createdAt as Timestamp | undefined;
+
+            return {
+                id: doc.id,
+                title: data.title as string,
+                url: data.url as string,
+                duration: data.duration as number,
+                order: data.order as number,
+                adminId: data.adminId as string,
+                // Chuyển đổi Timestamp sang milliseconds để tiện sắp xếp
+                createdAt: createdAtTimestamp?.toMillis() || Date.now(), 
+            } as Video;
+        });
+
+        // FIX SẮP XẾP: Thực hiện sắp xếp client-side (trên trình duyệt)
+        videos.sort((a, b) => {
+            // Sắp xếp chính: Theo thứ tự (order) tăng dần
+            if (a.order !== b.order) {
+                return a.order - b.order; 
+            }
+            // Sắp xếp phụ (khi order bằng nhau): Theo thời gian tạo (cũ hơn lên trước)
+            return (a.createdAt || 0) - (b.createdAt || 0); 
+        });
+
+        callback(videos);
+    }, (error) => {
+        console.error(`Lỗi lắng nghe Video cho Course ID ${courseId}:`, error);
+    });
+
+    return unsubscribe;
+};

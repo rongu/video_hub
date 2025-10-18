@@ -3,6 +3,7 @@ import { type User } from 'firebase/auth';
 import CreateCourseForm from '../components/Admin/CreateCourseForm'; 
 import CreateVideoForm from '../components/Admin/CreateVideoForm'; // Import component mới
 import CourseCard from '../components/Admin/CourseCard'; // Import component mới
+import VideoList from '../components/Admin/VideoList';
 import { type Course, subscribeToCourses } from '../services/firebase'; 
 
 interface AdminDashboardProps {
@@ -19,7 +20,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null); 
 
     // =================================================================
-    // Lắng nghe Real-time danh sách Khóa học
+    // Lắng nghe Real-time danh sách Khóa học (Đã FIX Vòng lặp)
     // =================================================================
     useEffect(() => {
         setLoadingCourses(true);
@@ -30,17 +31,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
                 setCourses(fetchedCourses);
                 setLoadingCourses(false);
 
-                // Cập nhật lại selectedCourse nếu nó đã được chọn và vẫn còn trong danh sách
-                if (selectedCourse) {
-                    const updatedCourse = fetchedCourses.find(c => c.id === selectedCourse.id);
-                    // Giữ nguyên trạng thái selectedCourse nếu nó được tìm thấy (để cập nhật videoCount)
-                    if (updatedCourse) {
-                        setSelectedCourse(updatedCourse);
-                    } else {
-                        // Nếu khóa học bị xóa, reset trạng thái
-                        setSelectedCourse(null);
+                // Sử dụng functional update để cập nhật selectedCourse an toàn
+                setSelectedCourse(prevSelectedCourse => {
+                    if (prevSelectedCourse) {
+                        const updatedCourse = fetchedCourses.find(c => c.id === prevSelectedCourse.id);
+                        // Giữ lại tham chiếu mới nếu khóa học tồn tại, nếu không thì reset
+                        return updatedCourse || null; 
                     }
-                }
+                    return null;
+                });
             });
         } catch (e) {
             console.error("Lỗi khi lắng nghe Khóa học:", e);
@@ -49,7 +48,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
 
         // Cleanup function
         return () => unsubscribe();
-    }, [selectedCourse]); // Thêm selectedCourse vào dependency để cập nhật khi danh sách thay đổi
+    }, []); // <-- Dependency array RỖNG để chỉ chạy MỘT LẦN (FIX Vòng lặp)
+    // ... (các hàm khác handleCourseCreated, handleManageVideos, handleCloseVideoForm KHÔNG ĐỔI) ...
 
     // Hàm xử lý khi Khóa học được tạo
     const handleCourseCreated = useCallback(() => {
@@ -137,19 +137,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
                         </div>
                     )}
                     
-                    {/* HIỂN THỊ FORM TẠO VIDEO CHO KHÓA HỌC ĐÃ CHỌN */}
+                    {/* HIỂN THỊ KHU VỰC QUẢN LÝ VIDEO */}
                     {selectedCourse && (
-                         // Form tạo Video sẽ thay thế Form tạo Khóa học (hoặc ngược lại)
-                         <div className="bg-white rounded-xl shadow-2xl border-t-4 border-purple-600">
+                         <div className="bg-white rounded-xl shadow-2xl border-t-4 border-purple-600 p-6">
+                            {/* Form tạo Video */}
                             <CreateVideoForm
                                 courseId={selectedCourse.id}
                                 courseTitle={selectedCourse.title}
                                 adminUser={user}
-                                onVideoCreated={() => {
-                                    // Không cần làm gì nhiều ở đây vì onSnapshot sẽ tự cập nhật videoCount
-                                }} 
+                                onVideoCreated={() => {}} 
                                 onClose={handleCloseVideoForm}
                             />
+                            
+                            {/* THÊM MỚI: Danh sách Video */}
+                            <VideoList courseId={selectedCourse.id} />
                          </div>
                     )}
 

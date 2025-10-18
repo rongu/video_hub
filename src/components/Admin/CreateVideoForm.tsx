@@ -37,6 +37,8 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
                 url,
                 duration,
                 order,
+                createdAt: 0,
+                adminId: ''
             };
 
             await addVideo(courseId, videoData, adminUser.uid);
