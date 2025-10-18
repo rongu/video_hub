@@ -8,15 +8,16 @@ import {
     getFirebaseAuth, 
     getFirestoreDb, 
     handleSignOut, 
-    getUserDocumentPath 
-} from './services/firebase';
+    getUserDocumentPath,
+    // BỎ: Course type
+} from './services/firebase.ts'; // <-- SỬA LỖI: Thêm .ts
 
 // Imports các trang giao diện 
-import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import UserCoursesPage from './pages/UserCoursesPage'; 
-import AdminDashboard from './pages/AdminDashboard'; 
+import LandingPage from './pages/LandingPage.tsx'; // <-- SỬA LỖI: Thêm .tsx
+import LoginPage from './pages/LoginPage.tsx'; // <-- SỬA LỖI: Thêm .tsx
+import RegisterPage from './pages/RegisterPage.tsx'; // <-- SỬA LỖI: Thêm .tsx
+import HomePage from './pages/HomePage.tsx'; // <-- SỬ DỤNG HomePage (SỬA LỖI: Thêm .tsx)
+import AdminDashboard from './pages/AdminDashboard.tsx'; // <-- SỬA LỖI: Thêm .tsx
 
 type PageType = 'landing' | 'login' | 'register' | 'user' | 'admin';
 type UserRole = 'user' | 'admin' | 'guest';
@@ -27,6 +28,8 @@ const App: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
     const [currentPage, setCurrentPage] = useState<PageType>('landing');
     const [role, setRole] = useState<UserRole>('guest'); 
+
+    // BỎ: selectedUserCourse
 
     // =================================================================
     // 1. AUTHENTICATION & INITIALIZATION 
@@ -44,11 +47,11 @@ const App: React.FC = () => {
                     setUser(currentUser);
                     if (!currentUser) {
                         setRole('guest');
-                        setCurrentPage('landing');
+                        setCurrentPage('landing'); // Đảm bảo luôn về landing khi user = null
                     }
                     setIsAuthReady(true);
                 });
-        
+            
             } catch (e) {
                 console.error("Không thể thiết lập Auth Listener.", e);
                 setIsAuthReady(true); 
@@ -66,12 +69,10 @@ const App: React.FC = () => {
     }, []);
 
     // =================================================================
-    // 2. ROLE ROUTING & CLEANUP (Sửa lỗi 400 Bad Request ở đây)
+    // 2. ROLE ROUTING & CLEANUP 
     // =================================================================
     useEffect(() => {
-        // Nếu người dùng chưa sẵn sàng hoặc không tồn tại, không làm gì cả
         if (!user) {
-            // Khi user là null (đăng xuất), chúng ta đã đặt role='guest' ở Auth listener
             return; 
         }
 
@@ -81,7 +82,6 @@ const App: React.FC = () => {
             const db = getFirestoreDb();
             const userDocRef = getUserDocumentPath(user.uid);
             
-            // Bắt đầu lắng nghe Role khi user đã có
             unsubscribeRole = onSnapshot(userDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const userData = docSnap.data();
@@ -95,19 +95,17 @@ const App: React.FC = () => {
                     }
                     console.log(`User role set to: ${userRole}`);
                 } else {
-                    setRole('guest');
-                    console.warn(`User document for UID ${user.uid} not found. Role set to guest.`);
+                    // Nếu document không tồn tại, coi là user mới và set mặc định 'user'
+                    setRole('user');
+                    setCurrentPage('user');
+                    console.warn(`User document for UID ${user.uid} not found. Defaulting role to user.`);
                 }
             }, (error) => {
                 console.error("Error reading user role (Likely permissions error):", error);
                 setRole('guest'); 
-                // Đăng xuất nếu lỗi quyền truy cập nghiêm trọng để reset
                 handleSignOut(); 
             });
 
-            // HÀM CLEANUP: Đây là phần quan trọng nhất.
-            // Khi `user` thay đổi (tức là đăng xuất), hàm này sẽ được gọi
-            // để hủy `onSnapshot` trước khi Auth bị hủy hoàn toàn.
             return () => {
                 console.log("Hủy lắng nghe role Firestore.");
                 unsubscribeRole();
@@ -115,12 +113,12 @@ const App: React.FC = () => {
 
         } catch (e) {
             console.error("Lỗi khi thiết lập Role Listener.", e);
-            return () => {}; // Trả về cleanup function rỗng nếu có lỗi khởi tạo
+            return () => {}; 
         }
-    }, [user]); // Chỉ phụ thuộc vào user
+    }, [user]); 
 
     // =================================================================
-    // 3. HANDLERS
+    // 3. HANDLERS 
     // =================================================================
     
     const onNavigate = useCallback((page: PageType) => {
@@ -129,16 +127,16 @@ const App: React.FC = () => {
 
     const handleLogout = useCallback(async () => {
         await handleSignOut();
-        // Sau khi đăng xuất, Auth listener sẽ tự động set user=null, 
-        // kích hoạt cleanup ở useEffect [user] và điều hướng về 'landing'.
+        // Auth listener sẽ xử lý việc reset user/role/page sau khi signOut
     }, []);
 
     // =================================================================
-    // 4. CONTENT RENDERING (Không đổi)
+    // 4. CONTENT RENDERING (Đảm bảo luồng ưu tiên Auth/Role)
     // =================================================================
 
     const renderContent = (): React.ReactElement => { 
-        if (!isAuthReady || (user && role === 'guest')) {
+        // 1. LOADING/INIT STATE
+        if (!isAuthReady) {
             return (
                 <div className="flex items-center justify-center min-h-screen bg-gray-50">
                     <p className="text-xl text-indigo-600">Đang tải ứng dụng và kiểm tra quyền...</p>
@@ -146,13 +144,28 @@ const App: React.FC = () => {
             );
         }
 
-        if (user && role !== 'guest') {
-            if (role === 'admin') {
+        // 2. AUTHENTICATED USER (user !== null)
+        if (user) {
+            // Đã đăng nhập, hiển thị nội dung dựa trên role và currentPage
+            if (role === 'admin' && currentPage === 'admin') {
                 return <AdminDashboard onLogout={handleLogout} user={user} />;
             }
-            return <UserCoursesPage onLogout={handleLogout} user={user} />;
+            
+            if (role === 'user' && currentPage === 'user') {
+                // Trang chủ danh sách khóa học (Level 4.1)
+                return <HomePage onLogout={handleLogout} user={user} />;
+            }
+            
+            // Trường hợp lỗi: Đã đăng nhập nhưng role không khớp với currentPage (Rất hiếm)
+            // Trong trường hợp này, ứng dụng sẽ đợi useEffect Role Listener đẩy về trang đúng.
+            return (
+                 <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                    <p className="text-xl text-indigo-600">Đang xác định vai trò...</p>
+                </div>
+            );
         }
 
+        // 3. GUEST (Chưa đăng nhập - user === null)
         let ComponentToRender: React.ReactElement; 
 
         switch (currentPage) {
@@ -163,14 +176,13 @@ const App: React.FC = () => {
                 ComponentToRender = <RegisterPage onNavigate={onNavigate} />;
                 break;
             case 'landing':
-            case 'user': 
-            case 'admin':
             default:
+                // Mặc định cho người dùng chưa đăng nhập
                 ComponentToRender = (
                     <LandingPage 
                         onNavigate={onNavigate} 
                         user={null} 
-                        onLogout={handleLogout} 
+                        onLogout={handleLogout} // onLogout ở đây chỉ là dummy/hỗ trợ
                     />
                 );
                 break;
