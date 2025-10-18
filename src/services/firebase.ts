@@ -16,7 +16,11 @@ import {
     collection, 
     query, 
     onSnapshot, 
-    addDoc 
+    addDoc,
+    Timestamp, 
+    serverTimestamp, 
+    writeBatch, 
+    increment,
 } from 'firebase/firestore';
 
 // =================================================================
@@ -59,9 +63,9 @@ export interface Course {
     title: string;
     description: string;
     createdAt: Date;
+    updatedAt: Date;
     adminId: string;
     videoCount: number;
-    videos?: Video[]; 
 }
 
 // =================================================================
@@ -135,6 +139,13 @@ export const getCoursesCollectionRef = () => {
     return collection(firestore, `artifacts/${APP_ID_ROOT}/public/data/courses`);
 };
 
+/** Trả về collection reference cho Sub-Collection videos của một Khóa học */
+export const getVideosCollectionRef = (courseId: string) => {
+    // Đường dẫn: /artifacts/{APP_ID_ROOT}/public/data/courses/{courseId}/videos
+    const coursesRef = getCoursesCollectionRef();
+    return collection(coursesRef, courseId, 'videos');
+};
+
 // =================================================================
 // 6. AUTH HANDLERS (ID 1.2, 1.3)
 // =================================================================
@@ -204,7 +215,40 @@ export async function addCourse(title: string, description: string, adminId: str
         title,
         description,
         adminId,
-        createdAt: new Date(),
-        videoCount: 0, 
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(), // <-- THÊM
+        videoCount: 0,
     });
+}
+
+/** Admin thêm một video mới vào Sub-Collection của một Khóa học. */
+export async function addVideo(courseId: string, videoData: Omit<Video, 'id'>, adminId: string): Promise<void> {
+    const db = getFirestoreDb();
+    const batch = writeBatch(db); // Khởi tạo Batch Write
+
+    // 1. Lấy References
+    const videoRef = doc(getVideosCollectionRef(courseId)); // Doc Ref mới trong Sub-collection
+    const courseRef = doc(getCoursesCollectionRef(), courseId); // Doc Ref Khóa học cha
+
+    // 2. Chuẩn bị dữ liệu Video
+    const videoPayload = {
+        ...videoData,
+        adminId,
+        createdAt: serverTimestamp(),
+        // Không cần updatedAt cho Video (có thể thêm nếu cần)
+    };
+
+    // 3. Thực hiện Batched Write
+    // a) Thêm Document Video mới
+    batch.set(videoRef, videoPayload);
+
+    // b) Cập nhật Course cha (Tăng số lượng và thời gian cập nhật)
+    batch.update(courseRef, {
+        videoCount: increment(1), // Tăng videoCount lên 1
+        updatedAt: serverTimestamp(),
+    });
+
+    // 4. Commit (Đảm bảo cả hai thao tác thành công hoặc thất bại cùng lúc)
+    await batch.commit();
+    console.log(`Video "${videoData.title}" đã được thêm vào khóa học ${courseId} thành công.`);
 }

@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { type User } from 'firebase/auth';
-import CreateCourseForm from '../components/Admin/CreateCourseForm'; // Thêm Component mới
-import { type Course, subscribeToCourses } from '../services/firebase'; // Thêm Course và subscribeToCourses
+import CreateCourseForm from '../components/Admin/CreateCourseForm'; 
+import CreateVideoForm from '../components/Admin/CreateVideoForm'; // Import component mới
+import CourseCard from '../components/Admin/CourseCard'; // Import component mới
+import { type Course, subscribeToCourses } from '../services/firebase'; 
 
 interface AdminDashboardProps {
     user: User;
@@ -11,7 +13,10 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     const [courses, setCourses] = useState<Course[]>([]);
     const [loadingCourses, setLoadingCourses] = useState(true);
-    const [showCreateForm, setShowCreateForm] = useState(true); // Hiển thị Form mặc định
+    const [showCreateForm, setShowCreateForm] = useState(false); // Ẩn Form tạo Khóa học mặc định
+    
+    // TRẠNG THÁI MỚI: Theo dõi Khóa học đang được chọn để quản lý Video
+    const [selectedCourse, setSelectedCourse] = useState<Course | null>(null); 
 
     // =================================================================
     // Lắng nghe Real-time danh sách Khóa học
@@ -21,24 +26,50 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
         let unsubscribe = () => {};
         
         try {
-            // subscribeToCourses được định nghĩa trong firebase.ts và đã được kiểm tra
             unsubscribe = subscribeToCourses((fetchedCourses) => {
                 setCourses(fetchedCourses);
                 setLoadingCourses(false);
+
+                // Cập nhật lại selectedCourse nếu nó đã được chọn và vẫn còn trong danh sách
+                if (selectedCourse) {
+                    const updatedCourse = fetchedCourses.find(c => c.id === selectedCourse.id);
+                    // Giữ nguyên trạng thái selectedCourse nếu nó được tìm thấy (để cập nhật videoCount)
+                    if (updatedCourse) {
+                        setSelectedCourse(updatedCourse);
+                    } else {
+                        // Nếu khóa học bị xóa, reset trạng thái
+                        setSelectedCourse(null);
+                    }
+                }
             });
         } catch (e) {
             console.error("Lỗi khi lắng nghe Khóa học:", e);
             setLoadingCourses(false);
         }
 
-        // Cleanup: Hủy lắng nghe khi component unmount
+        // Cleanup function
         return () => unsubscribe();
-    }, []); 
+    }, [selectedCourse]); // Thêm selectedCourse vào dependency để cập nhật khi danh sách thay đổi
 
+    // Hàm xử lý khi Khóa học được tạo
     const handleCourseCreated = useCallback(() => {
-        // Có thể thêm logic thông báo hoặc đóng form
-        console.log("Khóa học mới được tạo, danh sách sẽ tự động cập nhật.");
-        // setShowCreateForm(false); // Có thể ẩn form sau khi tạo nếu muốn
+        setShowCreateForm(false); // Đóng form tạo Khóa học sau khi tạo
+    }, []);
+    
+    // Hàm xử lý khi Admin nhấn "Quản lý Video"
+    const handleManageVideos = useCallback((course: Course) => {
+        // Nếu nhấn lại chính khóa học đó, đóng form quản lý video (toggle)
+        if (selectedCourse?.id === course.id) {
+            setSelectedCourse(null);
+        } else {
+            setSelectedCourse(course);
+        }
+        setShowCreateForm(false); // Luôn đóng form tạo khóa học khi quản lý video
+    }, [selectedCourse]);
+
+    // Hàm đóng Form tạo Video
+    const handleCloseVideoForm = useCallback(() => {
+        setSelectedCourse(null);
     }, []);
 
     const CourseList = () => {
@@ -51,29 +82,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
         }
 
         return (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {courses.map((course) => (
-                    <div key={course.id} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition">
-                        <h4 className="text-lg font-semibold text-indigo-800">{course.title}</h4>
-                        <p className="text-sm text-gray-600 mb-2">{course.description}</p>
-                        <p className="text-xs text-gray-400">
-                            ID: {course.id} | Video: {course.videoCount} | Admin: {course.adminId}
-                        </p>
-                        {/* Level 3: Nút Chỉnh sửa/Quản lý Video sẽ ở đây */}
-                        <button 
-                            className="mt-2 text-sm text-indigo-500 hover:text-indigo-700 font-medium"
-                            onClick={() => alert(`Quản lý Video cho khóa học: ${course.title}`)}
-                        >
-                            Quản lý Video (Level 3)
-                        </button>
-                    </div>
+                    <CourseCard 
+                        key={course.id}
+                        course={course}
+                        onManageVideos={handleManageVideos}
+                        isSelected={selectedCourse?.id === course.id}
+                    />
                 ))}
             </div>
         );
     };
 
     return (
-        <div className="min-h-screen w-full bg-indigo-50 flex flex-col">
+        <div className="min-h-screen w-full bg-indigo-50 flex flex-col font-sans">
             {/* Header */}
             <header className="bg-indigo-700 shadow-lg p-4 flex justify-between items-center w-full">
                 <h1 className="text-2xl font-bold text-white">Quản trị Hệ thống (Admin)</h1>
@@ -91,9 +114,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
             {/* Main Content */}
             <main className="flex-grow p-8">
                 <div className="max-w-6xl mx-auto space-y-8">
-                    {/* Phần Form Tạo Khóa học */}
+                    {/* KHU VỰC THAO TÁC (Tạo Khóa học HOẶC Tạo Video) */}
+                    <div className="flex justify-end mb-4">
+                        <button 
+                            onClick={() => {
+                                setShowCreateForm(!showCreateForm);
+                                setSelectedCourse(null); // Đóng form video khi mở form khóa học
+                            }}
+                            className="py-2 px-4 bg-indigo-500 text-white rounded-lg shadow-md hover:bg-indigo-600 transition"
+                        >
+                            {showCreateForm ? 'Đóng Form Khóa học' : '➕ Mở Form Tạo Khóa học'}
+                        </button>
+                    </div>
+
+                    {/* HIỂN THỊ FORM TẠO KHÓA HỌC */}
                     {showCreateForm && (
-                        <div className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600">
+                        <div className="bg-white p-6 rounded-xl shadow-2xl border-t-4 border-indigo-600">
                             <CreateCourseForm 
                                 user={user} 
                                 onCourseCreated={handleCourseCreated} 
@@ -101,6 +137,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
                         </div>
                     )}
                     
+                    {/* HIỂN THỊ FORM TẠO VIDEO CHO KHÓA HỌC ĐÃ CHỌN */}
+                    {selectedCourse && (
+                         // Form tạo Video sẽ thay thế Form tạo Khóa học (hoặc ngược lại)
+                         <div className="bg-white rounded-xl shadow-2xl border-t-4 border-purple-600">
+                            <CreateVideoForm
+                                courseId={selectedCourse.id}
+                                courseTitle={selectedCourse.title}
+                                adminUser={user}
+                                onVideoCreated={() => {
+                                    // Không cần làm gì nhiều ở đây vì onSnapshot sẽ tự cập nhật videoCount
+                                }} 
+                                onClose={handleCloseVideoForm}
+                            />
+                         </div>
+                    )}
+
                     {/* Phần Danh sách Khóa học */}
                     <div className="bg-white p-6 rounded-xl shadow-2xl border-t-4 border-green-600">
                         <h2 className="text-2xl font-bold text-gray-800 mb-4">Danh sách Khóa học ({courses.length})</h2>
