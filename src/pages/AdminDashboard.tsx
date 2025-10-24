@@ -6,9 +6,12 @@ import CourseCard from '../components/Admin/CourseCard'; // Import component m�
 import VideoList from '../components/Admin/VideoList';
 import { type Course, subscribeToCourses } from '../services/firebase'; 
 
+type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
+
 interface AdminDashboardProps {
     user: User;
-    onLogout: () => void;
+    onLogout: () => Promise<void>; // Đã sửa
+    onNavigate: (page: Page, courseId?: string | null) => void; // Đã thêm
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {

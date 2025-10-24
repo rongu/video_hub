@@ -12,7 +12,7 @@ import {
     getFirestore, 
     Firestore, 
     doc, 
-    setDoc, 
+    setDoc,
     collection, 
     query, 
     onSnapshot, 
@@ -21,10 +21,18 @@ import {
     serverTimestamp, 
     writeBatch,
     increment,
-    orderBy,                 
-    QueryDocumentSnapshot,   
-    type DocumentData
-} from 'firebase/firestore';;
+    orderBy, 
+    QueryDocumentSnapshot, 
+    DocumentSnapshot, 
+    type DocumentData, 
+    FirestoreError,
+    // Thêm deleteDoc để tiện cho các bước sau
+    deleteDoc,
+    // >>> CÁC HÀM CẦN THÊM CHO ENROLLMENTS VÀ QUERY
+    where, // Thêm
+    limit, // Thêm
+    getDocs, // Thêm
+} from 'firebase/firestore';
 
 // =================================================================
 // 1. CẤU HÌNH CỐ ĐỊNH (LOCAL PC CONFIG)
@@ -60,18 +68,26 @@ export interface Video {
     duration: number; // Tính bằng giây
     order: number;
     adminId: string;
-    // FIX LỖI: Cần thêm createdAt (là number - milliseconds)
-    createdAt: number; 
+    createdAt: number; // milliseconds
 }
 
 export interface Course {
     id: string;
     title: string;
     description: string;
-    createdAt: Date;
+    // Tùy chọn giữ lại kiểu Date cho mô hình dữ liệu frontend
+    createdAt: Date; 
     updatedAt: Date;
-    adminId: string;
+    adminId: string; // [FIX LỖI 3]: Thuộc tính bắt buộc
     videoCount: number;
+}
+
+// Cấu trúc của Bản ghi Ghi danh (Enrollment)
+export interface Enrollment {
+    userId: string;
+    courseId: string;
+    enrolledAt: Date | string; 
+    status: 'active' | 'completed' | 'pending';
 }
 
 // =================================================================
@@ -145,11 +161,26 @@ export const getCoursesCollectionRef = () => {
     return collection(firestore, `artifacts/${APP_ID_ROOT}/public/data/courses`);
 };
 
+/** Trả về document reference cho một Khóa học */
+// [FIX LỖI 1]: Bổ sung hàm tiện ích getCourseDocRef
+export const getCourseDocRef = (courseId: string) => {
+    // Đường dẫn: /artifacts/{APP_ID_ROOT}/public/data/courses/{courseId}
+    const firestore = getFirestoreDb();
+    return doc(firestore, `artifacts/${APP_ID_ROOT}/public/data/courses`, courseId);
+};
+
 /** Trả về collection reference cho Sub-Collection videos của một Khóa học */
 export const getVideosCollectionRef = (courseId: string) => {
     // Đường dẫn: /artifacts/{APP_ID_ROOT}/public/data/courses/{courseId}/videos
     const coursesRef = getCoursesCollectionRef();
     return collection(coursesRef, courseId, 'videos');
+};
+
+/** Trả về collection reference cho các bản ghi ghi danh (Enrollments) */
+export const getEnrollmentsCollectionRef = () => {
+    // Đường dẫn: /artifacts/{APP_ID_ROOT}/public/data/enrollments
+    const firestore = getFirestoreDb();
+    return collection(firestore, `artifacts/${APP_ID_ROOT}/public/data/enrollments`);
 };
 
 // =================================================================
@@ -193,22 +224,33 @@ export async function handleSignOut(): Promise<void> {
 }
 
 // =================================================================
-// 7. COURSE MANAGEMENT (ID 2.1 - Vẫn giữ lại để tránh lỗi type)
+// 7. COURSE MANAGEMENT
 // =================================================================
 
 /** Lắng nghe tất cả các khóa học trong real-time. */
-export const subscribeToCourses = (callback: (courses: Course[]) => void) => {
+export const subscribeToCourses = (callback: (courses: Course[]) => void): () => void => {
     const coursesRef = getCoursesCollectionRef();
-    const q = query(coursesRef);
+    // Thêm orderBy để đảm bảo dữ liệu hiển thị có thứ tự (mới nhất lên trước)
+    const q = query(coursesRef, orderBy('createdAt', 'desc')); 
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const courses: Course[] = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: (doc.data().createdAt?.toDate() || new Date()) as Date,
-        })) as Course[];
+        const courses: Course[] = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                title: data.title as string,
+                description: data.description as string,
+                videoCount: data.videoCount as number || 0,
+                adminId: data.adminId as string, // [FIX LỖI 3]: Đảm bảo thuộc tính adminId được gán
+                createdAt: (data.createdAt as Timestamp)?.toDate() || new Date(),
+                updatedAt: (data.updatedAt as Timestamp)?.toDate() || new Date(),
+            } as Course;
+        });
 
         callback(courses);
+    }, (error: FirestoreError) => { // [FIX LỖI 4]: Định kiểu rõ ràng cho 'error'
+        console.error("Lỗi khi lắng nghe Khóa học (subscribeToCourses):", error);
+        callback([]);
     });
 
     return unsubscribe;
@@ -222,10 +264,41 @@ export async function addCourse(title: string, description: string, adminId: str
         description,
         adminId,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(), // <-- THÊM
+        updatedAt: serverTimestamp(),
         videoCount: 0,
     });
 }
+
+/**
+ * Lắng nghe real-time thông tin chi tiết của một khóa học.
+ */
+export const subscribeToCourseDetail = (courseId: string, callback: (course: Course | null) => void): (() => void) => {
+    const courseDocRef = getCourseDocRef(courseId); // [FIX LỖI 1]: getCourseDocRef đã được định nghĩa
+
+    const unsubscribe = onSnapshot(courseDocRef, (docSnap: DocumentSnapshot<DocumentData>) => { // [FIX LỖI 2]: Định kiểu rõ ràng cho 'docSnap'
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const course: Course = {
+                id: docSnap.id,
+                title: data.title as string,
+                description: data.description as string,
+                videoCount: data.videoCount as number || 0,
+                adminId: data.adminId as string, // [FIX LỖI 3]: Đảm bảo thuộc tính adminId được gán
+                createdAt: (data.createdAt as Timestamp)?.toDate() || new Date(),
+                updatedAt: (data.updatedAt as Timestamp)?.toDate() || new Date(),
+            };
+            callback(course);
+        } else {
+            callback(null); // Khóa học không tồn tại
+        }
+    }, (error: FirestoreError) => { // [FIX LỖI 4]: Định kiểu rõ ràng cho 'error'
+        console.error(`Lỗi khi lắng nghe Chi tiết Khóa học ID ${courseId}:`, error);
+        callback(null);
+        throw error;
+    });
+
+    return unsubscribe;
+};
 
 // =================================================================
 // 8. VIDEO MANAGEMENT FUNCTIONS
@@ -237,14 +310,13 @@ export async function addVideo(courseId: string, videoData: Omit<Video, 'id'>, a
 
     // 1. Lấy References
     const videoRef = doc(getVideosCollectionRef(courseId)); // Doc Ref mới trong Sub-collection
-    const courseRef = doc(getCoursesCollectionRef(), courseId); // Doc Ref Khóa học cha
+    const courseRef = getCourseDocRef(courseId); // Doc Ref Khóa học cha
 
     // 2. Chuẩn bị dữ liệu Video
     const videoPayload = {
         ...videoData,
         adminId,
         createdAt: serverTimestamp(),
-        // Không cần updatedAt cho Video (có thể thêm nếu cần)
     };
 
     // 3. Thực hiện Batched Write
@@ -272,12 +344,12 @@ export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) 
     const videosRef = getVideosCollectionRef(courseId);
     
     // FIX LỖI INDEX: Bỏ orderBy() để tránh yêu cầu Composite Index.
+    // Thực hiện sắp xếp client-side theo 'order' và 'createdAt'.
     const q = query(videosRef);
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
         let videos: Video[] = snapshot.docs.map((doc: QueryDocumentSnapshot) => {
             const data = doc.data();
-            
             const createdAtTimestamp = data.createdAt as Timestamp | undefined;
 
             return {
@@ -303,9 +375,100 @@ export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) 
         });
 
         callback(videos);
-    }, (error) => {
+    }, (error: FirestoreError) => { // [FIX LỖI 4]: Định kiểu rõ ràng cho 'error'
         console.error(`Lỗi lắng nghe Video cho Course ID ${courseId}:`, error);
     });
 
     return unsubscribe;
 };
+
+/** Admin xóa một Khóa học */
+export const deleteCourse = async (courseId: string): Promise<void> => {
+    const courseDocRef = getCourseDocRef(courseId);
+    await deleteDoc(courseDocRef);
+    // TODO: Xóa tất cả Videos thuộc về Khóa học này (Level 4.3)
+};
+
+
+// =================================================================
+// 9. ENROLLMENTS & ACCESS MANAGEMENT (Mục mới)
+// =================================================================
+
+/**
+ * Lắng nghe real-time tất cả các bản ghi ghi danh của một người dùng.
+ * Hàm này dùng trong HomePage để hiển thị các khóa học mà User đã ghi danh.
+ * @param userId UID của người dùng.
+ * @param callback Hàm callback được gọi mỗi khi danh sách ghi danh thay đổi.
+ * @returns Hàm unsubscribe để dừng lắng nghe.
+ */
+export const subscribeToUserEnrollments = (userId: string, callback: (enrollments: Enrollment[]) => void): () => void => {
+    const enrollmentsRef = getEnrollmentsCollectionRef();
+    // Truy vấn: Tìm tất cả bản ghi ghi danh có userId khớp
+    const q = query(enrollmentsRef, where('userId', '==', userId));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const enrollments: Enrollment[] = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                userId: data.userId as string,
+                courseId: data.courseId as string,
+                status: data.status as 'active' | 'completed' | 'pending',
+                // Chuyển đổi Timestamp sang Date cho giao diện Enrollment
+                enrolledAt: (data.enrolledAt as Timestamp)?.toDate() || new Date(), 
+            } as Enrollment;
+        });
+        callback(enrollments);
+    }, (error: FirestoreError) => {
+        console.error("Lỗi khi lắng nghe Enrollment của User:", error);
+        callback([]);
+    });
+
+    return unsubscribe;
+};
+
+/**
+ * Admin: Ghi danh người dùng vào một khóa học.
+ * @param userId UID của người dùng cần ghi danh.
+ * @param courseId ID của khóa học.
+ * @returns Promise<void>
+ */
+export async function enrollUser(userId: string, courseId: string): Promise<void> {
+    const enrollmentsRef = getEnrollmentsCollectionRef();
+    await addDoc(enrollmentsRef, {
+        userId,
+        courseId,
+        status: 'active',
+        enrolledAt: serverTimestamp(),
+    });
+    console.log(`User ${userId} enrolled in course ${courseId}.`);
+}
+
+/**
+ * Admin: Hủy ghi danh người dùng khỏi một khóa học.
+ * @param userId UID của người dùng.
+ * @param courseId ID của khóa học.
+ * @returns boolean: true nếu hủy thành công, false nếu không tìm thấy bản ghi.
+ */
+export async function unenrollUser(userId: string, courseId: string): Promise<boolean> {
+    const enrollmentsRef = getEnrollmentsCollectionRef();
+    
+    // Tìm bản ghi ghi danh cụ thể
+    const q = query(
+        enrollmentsRef,
+        where("userId", "==", userId),
+        where("courseId", "==", courseId),
+        limit(1) // Chỉ cần tìm 1 bản ghi
+    );
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+        // Xóa document đầu tiên tìm thấy
+        const docToDelete = snapshot.docs[0];
+        await deleteDoc(doc(enrollmentsRef, docToDelete.id));
+        console.log(`User ${userId} unenrolled from course ${courseId} successfully.`);
+        return true;
+    } else {
+        console.warn(`Enrollment record not found for user ${userId} and course ${courseId}.`);
+        return false;
+    }
+}

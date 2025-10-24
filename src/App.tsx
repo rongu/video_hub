@@ -9,18 +9,29 @@ import {
     getFirestoreDb, 
     handleSignOut, 
     getUserDocumentPath,
-    // BỎ: Course type
-} from './services/firebase.ts'; // <-- SỬA LỖI: Thêm .ts
+} from './services/firebase.ts'; 
 
 // Imports các trang giao diện 
-import LandingPage from './pages/LandingPage.tsx'; // <-- SỬA LỖI: Thêm .tsx
-import LoginPage from './pages/LoginPage.tsx'; // <-- SỬA LỖI: Thêm .tsx
-import RegisterPage from './pages/RegisterPage.tsx'; // <-- SỬA LỖI: Thêm .tsx
-import HomePage from './pages/HomePage.tsx'; // <-- SỬ DỤNG HomePage (SỬA LỖI: Thêm .tsx)
-import AdminDashboard from './pages/AdminDashboard.tsx'; // <-- SỬA LỖI: Thêm .tsx
+import LandingPage from './pages/LandingPage.tsx'; 
+import LoginPage from './pages/LoginPage.tsx'; 
+import RegisterPage from './pages/RegisterPage.tsx'; 
+import HomePage from './pages/HomePage.tsx'; 
+import AdminDashboard from './pages/AdminDashboard.tsx'; 
+import CourseDetailPage from './pages/CourseDetailPage.tsx'; 
 
-type PageType = 'landing' | 'login' | 'register' | 'user' | 'admin';
+// =================================================================
+// ĐỊNH NGHĨA TYPES (Đã sửa để khớp với yêu cầu của user)
+// =================================================================
+
+// Kiểu trang chính xác
+type PageType = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
 type UserRole = 'user' | 'admin' | 'guest';
+
+// TẠO ALIAS 'Page' để khớp với tham số 'page' trong interfaces của user
+type Page = PageType; 
+
+// Định nghĩa chung cho hàm điều hướng (KHỚP với user: page: Page, courseId?: string | null)
+type NavigateFunction = (page: Page, courseId?: string | null) => void;
 
 // Component chính của ứng dụng
 const App: React.FC = () => {
@@ -28,8 +39,7 @@ const App: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
     const [currentPage, setCurrentPage] = useState<PageType>('landing');
     const [role, setRole] = useState<UserRole>('guest'); 
-
-    // BỎ: selectedUserCourse
+    const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null); 
 
     // =================================================================
     // 1. AUTHENTICATION & INITIALIZATION 
@@ -47,7 +57,8 @@ const App: React.FC = () => {
                     setUser(currentUser);
                     if (!currentUser) {
                         setRole('guest');
-                        setCurrentPage('landing'); // Đảm bảo luôn về landing khi user = null
+                        setSelectedCourseId(null); 
+                        setCurrentPage('landing'); 
                     }
                     setIsAuthReady(true);
                 });
@@ -88,16 +99,17 @@ const App: React.FC = () => {
                     const userRole = userData.role as UserRole || 'user';
                     setRole(userRole);
                     
-                    if (userRole === 'admin') {
+                    if (userRole === 'admin' && currentPage !== 'admin') {
                         setCurrentPage('admin');
-                    } else {
-                        setCurrentPage('user'); 
+                    } else if (userRole === 'user' && currentPage !== 'home' && currentPage !== 'detail') {
+                        setCurrentPage('home'); 
                     }
                     console.log(`User role set to: ${userRole}`);
                 } else {
-                    // Nếu document không tồn tại, coi là user mới và set mặc định 'user'
                     setRole('user');
-                    setCurrentPage('user');
+                    if (currentPage !== 'detail') { 
+                        setCurrentPage('home');
+                    }
                     console.warn(`User document for UID ${user.uid} not found. Defaulting role to user.`);
                 }
             }, (error) => {
@@ -115,23 +127,25 @@ const App: React.FC = () => {
             console.error("Lỗi khi thiết lập Role Listener.", e);
             return () => {}; 
         }
-    }, [user]); 
+    }, [user, currentPage]); 
 
     // =================================================================
     // 3. HANDLERS 
     // =================================================================
     
-    const onNavigate = useCallback((page: PageType) => {
+    // Đã cập nhật signature của onNavigate để khớp với interface của user
+    const onNavigate: NavigateFunction = useCallback((page, courseId) => { 
         setCurrentPage(page);
+        setSelectedCourseId(courseId || null);
     }, []);
 
+    // Hàm handleLogout trả về Promise<void>
     const handleLogout = useCallback(async () => {
         await handleSignOut();
-        // Auth listener sẽ xử lý việc reset user/role/page sau khi signOut
     }, []);
 
     // =================================================================
-    // 4. CONTENT RENDERING (Đảm bảo luồng ưu tiên Auth/Role)
+    // 4. CONTENT RENDERING
     // =================================================================
 
     const renderContent = (): React.ReactElement => { 
@@ -146,20 +160,46 @@ const App: React.FC = () => {
 
         // 2. AUTHENTICATED USER (user !== null)
         if (user) {
-            // Đã đăng nhập, hiển thị nội dung dựa trên role và currentPage
+            
+            // Trang chi tiết khóa học
+            if (currentPage === 'detail' && selectedCourseId) {
+                return (
+                    // Nếu đã sửa CourseDetailPageProps, lỗi này sẽ biến mất
+                    <CourseDetailPage 
+                        courseId={selectedCourseId}
+                        onNavigate={onNavigate} 
+                    />
+                );
+            }
+
+            // Dashboard Admin
             if (role === 'admin' && currentPage === 'admin') {
-                return <AdminDashboard onLogout={handleLogout} user={user} />;
+                return (
+                    // Nếu đã sửa AdminDashboardProps, lỗi này sẽ biến mất
+                    <AdminDashboard 
+                        onLogout={handleLogout} 
+                        user={user} 
+                        onNavigate={onNavigate} 
+                    />
+                );
             }
             
-            if (role === 'user' && currentPage === 'user') {
-                // Trang chủ danh sách khóa học (Level 4.1)
-                return <HomePage onLogout={handleLogout} user={user} />;
+            // Trang chủ người dùng
+            if (role === 'user' && (currentPage === 'home' || currentPage === 'landing' || currentPage === 'admin')) {
+                return (
+                    // Nếu đã sửa HomePageProps, lỗi này sẽ biến mất
+                    <HomePage 
+                        onLogout={handleLogout} 
+                        user={user} 
+                        onNavigate={onNavigate} 
+                        role={role}
+                    />
+                );
             }
             
-            // Trường hợp lỗi: Đã đăng nhập nhưng role không khớp với currentPage (Rất hiếm)
-            // Trong trường hợp này, ứng dụng sẽ đợi useEffect Role Listener đẩy về trang đúng.
+            // Trường hợp lỗi/đang chờ role được xác định
             return (
-                 <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                <div className="flex items-center justify-center min-h-screen bg-gray-50">
                     <p className="text-xl text-indigo-600">Đang xác định vai trò...</p>
                 </div>
             );
@@ -177,12 +217,11 @@ const App: React.FC = () => {
                 break;
             case 'landing':
             default:
-                // Mặc định cho người dùng chưa đăng nhập
                 ComponentToRender = (
                     <LandingPage 
                         onNavigate={onNavigate} 
                         user={null} 
-                        onLogout={handleLogout} // onLogout ở đây chỉ là dummy/hỗ trợ
+                        onLogout={handleLogout} 
                     />
                 );
                 break;

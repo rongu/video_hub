@@ -97,6 +97,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                             <CourseListItem 
                                 key={course.id} 
                                 course={course}
+                                isEnrolled={true} 
                                 onViewCourse={handleViewCourse} // Hàm này sẽ chuyển hướng Guest đến Login
                             />
                         ))}
