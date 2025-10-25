@@ -9,7 +9,7 @@ import {
     getFirebaseStorage
 } from '../../services/firebase'; 
 import { type User } from 'firebase/auth';
-import { Loader2, X, UploadCloud, FileText } from 'lucide-react';
+import { Loader2, X, UploadCloud, FileText, FolderPlus } from 'lucide-react';
 
 interface CreateVideoFormProps {
     courseId: string;
@@ -21,38 +21,41 @@ interface CreateVideoFormProps {
 
 const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle, adminUser, onVideoCreated, onClose }) => {
     const [title, setTitle] = useState('');
-    // ĐÃ SỬA: Thay đổi từ File | null thành File[] để lưu danh sách tệp/folder
+    // Lưu danh sách tệp/folder
     const [files, setFiles] = useState<File[]>([]); 
     
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
-    // ĐÃ THÊM: Theo dõi tệp đang tải lên hiện tại (khi upload folder)
-    const [currentFileIndex, setCurrentFileIndex] = useState(0); 
+    // Theo dõi tệp đang tải lên hiện tại
+    const [currentFileIndex, setCurrentFileIndex] = useState(0); 
 
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    // ĐÃ SỬA: Xử lý nhiều tệp được chọn từ input (kể cả chọn thư mục)
+    // Xử lý nhiều tệp được chọn từ input (kể cả chọn tệp đơn lẻ, nhiều tệp hoặc thư mục)
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        // **CẬP NHẬT:** Reset files trước để đảm bảo mảng files chỉ chứa các tệp mới
+        setFiles([]);
+        
         if (e.target.files && e.target.files.length > 0) {
-            // Lọc các tệp không phải video
+            // Lọc các tệp không phải video
             const selectedFiles = Array.from(e.target.files).filter(f => f.type.startsWith('video/'));
 
-            if (selectedFiles.length === 0) {
+            if (selectedFiles.length === 0) {
                 setError('Vui lòng chọn ít nhất một tệp video hợp lệ.');
                 setFiles([]);
                 return;
-            }
+            }
             
             setFiles(selectedFiles);
             setError('');
             setSuccess('');
         } else {
-            setFiles([]);
-        }
+            setFiles([]);
+        }
     };
     
-    // Hàm tải lên một tệp, được giữ nguyên để gọi trong vòng lặp
+    // Hàm tải lên một tệp
     const uploadFile = async (videoFile: File, videoId: string): Promise<{ videoUrl: string, storagePath: string }> => {
         // Đường dẫn: artifacts/APP_ID_ROOT/videos/{courseId}/{videoId}/{videoName}
         // Giả định APP_ID_ROOT là 'video-hub-prod-id' như trong code cũ của bạn
@@ -66,6 +69,7 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
                 'state_changed',
                 (snapshot) => {
                     const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    // Cập nhật tiến trình cho tệp hiện tại
                     setUploadProgress(Math.round(progress)); 
                 },
                 (uploadError) => {
@@ -83,7 +87,7 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
         });
     };
 
-    // ĐÃ SỬA: Cập nhật hàm handleSubmit để lặp qua mảng files và upload hàng loạt
+    // Xử lý submit và lặp qua mảng files để upload hàng loạt
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -93,7 +97,7 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
             setError("Vui lòng nhập Tiêu đề Video.");
             return;
         }
-        // Kiểm tra files array thay vì single file
+        // Kiểm tra files array thay vì single file
         if (files.length === 0) {
             setError("Vui lòng chọn ít nhất một tệp video hoặc một thư mục.");
             return;
@@ -101,45 +105,46 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
         
         setUploading(true);
         setUploadProgress(0);
-        setCurrentFileIndex(0); 
-        let successCount = 0;
+        setCurrentFileIndex(0); 
+        let successCount = 0;
 
         try {
-            // LẶP QUA TẤT CẢ CÁC FILES ĐƯỢC CHỌN
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                
-                setCurrentFileIndex(i + 1); // Cập nhật index (bắt đầu từ 1)
-                setUploadProgress(0); // Reset progress cho file mới
-                
-                // 1. Tạo ID duy nhất cho video (mỗi video mới có một ID)
-                const videoId = generateVideoId(); 
-                
-                // 2. Tải file lên Firebase Storage
-                const { videoUrl, storagePath } = await uploadFile(file, videoId);
+            // LẶP QUA TẤT CẢ CÁC FILES ĐƯỢC CHỌN
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                
+                setCurrentFileIndex(i + 1); // Cập nhật index (bắt đầu từ 1)
+                setUploadProgress(0); // Reset progress cho file mới
+                
+                // 1. Tạo ID duy nhất cho video (mỗi video mới có một ID)
+                const videoId = generateVideoId(); 
+                
+                // 2. Tải file lên Firebase Storage
+                const { videoUrl, storagePath } = await uploadFile(file, videoId);
 
-                // 3. Chuẩn bị Tiêu đề cuối cùng
-                const baseTitle = title.trim();
-                // Lấy tên file/đường dẫn tương đối, loại bỏ đuôi mở rộng
-                const fileContext = (file.webkitRelativePath || file.name).replace(/\.[^/.]+$/, "");
+                // 3. Chuẩn bị Tiêu đề cuối cùng
+                const baseTitle = title.trim();
+                // Lấy tên file/đường dẫn tương đối, loại bỏ đuôi mở rộng
+                const fileContext = (file as any).webkitRelativePath || file.name;
+                const fileDisplayName = fileContext.replace(/\.[^/.]+$/, "");
 
-                // Nếu là upload folder (files.length > 1), nối Tiêu đề gốc với tên file
-                const finalTitle = files.length > 1 
-                    ? `${baseTitle} - ${fileContext}`
-                    : baseTitle;
-                
-                // 4. Lưu dữ liệu vào Firestore
-                await addVideo(
-                    courseId, 
-                    finalTitle, 
-                    videoUrl, 
-                    storagePath, 
-                    adminUser.uid, 
-                    videoId 
-                );
-                
-                successCount++;
-            }
+                // Nếu là upload folder (files.length > 1), nối Tiêu đề gốc với tên file
+                const finalTitle = files.length > 1 
+                    ? `${baseTitle} - ${fileDisplayName}`
+                    : baseTitle;
+                
+                // 4. Lưu dữ liệu vào Firestore
+                await addVideo(
+                    courseId, 
+                    finalTitle, 
+                    videoUrl, 
+                    storagePath, 
+                    adminUser.uid, 
+                    videoId 
+                );
+                
+                successCount++;
+            }
             
             // Thành công
             setSuccess(`Đã tải lên và thêm thành công ${successCount} video vào khóa học!`);
@@ -154,7 +159,7 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
         } finally {
             setUploading(false);
             setUploadProgress(0); 
-            setCurrentFileIndex(0);
+            setCurrentFileIndex(0);
         }
     };
 
@@ -179,8 +184,8 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
 
                 {/* Tiêu đề Video */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="title">Tiêu đề Khóa học (Tiêu đề gốc) <span className="text-red-500">*</span></label>
-                    {/* LƯU Ý: Tiêu đề này sẽ được nối với Tên File nếu upload nhiều tệp */}
+                    <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="title">Tiêu đề Gốc/Tiền tố <span className="text-red-500">*</span></label>
+                    {/* Tiêu đề này sẽ được nối với Tên File nếu upload nhiều tệp */}
                     <input
                         id="title"
                         type="text"
@@ -188,57 +193,92 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
                         onChange={(e) => setTitle(e.target.value)}
                         required
                         className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500"
-                        placeholder="Nhập tiêu đề gốc (ví dụ: 'Bài giảng Lịch sử Chương 1')..."
+                        placeholder="Nhập tiêu đề gốc (ví dụ: 'Bài giảng Chương 1')..."
                         disabled={uploading}
                     />
                 </div>
 
-                {/* Upload File/Folder Input */}
+                {/* TRẠNG THÁI FILE ĐÃ CHỌN */}
+                {files.length > 0 && (
+                    <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm font-medium text-indigo-700 flex items-center">
+                        <FileText size={16} className="mr-2"/>
+                        Đã chọn **{files.length}** tệp để tải lên.
+                    </div>
+                )}
+
+
+                {/* Upload File/Folder Selection AREA - Tách thành 2 input ẩn */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="videoFile">Chọn tệp hoặc **Thư mục** Video <span className="text-red-500">*</span></label>
-                    <input
-                        id="videoFile"
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phương thức Tải lên <span className="text-red-500">*</span></label>
+
+                    {/* Input ẩn cho FILES (Multiple files) */}
+                    <input
+                        id="fileInput"
                         type="file"
                         accept="video/*"
                         multiple 
-                        // @ts-ignore
-                        webkitdirectory="" 
                         onChange={handleFileChange}
+                        // **CẬP NHẬT:** Chỉ yêu cầu input này nếu files.length === 0 
                         required={files.length === 0} 
                         className="hidden" 
                         disabled={uploading}
                     />
-                    <label 
-                        htmlFor="videoFile"
-                        className={`mt-1 flex flex-col items-center justify-center w-full p-4 border-2 border-dashed rounded-lg cursor-pointer transition duration-200 
-                            ${files.length > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50'}
-                            ${uploading ? 'opacity-70 cursor-wait' : ''}`}
-                    >
-                        <UploadCloud size={32} className={`mb-2 ${files.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
-                        <span className="text-sm font-medium text-center">
-                            {files.length > 0 ? (
-                                <span className="flex items-center text-green-700">
-                                    <FileText size={16} className="mr-1"/> Đã chọn **{files.length}** tệp.
-                                </span>
-                            ) : (
-                                "Nhấn vào đây để chọn tệp hoặc **chọn một thư mục** để tải lên hàng loạt."
-                            )}
-                        </span>
-                    </label>
+                    
+                    {/* Input ẩn cho FOLDERS (webkitdirectory) */}
+                    <input
+                        id="folderInput"
+                        type="file"
+                        accept="video/*"
+                        // @ts-ignore
+                        webkitdirectory="" 
+                        multiple 
+                        onChange={handleFileChange}
+                        // **CẬP NHẬT:** Mặc dù không cần required vì input file đầu tiên đã có, 
+                        // nhưng chúng ta có thể giữ nguyên nếu muốn browser kiểm tra cả hai (tuy nhiên files.length kiểm soát tốt hơn)
+                        required={files.length === 0} 
+                        className="hidden" 
+                        disabled={uploading}
+                    />
+
+                    {/* Vùng chọn trực quan (hai nút) */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <label 
+                            htmlFor="fileInput"
+                            className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg cursor-pointer transition duration-200 
+                                hover:border-indigo-500 hover:bg-indigo-50 shadow-sm
+                                ${files.length === 0 ? 'border-gray-300' : 'border-green-400 bg-green-50'}`}
+                        >
+                            <UploadCloud size={28} className={`mb-1 ${files.length === 0 ? 'text-gray-400' : 'text-green-600'}`} />
+                            <span className="text-sm font-semibold text-center">Chọn Tệp Tin (Multi-File)</span>
+                            <span className="text-xs text-gray-500 mt-1">(Từng tệp video riêng lẻ)</span>
+                        </label>
+                        
+                        <label 
+                            htmlFor="folderInput"
+                            className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg cursor-pointer transition duration-200 
+                                hover:border-indigo-500 hover:bg-indigo-50 shadow-sm
+                                ${files.length === 0 ? 'border-gray-300' : 'border-green-400 bg-green-50'}`}
+                        >
+                            <FolderPlus size={28} className={`mb-1 ${files.length === 0 ? 'text-gray-400' : 'text-green-600'}`} />
+                            <span className="text-sm font-semibold text-center">Chọn Thư Mục (Folder)</span>
+                            <span className="text-xs text-gray-500 mt-1">(Tải lên hàng loạt nội dung folder)</span>
+                        </label>
+                    </div>
+
                 </div>
                 
                 {/* Progress Bar khi đang tải lên */}
                 {uploading && (
                     <div className="space-y-2 pt-2">
-                        {/* HIỂN THỊ TIẾN TRÌNH CHO TỆP HIỆN TẠI */}
+                        {/* HIỂN THỊ TIẾN TRÌNH CHO TỆP HIỆN TẠI */}
                         <p className="text-sm font-semibold text-indigo-600">
-                            Đang tải lên ({currentFileIndex}/{files.length} tệp): {uploadProgress}%
-                        </p>
-                        {files[currentFileIndex - 1] && (
-                            <p className="text-xs text-gray-500 truncate">
-                                Đang xử lý: **{files[currentFileIndex - 1].webkitRelativePath || files[currentFileIndex - 1].name}**
-                            </p>
-                        )}
+                            Đang tải lên ({currentFileIndex}/{files.length} tệp): {uploadProgress}%
+                        </p>
+                        {files[currentFileIndex - 1] && (
+                            <p className="text-xs text-gray-500 truncate">
+                                Đang xử lý: **{(files[currentFileIndex - 1] as any).webkitRelativePath || files[currentFileIndex - 1].name}**
+                            </p>
+                        )}
                         <div className="w-full bg-gray-200 rounded-full h-2.5">
                             <div 
                                 className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" 
@@ -252,14 +292,13 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
                 {/* Submit Button */}
                 <button
                     type="submit"
-                    // Điều kiện: Đang upload HOẶC không có Tiêu đề HOẶC không có files
+                    // Điều kiện: Đang upload HOẶC không có Tiêu đề HOẶC không có files
                     disabled={uploading || !title.trim() || files.length === 0} 
                     className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white transition duration-150 
                         bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {uploading ? (
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    // Hiển thị tiến trình upload folder
                     ) : (
                         <UploadCloud size={20} className="mr-2"/>
                     )}
