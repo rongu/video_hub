@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { ChevronLeft, List, Loader2, PlayCircle, Video as VideoIcon } from 'lucide-react';
-import { type Course, type Video, subscribeToCourseDetail, subscribeToVideos } from '../services/firebase.ts';
+// ĐÃ SỬA LỖI: Thay đổi đường dẫn import để giải quyết vấn đề phân giải module
+// Giả định service file 'firebase' nằm cùng cấp hoặc có thể được truy cập đơn giản hơn
+import { type Course, type Video, subscribeToCourseDetail, subscribeToVideos } from '../services/firebase';
 
 // Định nghĩa Page type và Props cho CourseDetailPage
-type Page = 'login' | 'register' | 'home' | 'admin' | 'landing' | 'viewCourse';
+type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
 
 interface CourseDetailPageProps {
     courseId: string;
@@ -19,22 +21,22 @@ interface VideoPlayerProps {
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
-    if (!video || !video.url) {
+    // ĐÃ SỬA: Thay video.url bằng video.videoUrl
+    if (!video || !video.videoUrl) {
         return (
-            <div className="bg-gray-800 rounded-lg flex items-center justify-center aspect-video text-white/70">
+            <div className="bg-gray-800 rounded-xl flex items-center justify-center aspect-video text-white/70 shadow-inner">
                 <PlayCircle size={48} className="mr-2"/> 
-                Không có Video được chọn
+                {!video ? "Không có Video nào trong khóa học" : "Không có Video được chọn"}
             </div>
         );
     }
     
-    // Giả định video.url là một liên kết trực tiếp hoặc iframe embed code (ví dụ: YouTube)
-    // Để đơn giản, chúng ta sử dụng thẻ iframe cho video nhúng
+    // ĐÃ SỬA: Thay src={video.url} bằng src={video.videoUrl}
     return (
         <div className="relative w-full aspect-video bg-black rounded-xl shadow-2xl overflow-hidden">
             <iframe
                 title={video.title}
-                src={video.url} // THAY THẾ bằng URL video thực tế (có thể cần embed URL)
+                src={video.videoUrl} // Sử dụng videoUrl
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -76,16 +78,17 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                     setCourse(fetchedCourse);
                     setError(null);
                 }
-                // Chỉ dừng loading sau khi cả hai listener (Course và Video) đã tải
             });
 
             // B. Lắng nghe danh sách Video
             unsubscribeVideos = subscribeToVideos(courseId, (fetchedVideos) => {
-                setVideos(fetchedVideos);
+                // ĐÃ XÓA: Logic sắp xếp theo video.order vì trường 'order' đã bị loại bỏ
+                const sortedVideos = fetchedVideos; // Không sắp xếp
+                setVideos(sortedVideos);
                 
                 // Nếu chưa có video nào được chọn, chọn video đầu tiên
-                if (!selectedVideo && fetchedVideos.length > 0) {
-                    setSelectedVideo(fetchedVideos[0]);
+                if (!selectedVideo && sortedVideos.length > 0) {
+                    setSelectedVideo(sortedVideos[0]);
                 }
                 setLoading(false);
             });
@@ -100,7 +103,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             unsubscribeCourse();
             unsubscribeVideos();
         };
-    }, [courseId, selectedVideo]); // Thêm selectedVideo để đảm bảo logic chọn video đầu tiên chạy đúng
+    }, [courseId, selectedVideo]);
 
     // Xử lý khi người dùng chọn video khác
     const handleSelectVideo = useCallback((video: Video) => {
@@ -136,12 +139,12 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         <div className="min-h-screen bg-gray-50 flex flex-col">
             {/* Header */}
             <header className="bg-white shadow-md p-4 sticky top-0 z-20 border-b border-gray-200">
-                 <button 
-                    onClick={() => onNavigate('home')} 
-                    className="flex items-center text-indigo-600 font-medium hover:text-indigo-800 transition duration-150"
-                 >
-                    <ChevronLeft size={20} className="mr-2"/> Quay lại Khóa học của tôi
-                 </button>
+                   <button 
+                       onClick={() => onNavigate('home')} 
+                       className="flex items-center text-indigo-600 font-medium hover:text-indigo-800 transition duration-150"
+                     >
+                        <ChevronLeft size={20} className="mr-2"/> Quay lại Khóa học của tôi
+                     </button>
             </header>
 
             {/* Main Content: Video Player và Playlist */}
@@ -159,14 +162,18 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                             <h2 className="text-2xl font-bold text-indigo-700 mb-3 border-b pb-2">
                                 {selectedVideo ? selectedVideo.title : 'Tổng quan khóa học'}
                             </h2>
-                            <p className="text-gray-600">
-                                {selectedVideo ? selectedVideo.title : course.description}
+                            <p className="text-gray-600 mb-4">
+                                {course.description}
                             </p>
+                            {/* ĐÃ XÓA: Hiển thị thời lượng vì trường 'duration' không còn */}
+                            {/*
                             {selectedVideo && (
-                                <p className="mt-4 text-sm text-gray-500">
-                                    <VideoIcon size={14} className="inline mr-1"/> Thời lượng: {Math.floor(selectedVideo.duration / 60)} phút {selectedVideo.duration % 60} giây
+                                <p className="mt-4 text-sm text-gray-500 font-medium p-2 bg-indigo-50 border-l-4 border-indigo-300 rounded-md">
+                                    <VideoIcon size={14} className="inline mr-1"/> Thời lượng: 
+                                    {Math.floor(selectedVideo.duration / 60)} phút {selectedVideo.duration % 60} giây
                                 </p>
                             )}
+                            */}
                         </div>
                     </div>
 
@@ -187,13 +194,14 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                             onClick={() => handleSelectVideo(video)}
                                             className={`p-3 rounded-lg flex items-center cursor-pointer transition duration-150 ${
                                                 selectedVideo?.id === video.id 
-                                                    ? 'bg-indigo-50 border-l-4 border-indigo-600 shadow-sm text-indigo-800 font-semibold'
+                                                    ? 'bg-indigo-100 border-l-4 border-indigo-600 shadow-inner text-indigo-800 font-semibold'
                                                     : 'hover:bg-gray-100 text-gray-700'
                                             }`}
                                         >
-                                            <PlayCircle size={18} className="mr-3 flex-shrink-0"/>
+                                            <PlayCircle size={18} className="mr-3 flex-shrink-0 text-indigo-600"/>
                                             <span className="text-sm line-clamp-2">
-                                                {video.order}. {video.title}
+                                                {/* ĐÃ XÓA: Hiển thị số thứ tự vì trường 'order' không còn */}
+                                                {video.title}
                                             </span>
                                         </div>
                                     ))
