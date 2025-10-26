@@ -31,6 +31,7 @@ import {
     limit, 
     getDocs, 
     updateDoc, 
+    getDoc, // Đã thêm getDoc để xác minh xóa
 } from 'firebase/firestore';
 
 // BỔ SUNG CÁC FIREBASE STORAGE IMPORTS CHO QUẢN LÝ VIDEO
@@ -312,6 +313,72 @@ export async function updateCourse(
 
 
 /**
+ * Admin xóa một Khóa học.
+ * QUAN TRỌNG: Xóa tất cả Sub-collection Videos và các file Storage liên quan.
+ * @param courseId ID của Khóa học cần xóa.
+ */
+export const deleteCourse = async (courseId: string): Promise<void> => {
+    const db = getFirestoreDb();
+    const storage = getFirebaseStorage();
+    const batch = writeBatch(db);
+
+    const courseDocRef = getCourseDocRef(courseId);
+    const videosRef = getVideosCollectionRef(courseId);
+    
+    // 1. Lấy tất cả Video Docs trong Sub-collection
+    const videosSnapshot = await getDocs(videosRef);
+    
+    const storagePaths: string[] = [];
+    
+    videosSnapshot.docs.forEach(docSnap => {
+        const data = docSnap.data() as Video;
+        // Thêm đường dẫn Storage vào danh sách xóa
+        if (data.storagePath) {
+            storagePaths.push(data.storagePath);
+        }
+        // Thêm document video vào batch để xóa
+        batch.delete(docSnap.ref); 
+    });
+
+    // 2. Xóa tất cả file trong Storage (bước này không dùng batch)
+    const deletionPromises = storagePaths.map(path => {
+        try {
+            const fileRef = ref(storage, path);
+            return deleteObject(fileRef);
+        } catch (e) {
+            console.warn(`Không thể xóa file Storage tại ${path}. Có thể file không tồn tại. Tiếp tục...`, e);
+            return Promise.resolve(); // Vẫn resolve để không làm crash toàn bộ quá trình
+        }
+    });
+    
+    await Promise.all(deletionPromises);
+    
+    // 3. Xóa document Khóa học chính
+    batch.delete(courseDocRef);
+
+    // 4. Commit batch: Xóa tất cả document (video + course)
+    try {
+        await batch.commit();
+        
+        // 5. BƯỚC XÁC MINH (Mới): Đọc lại document ngay lập tức sau khi commit
+        const docCheck = await getDoc(courseDocRef);
+
+        if (docCheck.exists()) {
+            // Đây là lỗi nghiêm trọng nếu batch.commit() không throw lỗi nhưng document vẫn tồn tại
+            console.error(`🔴 XÓA KHÔNG THÀNH CÔNG: Document Khóa học ID ${courseId} VẪN TỒN TẠI sau khi batch.commit() thành công!`);
+            console.error("Vui lòng kiểm tra lại APP_ID_ROOT/Project ID và Security Rules.");
+            // Không throw, vì nếu client báo thành công nhưng server thất bại thì không thể làm gì thêm từ đây
+        } else {
+            console.log(`✅ Đã xóa thành công Khóa học ID: ${courseId} và ${videosSnapshot.size} video liên quan (Đã xác minh).`);
+        }
+    } catch (error) {
+        // Cập nhật: Thêm log chi tiết nếu batch commit thất bại
+        console.error(`❌ LỖI XÓA KHÓA HỌC ID: ${courseId}. KHÔNG THỂ COMMIT BATCH (Kiểm tra Security Rules):`, error);
+        throw new Error("Xóa Khóa học thất bại. Vui lòng kiểm tra Firebase Security Rules hoặc kết nối.");
+    }
+};
+
+/**
  * Lắng nghe real-time thông tin chi tiết của một khóa học.
  */
 export const subscribeToCourseDetail = (courseId: string, callback: (course: Course | null) => void): (() => void) => {
@@ -345,51 +412,6 @@ export const subscribeToCourseDetail = (courseId: string, callback: (course: Cou
     });
 
     return unsubscribe;
-};
-
-/** * Admin xóa một Khóa học. 
- * QUAN TRỌNG: Xóa tất cả Sub-collection Videos và các file Storage liên quan.
- */
-export const deleteCourse = async (courseId: string): Promise<void> => {
-    const db = getFirestoreDb();
-    const batch = writeBatch(db);
-    const courseDocRef = getCourseDocRef(courseId);
-    
-    // 1. Xóa tất cả Videos liên quan trong Sub-Collection và Storage
-    const videosRef = getVideosCollectionRef(courseId);
-    const videosSnapshot = await getDocs(query(videosRef));
-    
-    const storage = getFirebaseStorage();
-
-    for (const doc of videosSnapshot.docs) {
-        const data = doc.data();
-        const videoId = doc.id;
-        const storagePath = data.storagePath as string;
-        
-        // a) Xóa file khỏi Storage
-        if (storagePath) {
-            const videoStorageRef = ref(storage, storagePath);
-            try {
-                // Xóa file Storage
-                await deleteObject(videoStorageRef);
-            } catch (e) {
-                console.warn(`Không thể xóa file Storage cho video ID ${videoId}. Bỏ qua lỗi và tiếp tục.`);
-                // Tiếp tục xóa Document ngay cả khi file Storage bị lỗi
-            }
-        }
-        
-        // b) Thêm lệnh xóa Document vào Batch
-        const videoDocRef = doc.ref;
-        batch.delete(videoDocRef);
-    }
-
-    // 2. Thêm lệnh xóa Khóa học vào Batch
-    batch.delete(courseDocRef);
-
-    // 3. Commit Batch Write (Xóa tất cả documents video và document course)
-    await batch.commit();
-
-    console.log(`Khóa học ID ${courseId} và tất cả videos đã được xóa hoàn toàn.`);
 };
 
 
@@ -542,7 +564,7 @@ export const deleteVideo = async (
 /**
  * Lắng nghe real-time danh sách Video của một Khóa học.
  */
-export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) => void): () => void => {
+export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) => void): (() => void) => {
     const videosRef = getVideosCollectionRef(courseId);
     
     const q = query(videosRef);
@@ -581,7 +603,7 @@ export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) 
 /**
  * Lắng nghe real-time tất cả các bản ghi ghi danh của một người dùng.
  */
-export const subscribeToUserEnrollments = (userId: string, callback: (enrollments: Enrollment[]) => void): () => void => {
+export const subscribeToUserEnrollments = (userId: string, callback: (enrollments: Enrollment[]) => void): (() => void) => {
     const enrollmentsRef = getEnrollmentsCollectionRef();
     const q = query(enrollmentsRef, where('userId', '==', userId));
 
@@ -653,4 +675,3 @@ export {
     getDownloadURL, 
     createVideo as addVideo, 
 };
-

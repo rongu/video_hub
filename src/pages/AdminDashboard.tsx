@@ -5,7 +5,7 @@ import CreateVideoForm from '../components/Admin/CreateVideoForm';
 import CourseCard from '../components/Admin/CourseCard'; 
 import VideoList from '../components/Admin/VideoList';
 // GIẢ ĐỊNH: Các service cần thiết (updateCourse, deleteCourse, v.v...) đã được thêm vào firebase.ts
-import { type Course, subscribeToCourses } from '../services/firebase'; 
+import { type Course, subscribeToCourses, deleteCourse } from '../services/firebase'; 
 import { Plus, X } from 'lucide-react';
 
 type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
@@ -99,7 +99,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
         if (window.confirm(`Bạn có chắc chắn muốn xóa khóa học "${course.title}" và tất cả video của nó không?`)) {
             try {
                 // GIẢ ĐỊNH: Hàm deleteCourse tồn tại và xử lý xóa cả video
-                // await deleteCourse(courseId);
+                await deleteCourse(course.id);
                 console.log(`Đã xóa khóa học có ID: ${course.title}`); 
                 // Sau khi xóa, state courses sẽ tự cập nhật nhờ lắng nghe real-time
                 if (selectedCourse?.id === course.id) {
