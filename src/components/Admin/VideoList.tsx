@@ -1,89 +1,146 @@
-import React, { useEffect, useState } from 'react';
-import { type Video, subscribeToVideos } from '../../services/firebase';
+import React, { useEffect, useState, useCallback } from 'react';
+import { type Video, subscribeToVideos, deleteVideo, updateVideo } from '../../services/firebase';
+import { Loader2 } from 'lucide-react';
+import VideoListItem from '../common/VideoListItem'; // Import component đã có nút Admin
+import ConfirmDeleteModal from './ConfirmDeleteModal'; 
 
 interface VideoListProps {
     courseId: string;
 }
 
-// Hàm chuyển đổi thời lượng (giây) thành định dạng phút:giây
-const formatDuration = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    const pad = (num: number) => num.toString().padStart(2, '0');
-    return `${pad(minutes)}:${pad(remainingSeconds)}`;
-};
-
+// Thành phần VideoList chính
 const VideoList: React.FC<VideoListProps> = ({ courseId }) => {
     const [videos, setVideos] = useState<Video[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    
+    // State cho việc Xóa
+    const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
-    // Lắng nghe real-time danh sách Video
+    // Lắng nghe Real-time danh sách Videos
     useEffect(() => {
         setLoading(true);
         setError(null);
-
-        // Đảm bảo có courseId để lắng nghe
-        if (!courseId) {
+        let unsubscribe = () => {};
+        
+        try {
+            unsubscribe = subscribeToVideos(courseId, (fetchedVideos) => {
+                // Sort mới nhất lên đầu, hoặc theo một trường nào đó nếu có
+                setVideos(fetchedVideos.sort((a, b) => b.createdAt - a.createdAt)); 
+                setLoading(false);
+            });
+        } catch (e) {
+            console.error("Lỗi khi lắng nghe Videos:", e);
+            setError("Lỗi khi tải danh sách video.");
             setLoading(false);
-            return;
         }
 
-        const unsubscribe = subscribeToVideos(courseId, (fetchedVideos) => {
-            setVideos(fetchedVideos);
-            setLoading(false);
-        });
-
-        // Cleanup: Dừng lắng nghe khi component bị hủy hoặc courseId thay đổi
         return () => unsubscribe();
     }, [courseId]);
 
-    if (loading) {
-        return <p className="text-center p-4 text-gray-500">Đang tải danh sách video...</p>;
-    }
+    // =================================================================
+    // LOGIC CHỈNH SỬA (Được gọi từ VideoListItem -> onEditVideo)
+    // =================================================================
+    const handleEditVideo = useCallback(async (videoId: string, newTitle: string) => {
+        try {
+            // Chỉ cập nhật trường 'title'
+            await updateVideo(courseId, videoId, { title: newTitle.trim() });
+            // Firestore onSnapshot sẽ tự động cập nhật danh sách videos
+        } catch (err) {
+            console.error("Lỗi cập nhật video:", err);
+            // Có thể hiển thị một thông báo lỗi tạm thời cho người dùng
+            alert("Cập nhật tiêu đề thất bại. Vui lòng kiểm tra console."); 
+        }
+    }, []);
 
-    if (error) {
-        return <p className="text-center p-4 text-red-500">Lỗi tải video: {error}</p>;
+
+    // =================================================================
+    // LOGIC XÓA (Được gọi từ VideoListItem -> onDeleteVideo)
+    // =================================================================
+    
+    // 1. Bắt đầu quá trình xóa (mở modal)
+    const handleDeleteClick = useCallback((videoId: string, videoTitle: string) => {
+        // Tìm video đầy đủ thông tin để lưu trữ
+        const video = videos.find(v => v.id === videoId);
+        if (video) {
+             setVideoToDelete(video);
+        } else {
+             // Trường hợp không tìm thấy, tạo đối tượng tạm thời
+             setVideoToDelete({ id: videoId, title: videoTitle } as Video); 
+        }
+    }, [videos]); 
+
+    // 2. Xác nhận xóa
+    const handleConfirmDelete = async () => {
+        if (!videoToDelete) return;
+
+        setIsDeleting(true);
+        setError(null);
+
+        try {
+            // HÀM QUAN TRỌNG: Xóa khỏi Firestore 
+            // Cần đảm bảo hàm deleteVideo trong firebase.ts của bạn nhận đúng tham số. 
+            // Giả định: deleteVideo(videoId)
+            await deleteVideo(courseId, videoToDelete.id, videoToDelete.videoUrl);
+            setVideoToDelete(null); // Đóng modal
+        } catch (err: any) {
+            console.error("Lỗi khi xóa Video:", err);
+            setError(`Xóa video thất bại. Lỗi: ${err.message || "Kiểm tra quyền Firestore."}`);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+    
+    // Hàm giả định cho luồng người dùng thường (chưa thực hiện)
+    const handleViewVideo = useCallback(() => {
+        // Logic để mở video player
+        console.log("Xem video đang được kích hoạt...");
+    }, []);
+
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center p-8 bg-white rounded-xl">
+                <Loader2 className="h-6 w-6 animate-spin text-indigo-500 mr-2" />
+                <p className="text-gray-500">Đang tải danh sách video...</p>
+            </div>
+        );
     }
 
     return (
-        <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-            <h4 className="text-lg font-semibold text-gray-700 mb-3 border-b pb-2">Danh sách Bài học ({videos.length})</h4>
+        <div className="space-y-4">
+            <h3 className="text-xl font-semibold text-gray-800">Danh sách Video ({videos.length})</h3>
             
+            {error && <p className="p-3 bg-red-100 text-red-700 rounded-lg text-sm font-medium border border-red-200">{error}</p>}
+
             {videos.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">Chưa có video nào trong khóa học này.</p>
+                <p className="text-gray-500 italic p-4 border rounded-lg bg-gray-50">Khóa học này chưa có video nào.</p>
             ) : (
-                <ul className="space-y-3">
-                    {videos.map((video) => (
-                        <li 
+                <div className="bg-white border rounded-xl divide-y">
+                    {videos.map((video, index) => (
+                        <VideoListItem 
                             key={video.id} 
-                            className="flex items-center justify-between p-3 bg-white rounded-md shadow-sm hover:shadow-md transition duration-150"
-                        >
-                            <div className="flex items-center space-x-3">
-                                <span className="text-lg font-bold text-purple-600 w-6 text-center">{video.order}</span>
-                                <div className="flex flex-col">
-                                    <span className="text-base font-medium text-gray-800">{video.title}</span>
-                                    <a 
-                                        href={video.url} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer" 
-                                        className="text-xs text-blue-500 hover:underline truncate w-64 md:w-auto"
-                                    >
-                                        {video.url}
-                                    </a>
-                                </div>
-                            </div>
-                            
-                            <div className="flex items-center space-x-4">
-                                <span className="text-sm font-semibold text-green-600">
-                                    {formatDuration(video.duration)}
-                                </span>
-                                {/* Nút chỉnh sửa/xóa sẽ được thêm ở Level sau */}
-                            </div>
-                        </li>
+                            video={video}
+                            index={index}
+                            onViewVideo={handleViewVideo}
+                            // TRUYỀN HÀM XỬ LÝ CHỈNH SỬA VÀ XÓA ĐÃ CÓ LOGIC FIREBASE
+                            onEditVideo={handleEditVideo}
+                            onDeleteVideo={handleDeleteClick} 
+                        />
                     ))}
-                </ul>
+                </div>
             )}
+            
+            {/* Modal xác nhận xóa */}
+            <ConfirmDeleteModal 
+                isOpen={!!videoToDelete}
+                onClose={() => setVideoToDelete(null)}
+                onConfirm={handleConfirmDelete}
+                title={`Xác nhận xóa Video: "${videoToDelete?.title || ''}"`}
+                description="Bạn có chắc chắn muốn xóa video này? Thao tác này không thể hoàn tác."
+                isProcessing={isDeleting}
+            />
         </div>
     );
 };

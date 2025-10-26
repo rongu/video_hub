@@ -30,6 +30,7 @@ import {
     where, 
     limit, 
     getDocs, 
+    updateDoc, 
 } from 'firebase/firestore';
 
 // BỔ SUNG CÁC FIREBASE STORAGE IMPORTS CHO QUẢN LÝ VIDEO
@@ -39,7 +40,7 @@ import {
     uploadBytes, 
     getDownloadURL, 
     deleteObject,
-    uploadBytesResumable, // <<< ĐÃ THÊM: Cần cho progress bar upload
+    uploadBytesResumable, 
 } from "firebase/storage";
 import { v4 as uuidv4 } from 'uuid'; // Thêm UUID cho ID video
 
@@ -63,40 +64,36 @@ const firebaseConfig = {
 const APP_ID_ROOT = "video-hub-prod-id"; 
 
 // =================================================================
-// 2. GLOBAL & TYPES (CẬP NHẬT: THÊM STORAGE)
+// 2. GLOBAL & TYPES (CẬP NHẬT: FIX INTERFACE Course)
 // =================================================================
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let auth: Auth | null = null;
-export let storage: ReturnType<typeof getStorage> | null = null; // <<< SỬA: Export biến storage
+export let storage: ReturnType<typeof getStorage> | null = null; 
 
-/**
- * CẬP NHẬT: Thêm storagePath và bỏ duration/order/createdAt mặc định.
- * Thêm URL và Storage Path. BỎ duration và order (sẽ được tính client-side).
- */
 export interface Video {
     id: string;
-    courseId: string; // Thêm để query dễ hơn
+    courseId: string; 
     title: string;
-    videoUrl: string; // URL tải về trực tiếp từ Firebase Storage
-    storagePath: string; // Đường dẫn trong Storage
+    videoUrl: string; 
+    storagePath: string; 
     adminId: string;
-    // Bỏ các trường order, duration, url cũ của bạn, thay bằng videoUrl/storagePath
-    // Bỏ createdAt/updatedAt khỏi interface vì chúng ta không muốn gửi nó lên payload
     createdAt: number; // milliseconds
 }
 
+/**
+ * FIX: Đổi kiểu dữ liệu của createdAt và updatedAt thành number để khớp với formatDate.
+ */
 export interface Course {
     id: string;
     title: string;
     description: string;
-    createdAt: Date; 
-    updatedAt: Date;
+    createdAt: number; // FIX: Chỉ dùng number (milliseconds)
+    updatedAt: number; // FIX: Chỉ dùng number (milliseconds)
     adminId: string; 
     videoCount: number;
-    // Cần thêm imageUrl (Tạm thời không dùng, nhưng nên có)
-    //imageUrl: string; 
+    imageUrl?: string; 
 }
 
 // Cấu trúc của Bản ghi Ghi danh (Enrollment)
@@ -108,7 +105,7 @@ export interface Enrollment {
 }
 
 // =================================================================
-// 3. INITIALIZATION (CẬP NHẬT: THÊM STORAGE)
+// 3. INITIALIZATION 
 // =================================================================
 
 /**
@@ -126,7 +123,7 @@ export async function initializeAndAuthenticate(): Promise<void> {
 
         db = getFirestore(app);
         auth = getAuth(app); 
-        storage = getStorage(app); // Khởi tạo Storage
+        storage = getStorage(app); 
         
         console.log("Firebase services initialized successfully.");
         
@@ -139,7 +136,7 @@ export async function initializeAndAuthenticate(): Promise<void> {
 }
 
 // =================================================================
-// 4. GETTERS (CẬP NHẬT: THÊM STORAGE)
+// 4. GETTERS 
 // =================================================================
 
 export const getFirestoreDb = (): Firestore => {
@@ -168,7 +165,7 @@ export const getCurrentAppId = (): string => APP_ID_ROOT;
 // =================================================================
 // 5. PATHS (Đường dẫn Firestore)
 // =================================================================
-// (GIỮ NGUYÊN CÁC HÀM PATHS CỦA BẠN)
+
 /** Trả về document reference cho profile người dùng hiện tại */
 export const getUserDocumentPath = (uid: string) => {
     const firestore = getFirestoreDb();
@@ -193,6 +190,12 @@ export const getVideosCollectionRef = (courseId: string) => {
     return collection(coursesRef, courseId, 'videos');
 };
 
+/** Trả về document reference cho một Video cụ thể */
+export const getVideoDocRef = (courseId: string, videoId: string) => {
+    const videosRef = getVideosCollectionRef(courseId);
+    return doc(videosRef, videoId);
+}
+
 /** Trả về collection reference cho các bản ghi ghi danh (Enrollments) */
 export const getEnrollmentsCollectionRef = () => {
     const firestore = getFirestoreDb();
@@ -200,9 +203,8 @@ export const getEnrollmentsCollectionRef = () => {
 };
 
 // =================================================================
-// 6. AUTH HANDLERS
+// 6. AUTH HANDLERS (Giữ nguyên)
 // =================================================================
-// (GIỮ NGUYÊN CÁC HÀM AUTH CỦA BẠN)
 
 /** Đăng ký người dùng mới và tạo document role mặc định là 'user' */
 export async function handleRegister(email: string, password: string, displayName: string): Promise<User> {
@@ -241,9 +243,8 @@ export async function handleSignOut(): Promise<void> {
 }
 
 // =================================================================
-// 7. COURSE MANAGEMENT
+// 7. COURSE MANAGEMENT (CẬP NHẬT: THÊM UPDATE VÀ XỬ LÝ DELETE PHỨC TẠP)
 // =================================================================
-// (GIỮ NGUYÊN CÁC HÀM COURSE CỦA BẠN)
 
 /** Lắng nghe tất cả các khóa học trong real-time. */
 export const subscribeToCourses = (callback: (courses: Course[]) => void): () => void => {
@@ -253,15 +254,19 @@ export const subscribeToCourses = (callback: (courses: Course[]) => void): () =>
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const courses: Course[] = snapshot.docs.map(doc => {
             const data = doc.data();
+            const createdAtTimestamp = data.createdAt as Timestamp | undefined;
+            const updatedAtTimestamp = data.updatedAt as Timestamp | undefined;
+
             return {
                 id: doc.id,
                 title: data.title as string,
                 description: data.description as string,
                 videoCount: data.videoCount as number || 0,
                 adminId: data.adminId as string,
-                imageUrl: data.imageUrl as string || 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course+Image', // Thêm imageUrl (default)
-                createdAt: (data.createdAt as Timestamp)?.toDate() || new Date(),
-                updatedAt: (data.updatedAt as Timestamp)?.toDate() || new Date(),
+                imageUrl: data.imageUrl as string || 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course+Image', 
+                // CHUYỂN ĐỔI SANG MILLISECONDS (NUMBER)
+                createdAt: createdAtTimestamp?.toMillis() || Date.now(),
+                updatedAt: updatedAtTimestamp?.toMillis() || Date.now(),
             } as Course;
         });
 
@@ -275,18 +280,36 @@ export const subscribeToCourses = (callback: (courses: Course[]) => void): () =>
 };
 
 /** Admin tạo một khóa học mới. */
-export async function addCourse(title: string, description: string, adminId: string, imageUrl: string = ''): Promise<void> {
+export async function addCourse(
+    updateData: { title?: string; description?: string ; adminId?: string}
+): Promise<void> {
     const coursesRef = getCoursesCollectionRef();
     await addDoc(coursesRef, {
-        title,
-        description,
-        adminId,
-        imageUrl: imageUrl || 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course+Image', // Thêm imageUrl
+        ...updateData,
+        imageUrl: 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course+Image', 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         videoCount: 0,
     });
 }
+
+/** * Admin cập nhật Khóa học (Title/Description).
+ * @param courseId ID của Khóa học.
+ * @param updateData Dữ liệu muốn cập nhật (title, description).
+ */
+export async function updateCourse(
+    courseId: string, 
+    updateData: { title?: string; description?: string }
+): Promise<void> {
+    const courseDocRef = getCourseDocRef(courseId);
+    
+    // Đảm bảo không ghi đè createdAt, chỉ cập nhật updatedAt
+    await updateDoc(courseDocRef, {
+        ...updateData,
+        updatedAt: serverTimestamp(),
+    });
+}
+
 
 /**
  * Lắng nghe real-time thông tin chi tiết của một khóa học.
@@ -297,19 +320,23 @@ export const subscribeToCourseDetail = (courseId: string, callback: (course: Cou
     const unsubscribe = onSnapshot(courseDocRef, (docSnap: DocumentSnapshot<DocumentData>) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
+            const createdAtTimestamp = data.createdAt as Timestamp | undefined;
+            const updatedAtTimestamp = data.updatedAt as Timestamp | undefined;
+
             const course: Course = {
                 id: docSnap.id,
                 title: data.title as string,
                 description: data.description as string,
                 videoCount: data.videoCount as number || 0,
                 adminId: data.adminId as string,
-                //imageUrl: data.imageUrl as string || 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course+Image', // Thêm imageUrl (default)
-                createdAt: (data.createdAt as Timestamp)?.toDate() || new Date(),
-                updatedAt: (data.updatedAt as Timestamp)?.toDate() || new Date(),
+                imageUrl: data.imageUrl as string || 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course+Image',
+                // CHUYỂN ĐỔI SANG MILLISECONDS (NUMBER)
+                createdAt: createdAtTimestamp?.toMillis() || Date.now(),
+                updatedAt: updatedAtTimestamp?.toMillis() || Date.now(),
             };
             callback(course);
         } else {
-            callback(null); // Khóa học không tồn tại
+            callback(null); 
         }
     }, (error: FirestoreError) => {
         console.error(`Lỗi khi lắng nghe Chi tiết Khóa học ID ${courseId}:`, error);
@@ -320,16 +347,54 @@ export const subscribeToCourseDetail = (courseId: string, callback: (course: Cou
     return unsubscribe;
 };
 
-/** Admin xóa một Khóa học */
+/** * Admin xóa một Khóa học. 
+ * QUAN TRỌNG: Xóa tất cả Sub-collection Videos và các file Storage liên quan.
+ */
 export const deleteCourse = async (courseId: string): Promise<void> => {
+    const db = getFirestoreDb();
+    const batch = writeBatch(db);
     const courseDocRef = getCourseDocRef(courseId);
-    await deleteDoc(courseDocRef);
-    // TODO: Xóa tất cả Videos thuộc về Khóa học này (Level 4.3)
+    
+    // 1. Xóa tất cả Videos liên quan trong Sub-Collection và Storage
+    const videosRef = getVideosCollectionRef(courseId);
+    const videosSnapshot = await getDocs(query(videosRef));
+    
+    const storage = getFirebaseStorage();
+
+    for (const doc of videosSnapshot.docs) {
+        const data = doc.data();
+        const videoId = doc.id;
+        const storagePath = data.storagePath as string;
+        
+        // a) Xóa file khỏi Storage
+        if (storagePath) {
+            const videoStorageRef = ref(storage, storagePath);
+            try {
+                // Xóa file Storage
+                await deleteObject(videoStorageRef);
+            } catch (e) {
+                console.warn(`Không thể xóa file Storage cho video ID ${videoId}. Bỏ qua lỗi và tiếp tục.`);
+                // Tiếp tục xóa Document ngay cả khi file Storage bị lỗi
+            }
+        }
+        
+        // b) Thêm lệnh xóa Document vào Batch
+        const videoDocRef = doc.ref;
+        batch.delete(videoDocRef);
+    }
+
+    // 2. Thêm lệnh xóa Khóa học vào Batch
+    batch.delete(courseDocRef);
+
+    // 3. Commit Batch Write (Xóa tất cả documents video và document course)
+    await batch.commit();
+
+    console.log(`Khóa học ID ${courseId} và tất cả videos đã được xóa hoàn toàn.`);
 };
 
 
 // =================================================================
-// 8. VIDEO MANAGEMENT FUNCTIONS (CẬP NHẬT VÀ BỔ SUNG CHỨC NĂNG STORAGE)
+// 8. VIDEO MANAGEMENT FUNCTIONS 
 // =================================================================
 
 /**
@@ -339,8 +404,6 @@ export const generateVideoId = () => uuidv4();
 
 /**
  * Tải file video lên Firebase Storage.
- * Hàm này hiện tại dùng uploadBytes. Trong CreateVideoForm chúng ta dùng uploadBytesResumable
- * nên hàm này có thể không cần thiết nữa nếu ta xử lý upload trong component.
  */
 export const uploadVideoFile = async (
     file: File, 
@@ -349,7 +412,7 @@ export const uploadVideoFile = async (
 ): Promise<{videoUrl: string, storagePath: string}> => {
     
     const storage = getFirebaseStorage();
-    // Path: videos/{courseId}/{videoId}/unique_filename
+    // Path: artifacts/{APP_ID_ROOT}/videos/{courseId}/{videoId}/unique_filename
     const path = `artifacts/${APP_ID_ROOT}/videos/${courseId}/${videoId}/${file.name}`; 
     const videoRef = ref(storage, path);
     
@@ -367,8 +430,6 @@ export const uploadVideoFile = async (
 };
 
 /** * Admin thêm một video mới vào Sub-Collection của một Khóa học. 
- * HÀM NÀY ĐÃ ĐƯỢC THAY THẾ HOÀN TOÀN BẰNG createVideo
- * TÔI TẠO HÀM MỚI ĐỂ PHÙ HỢP VỚI CÁCH LÀM MULTI-UPLOAD
  */
 export async function createVideo(
     courseId: string,
@@ -384,11 +445,11 @@ export async function createVideo(
     
     // 1. Lấy References
     const videosCollectionRef = getVideosCollectionRef(courseId);
-    const newVideoDocRef = doc(videosCollectionRef, videoId); // Sử dụng videoId làm Document ID
+    const newVideoDocRef = doc(videosCollectionRef, videoId); 
     const courseDocRef = getCourseDocRef(courseId);
     
     try {
-        // 2. Tạo document Video (KHÔNG CÓ description/duration/order)
+        // 2. Tạo document Video 
         batch.set(newVideoDocRef, {
             courseId,
             title,
@@ -396,12 +457,11 @@ export async function createVideo(
             storagePath,
             adminId,
             createdAt: serverTimestamp(),
-            // Thêm các trường cần thiết khác (nếu có)
         });
         
         // 3. Cập nhật videoCount của Khóa học
         batch.update(courseDocRef, {
-            videoCount: increment(1), // Tăng videoCount lên 1
+            videoCount: increment(1), 
             updatedAt: serverTimestamp(),
         });
 
@@ -416,21 +476,46 @@ export async function createVideo(
     }
 }
 
+/** * Admin cập nhật thông tin Video (hiện tại chỉ là title).
+ * @param courseId ID Khóa học cha.
+ * @param videoId ID của Video.
+ * @param updateData Dữ liệu muốn cập nhật (title).
+ */
+export async function updateVideo(
+    courseId: string, 
+    videoId: string, 
+    updateData: { title: string }
+): Promise<void> {
+    const videoDocRef = getVideoDocRef(courseId, videoId);
+    
+    await updateDoc(videoDocRef, {
+        title: updateData.title,
+    });
+}
+
+
 /**
  * Xóa video khỏi Firestore và Storage.
+ * @param courseId ID Khóa học cha.
+ * @param videoId ID của video.
+ * @param storagePath Đường dẫn trong Firebase Storage.
  */
-export const deleteVideo = async (courseId: string, video: Video): Promise<void> => {
+export const deleteVideo = async (
+    courseId: string, 
+    videoId: string,
+    storagePath: string
+): Promise<void> => {
     const db = getFirestoreDb();
     const storage = getFirebaseStorage();
     const batch = writeBatch(db);
 
     // 1. Lấy References
-    const videoDocRef = doc(getVideosCollectionRef(courseId), video.id);
+    const videoDocRef = getVideoDocRef(courseId, videoId);
     const courseDocRef = getCourseDocRef(courseId);
-    const videoStorageRef = ref(storage, video.storagePath);
+    const videoStorageRef = ref(storage, storagePath);
 
     try {
-        // 2. Xóa file khỏi Storage
+        // 2. Xóa file khỏi Storage (Không cần Batch)
         await deleteObject(videoStorageRef);
 
         // 3. Thực hiện Batched Write
@@ -439,17 +524,16 @@ export const deleteVideo = async (courseId: string, video: Video): Promise<void>
 
         // b) Cập nhật Course cha (Giảm số lượng)
         batch.update(courseDocRef, {
-            videoCount: increment(-1), // Giảm videoCount đi 1
+            videoCount: increment(-1), 
             updatedAt: serverTimestamp(),
         });
 
         // 4. Commit
         await batch.commit();
 
-        console.log(`Video "${video.title}" đã được xóa thành công.`);
+        console.log(`Video ID ${videoId} đã được xóa thành công.`);
     } catch (e) {
         console.error("Lỗi khi xóa video hoặc cập nhật Khóa học:", e);
-        // Ném lỗi lên để UI xử lý
         throw new Error("Không thể xóa video. Vui lòng kiểm tra quyền và thử lại.");
     }
 };
@@ -457,14 +541,10 @@ export const deleteVideo = async (courseId: string, video: Video): Promise<void>
 
 /**
  * Lắng nghe real-time danh sách Video của một Khóa học.
- * @param courseId ID của Khóa học cha.
- * @param callback Hàm callback được gọi mỗi khi dữ liệu video thay đổi.
- * @returns Hàm unsubscribe để dừng lắng nghe.
  */
 export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) => void): () => void => {
     const videosRef = getVideosCollectionRef(courseId);
     
-    // Sắp xếp client-side (trên trình duyệt) theo createdAt (cũ nhất lên trước)
     const q = query(videosRef);
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -474,16 +554,16 @@ export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) 
 
             return {
                 id: doc.id,
-                courseId: data.courseId as string, // Thêm courseId
+                courseId: data.courseId as string, 
                 title: data.title as string,
                 videoUrl: data.videoUrl as string,
-                storagePath: data.storagePath as string, // Thêm storagePath
+                storagePath: data.storagePath as string, 
                 adminId: data.adminId as string,
                 createdAt: createdAtTimestamp?.toMillis() || Date.now(), 
             } as Video;
         });
 
-        // Sắp xếp client-side theo thời gian tạo (cũ nhất lên trước, nghĩa là bài học đầu tiên)
+        // Sắp xếp client-side theo thời gian tạo (cũ nhất lên trước)
         videos.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); 
 
         callback(videos);
@@ -495,9 +575,8 @@ export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) 
 };
 
 // =================================================================
-// 9. ENROLLMENTS & ACCESS MANAGEMENT
+// 9. ENROLLMENTS & ACCESS MANAGEMENT (Giữ nguyên)
 // =================================================================
-// (GIỮ NGUYÊN CÁC HÀM ENROLLMENT CỦA BẠN)
 
 /**
  * Lắng nghe real-time tất cả các bản ghi ghi danh của một người dùng.
@@ -570,7 +649,8 @@ export async function unenrollUser(userId: string, courseId: string): Promise<bo
 
 export { 
     ref, 
-    uploadBytesResumable, // <<< EXPORTED
-    getDownloadURL, // <<< EXPORTED
-    createVideo as addVideo, // <<< ALIAS: Export createVideo thành addVideo để CreateVideoForm.tsx dùng
+    uploadBytesResumable, 
+    getDownloadURL, 
+    createVideo as addVideo, 
 };
+
