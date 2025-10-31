@@ -94,6 +94,8 @@ export interface Session {
     title: string;
     orderIndex: number; // Dùng để sắp xếp
     videoCount: number; // Số lượng video trong session này
+    // 🟢 THÊM: parentId. null nếu là Session cấp 1 (root session)
+    parentId: string | null; 
     createdAt: number;
     updatedAt: number;
 }
@@ -295,6 +297,8 @@ export const subscribeToSessions = (courseId: string, callback: (sessions: Sessi
                 title: data.title as string,
                 orderIndex: data.orderIndex as number || 0,
                 videoCount: data.videoCount as number || 0,
+                // 🟢 THAY ĐỔI: Đọc trường parentId. Mặc định là null nếu không có
+                parentId: (data.parentId as string | null) || null, 
                 createdAt: createdAtTimestamp?.toMillis() || Date.now(),
                 updatedAt: updatedAtTimestamp?.toMillis() || Date.now(),
             } as Session;
@@ -311,11 +315,13 @@ export const subscribeToSessions = (courseId: string, callback: (sessions: Sessi
 
 /**
  * Tạo một Session mới. Gán orderIndex bằng số lượng session hiện có + 1.
+ * 🟢 THAY ĐỔI: Thêm tham số parentId.
  */
 export async function addSession(
     courseId: string, 
     title: string, 
-    currentSessionCount: number
+    currentSessionCount: number,
+    parentId: string | null = null, // 🟢 THÊM: parentId
 ): Promise<void> {
     const sessionsRef = getSessionsCollectionRef(courseId);
     
@@ -324,13 +330,14 @@ export async function addSession(
         title,
         orderIndex: currentSessionCount + 1, // Index tiếp theo
         videoCount: 0,
+        parentId: parentId, // 🟢 GHI: parentId vào Firestore
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     });
 }
 
 /**
- * Cập nhật tiêu đề của một Session.
+ * Cập nhật tiêu đề của một Session. (Giữ nguyên)
  */
 export async function updateSession(
     courseId: string, 
@@ -346,7 +353,7 @@ export async function updateSession(
 }
 
 /**
- * Xóa Session và tất cả Video liên quan trong Session đó.
+ * Xóa Session và tất cả Video liên quan trong Session đó. (Giữ nguyên)
  * QUAN TRỌNG: Cần cập nhật videoCount của Course cha.
  */
 export const deleteSession = async (courseId: string, sessionId: string): Promise<void> => {
