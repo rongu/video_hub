@@ -145,12 +145,12 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
                 // 4. Lưu dữ liệu vào Firestore (BỔ SUNG sessionId)
                 await addVideo(
                     courseId, 
+                    selectedSessionId, // TRUYỀN SESSION ID ĐÃ CHỌN
                     finalTitle, 
                     videoUrl, 
                     storagePath, 
                     adminUser.uid, 
-                    videoId,
-                    selectedSessionId // TRUYỀN SESSION ID ĐÃ CHỌN
+                    videoId
                 );
                 
                 successCount++;
