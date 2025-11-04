@@ -32,6 +32,7 @@ import {
     getDocs, 
     updateDoc, 
     getDoc, 
+    type Query, // BỔ SUNG
 } from 'firebase/firestore';
 
 // BỔ SUNG CÁC FIREBASE STORAGE IMPORTS CHO QUẢN LÝ VIDEO
@@ -65,7 +66,7 @@ const firebaseConfig = {
 const APP_ID_ROOT = "video-hub-prod-id"; 
 
 // =================================================================
-// 2. GLOBAL & TYPES (BỔ SUNG INTERFACE Session)
+// 2. GLOBAL & TYPES 
 // =================================================================
 
 let app: FirebaseApp | null = null;
@@ -123,7 +124,7 @@ export interface Enrollment {
 }
 
 // =================================================================
-// 3. INITIALIZATION 
+// 3. INITIALIZATION & 4. GETTERS (Giữ nguyên)
 // =================================================================
 
 /**
@@ -153,10 +154,6 @@ export async function initializeAndAuthenticate(): Promise<void> {
     }
 }
 
-// =================================================================
-// 4. GETTERS 
-// =================================================================
-
 export const getFirestoreDb = (): Firestore => {
     if (!db) {
         throw new Error("Firestore DB chưa được khởi tạo.");
@@ -181,7 +178,7 @@ export const getFirebaseStorage = (): ReturnType<typeof getStorage> => {
 export const getCurrentAppId = (): string => APP_ID_ROOT;
 
 // =================================================================
-// 5. PATHS (BỔ SUNG PATHS CHO SESSION)
+// 5. PATHS (Giữ nguyên)
 // =================================================================
 
 /** Trả về document reference cho profile người dùng hiện tại */
@@ -273,7 +270,7 @@ export async function handleSignOut(): Promise<void> {
 }
 
 // =================================================================
-// 7. SESSION MANAGEMENT FUNCTIONS (BỔ SUNG)
+// 7. SESSION MANAGEMENT FUNCTIONS (Giữ nguyên)
 // =================================================================
 
 /**
@@ -488,7 +485,6 @@ export async function updateCourse(
 /**
  * Admin xóa một Khóa học.
  * QUAN TRỌNG: Xóa tất cả Sub-collection Videos và các file Storage liên quan.
- * (Không cần xử lý Sessions ở đây, vì Sessions là sub-collection của Course. Việc xóa Course sẽ xóa sub-collection Sessions.)
  * @param courseId ID của Khóa học cần xóa.
  */
 export const deleteCourse = async (courseId: string): Promise<void> => {
@@ -588,7 +584,7 @@ export const subscribeToCourseDetail = (courseId: string, callback: (course: Cou
 
 
 // =================================================================
-// 9. VIDEO MANAGEMENT FUNCTIONS (CẬP NHẬT: THÊM sessionId VÀO createVideo/deleteVideo)
+// 9. VIDEO MANAGEMENT FUNCTIONS (ĐÃ CẬP NHẬT HOÀN TOÀN)
 // =================================================================
 
 /**
@@ -628,7 +624,7 @@ export const uploadVideoFile = async (
  */
 export async function createVideo(
     courseId: string,
-    sessionId: string, // THÊM MỚI
+    sessionId: string, // ✅ NHẬN: sessionId
     title: string,
     videoUrl: string,
     storagePath: string,
@@ -643,13 +639,13 @@ export async function createVideo(
     const videosCollectionRef = getVideosCollectionRef(courseId);
     const newVideoDocRef = doc(videosCollectionRef, videoId); 
     const courseDocRef = getCourseDocRef(courseId);
-    const sessionDocRef = getSessionDocRef(courseId, sessionId); // THÊM MỚI
+    const sessionDocRef = getSessionDocRef(courseId, sessionId); // ✅ LẤY REF SESSION
     
     try {
         // 2. Tạo document Video 
         batch.set(newVideoDocRef, {
             courseId,
-            sessionId, // THÊM FIELD sessionId
+            sessionId, // ✅ GHI FIELD sessionId
             title,
             videoUrl,
             storagePath,
@@ -707,7 +703,7 @@ export const deleteVideo = async (
     courseId: string, 
     videoId: string,
     storagePath: string,
-    sessionId: string, // THÊM MỚI
+    sessionId: string, // ✅ NHẬN: sessionId
 ): Promise<void> => {
     const db = getFirestoreDb();
     const storage = getFirebaseStorage();
@@ -716,7 +712,7 @@ export const deleteVideo = async (
     // 1. Lấy References
     const videoDocRef = getVideoDocRef(courseId, videoId);
     const courseDocRef = getCourseDocRef(courseId);
-    const sessionDocRef = getSessionDocRef(courseId, sessionId); // THÊM MỚI
+    const sessionDocRef = getSessionDocRef(courseId, sessionId); // ✅ LẤY REF SESSION
     const videoStorageRef = ref(storage, storagePath);
 
     try {
@@ -733,7 +729,7 @@ export const deleteVideo = async (
             updatedAt: serverTimestamp(),
         });
         
-        // c) Cập nhật Session cha (Giảm số lượng) (THÊM MỚI)
+        // c) Cập nhật Session cha (Giảm số lượng) (ĐÃ CÓ TRONG LỖI TRƯỚC)
         batch.update(sessionDocRef, {
             videoCount: increment(-1), 
             updatedAt: serverTimestamp(),
@@ -752,13 +748,30 @@ export const deleteVideo = async (
 
 
 /**
- * Lắng nghe real-time danh sách Video của một Khóa học. CẬP NHẬT: Đọc field sessionId
+ * Lắng nghe real-time danh sách Video của một Khóa học. 
+ * ✅ CẬP NHẬT: Nhận sessionId và lọc dữ liệu (Tham số thứ 2).
  */
-export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) => void): (() => void) => {
+export const subscribeToVideos = (
+    courseId: string, 
+    sessionId: string | null, // ✅ THÊM: Tham số Session ID
+    callback: (videos: Video[]) => void
+): (() => void) => {
     const videosRef = getVideosCollectionRef(courseId);
     
-    const q = query(videosRef);
+    let q: Query; 
     
+    // Nếu có Session ID, thêm điều kiện lọc
+    if (sessionId) {
+        q = query(
+            videosRef, 
+            where('sessionId', '==', sessionId), // ✅ LỌC THEO SESSION ID
+            orderBy('createdAt', 'desc') // Sắp xếp theo mới nhất (tùy chọn)
+        );
+    } else {
+        // Trường hợp không có Session ID (có thể hiển thị tất cả nếu muốn, nhưng VideoList đã chặn)
+        q = query(videosRef, orderBy('createdAt', 'desc'));
+    }
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
         let videos: Video[] = snapshot.docs.map((doc: QueryDocumentSnapshot) => {
             const data = doc.data();
@@ -776,9 +789,9 @@ export const subscribeToVideos = (courseId: string, callback: (videos: Video[]) 
             } as Video;
         });
 
-        // Sắp xếp client-side theo thời gian tạo (cũ nhất lên trước)
-        videos.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); 
-
+        // Nếu đã dùng orderBy('desc') ở query, việc sắp xếp này có thể không cần thiết
+        // Nếu bạn muốn sắp xếp từ cũ nhất lên trước: videos.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); 
+        
         callback(videos);
     }, (error: FirestoreError) => {
         console.error(`Lỗi lắng nghe Video cho Course ID ${courseId}:`, error);

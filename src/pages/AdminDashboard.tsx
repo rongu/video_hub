@@ -4,11 +4,22 @@ import CreateCourseForm from '../components/Admin/CreateCourseForm';
 import CreateVideoForm from '../components/Admin/CreateVideoForm'; 
 import CourseCard from '../components/Admin/CourseCard'; 
 import VideoList from '../components/Admin/VideoList';
-// GIẢ ĐỊNH: Các service cần thiết (updateCourse, deleteCourse, v.v...) đã được thêm vào firebase.ts
-import { type Course, subscribeToCourses, deleteCourse } from '../services/firebase'; 
 import { Plus, X } from 'lucide-react';
+// ✅ BỔ SUNG IMPORTS: Session và subscribeToSessions
+import { 
+    type Course, 
+    type Session, // Import Session interface
+    subscribeToCourses, 
+    deleteCourse,
+    subscribeToSessions, // Import hàm lắng nghe Sessions
+} from '../services/firebase'; // Đảm bảo đường dẫn này là chính xác
 
 type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
+
+// ✅ INTERFACE COURSE ĐÃ BAO GỒM SESSIONS (từ firebase.ts)
+interface CourseWithSessions extends Course {
+    sessions?: Session[]; 
+}
 
 interface AdminDashboardProps {
     user: User;
@@ -17,21 +28,22 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavigate }) => {
-    const [courses, setCourses] = useState<Course[]>([]);
+    // Lưu ý: courses[] vẫn là Course[] gốc (không có sessions) để tối ưu hóa CourseList
+    const [courses, setCourses] = useState<Course[]>([]); 
     const [loadingCourses, setLoadingCourses] = useState(true);
     
     // TRẠNG THÁI MỚI: Theo dõi Khóa học đang được chỉnh sửa (nếu null là chế độ tạo mới)
     const [courseToEdit, setCourseToEdit] = useState<Course | null>(null);
-    const [showCourseForm, setShowCourseForm] = useState(false); // Dùng để đóng mở Form Khóa học
+    const [showCourseForm, setShowCourseForm] = useState(false); 
     
-    // Theo dõi Khóa học đang được chọn để quản lý Video
-    const [selectedCourse, setSelectedCourse] = useState<Course | null>(null); 
+    // ✅ THAY ĐỔI: selectedCourse bây giờ là CourseWithSessions để chứa Sessions
+    const [selectedCourse, setSelectedCourse] = useState<CourseWithSessions | null>(null); 
     
     // Key để force reload VideoList (khi tạo/cập nhật/xóa video)
     const [videoUpdateKey, setVideoUpdateKey] = useState(0); 
 
     // =================================================================
-    // Lắng nghe Real-time danh sách Khóa học
+    // 1. Lắng nghe Real-time danh sách Khóa học (Không kèm Sessions)
     // =================================================================
     useEffect(() => {
         setLoadingCourses(true);
@@ -46,13 +58,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                 setSelectedCourse(prevSelectedCourse => {
                     if (prevSelectedCourse) {
                         const updatedCourse = fetchedCourses.find(c => c.id === prevSelectedCourse.id);
-                        // Giữ lại tham chiếu mới nếu khóa học tồn tại, nếu không thì reset
-                        return updatedCourse || null; 
+                        if (updatedCourse) {
+                            // Giữ lại sessions cũ trong khi chờ fetch sessions mới (hoặc sessions hiện tại)
+                            return { ...updatedCourse, sessions: prevSelectedCourse.sessions || [] }; 
+                        }
+                        return null; // Khóa học bị xóa
                     }
                     return prevSelectedCourse; 
                 });
                 
-                // Cập nhật courseToEdit an toàn khi danh sách thay đổi (dùng khi form đang mở)
                 setCourseToEdit(prevCourseToEdit => {
                     if (prevCourseToEdit) {
                         const updatedCourse = fetchedCourses.find(c => c.id === prevCourseToEdit.id);
@@ -65,43 +79,66 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
             console.error("Lỗi khi lắng nghe Khóa học:", e);
             setLoadingCourses(false);
         }
-
-        // Cleanup function
         return () => unsubscribe();
     }, []); 
 
     // =================================================================
-    // Handlers cho CRUD Khóa học
+    // 2. Lắng nghe Real-time Sessions khi selectedCourse thay đổi
+    // =================================================================
+    useEffect(() => {
+        // Chỉ chạy khi có Khóa học được chọn
+        if (!selectedCourse?.id) return;
+        
+        console.log(`Bắt đầu lắng nghe Sessions cho Course ID: ${selectedCourse.id}`);
+        
+        const unsubscribeSessions = subscribeToSessions(selectedCourse.id, (fetchedSessions) => {
+            console.log(`✅ Đã fetch ${fetchedSessions.length} Sessions cho Course ID: ${selectedCourse.id}`);
+            
+            // ✅ CẬP NHẬT: Đính kèm danh sách sessions vào state selectedCourse
+            setSelectedCourse(prevCourse => {
+                if (!prevCourse || prevCourse.id !== selectedCourse.id) return prevCourse;
+                
+                return {
+                    ...prevCourse,
+                    sessions: fetchedSessions,
+                };
+            });
+        });
+
+        // Cleanup: Ngừng lắng nghe khi component unmount hoặc selectedCourse thay đổi
+        return () => {
+            console.log(`Ngừng lắng nghe Sessions cho Course ID: ${selectedCourse.id}`);
+            unsubscribeSessions();
+        };
+
+    }, [selectedCourse?.id]); // Phụ thuộc vào ID của Khóa học được chọn
+
+    // =================================================================
+    // Handlers cho CRUD Khóa học (Giữ nguyên)
     // =================================================================
 
-    // Hàm mở Form Tạo Khóa học mới
     const handleStartCreateCourse = useCallback(() => {
         setCourseToEdit(null);
         setSelectedCourse(null);
         setShowCourseForm(true);
     }, []);
 
-    // Hàm mở Form Chỉnh sửa Khóa học
     const handleEditCourse = useCallback((course: Course) => {
         setCourseToEdit(course);
-        setSelectedCourse(null); // Đóng form quản lý video nếu đang mở
-        setShowCourseForm(true); // Mở form chỉnh sửa
+        setSelectedCourse(null); 
+        setShowCourseForm(true); 
     }, []);
 
-    // Hàm xử lý sau khi Khóa học được tạo HOẶC cập nhật
     const handleCourseSaved = useCallback(() => {
         setCourseToEdit(null); 
-        setShowCourseForm(false); // Đóng form
+        setShowCourseForm(false); 
     }, []);
     
-    // Hàm xử lý Xóa Khóa học (Giả định hàm deleteCourse đã có trong services/firebase)
     const handleDeleteCourse = useCallback(async (course: Course) => {
         if (window.confirm(`Bạn có chắc chắn muốn xóa khóa học "${course.title}" và tất cả video của nó không?`)) {
             try {
-                // GIẢ ĐỊNH: Hàm deleteCourse tồn tại và xử lý xóa cả video
                 await deleteCourse(course.id);
                 console.log(`Đã xóa khóa học có ID: ${course.title}`); 
-                // Sau khi xóa, state courses sẽ tự cập nhật nhờ lắng nghe real-time
                 if (selectedCourse?.id === course.id) {
                     setSelectedCourse(null);
                 }
@@ -114,28 +151,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
 
 
     // =================================================================
-    // Handlers cho Quản lý Video
+    // Handlers cho Quản lý Video (Điều chỉnh để chấp nhận CourseWithSessions)
     // =================================================================
     
-    // Hàm xử lý khi Admin nhấn "Quản lý Video"
-    const handleManageVideos = useCallback((course: Course) => {
-        // Toggle: Nếu nhấn lại chính khóa học đó, đóng form quản lý video
+    // ✅ THAY ĐỔI: Chấp nhận CourseWithSessions để gán cho selectedCourse
+    const handleManageVideos = useCallback((course: CourseWithSessions) => {
         if (selectedCourse?.id === course.id) {
             setSelectedCourse(null);
         } else {
-            setSelectedCourse(course);
+            // Khi chọn khóa học, gán nó vào state. useEffect (2) sẽ fetch sessions
+            setSelectedCourse(course); 
         }
-        setShowCourseForm(false); // Luôn đóng form khóa học khi quản lý video
-        setCourseToEdit(null); // Đảm bảo form khóa học không ở chế độ edit
+        setShowCourseForm(false); 
+        setCourseToEdit(null); 
     }, [selectedCourse]);
 
-    // Hàm đóng Form tạo Video/Quản lý Video (sau khi tạo xong hoặc nhấn X)
     const handleCloseVideoForm = useCallback(() => {
         setSelectedCourse(null);
     }, []);
 
-    // Hàm được gọi khi một video được tạo/cập nhật/xóa thành công (force refresh VideoList)
     const handleVideoChange = useCallback(() => {
+        // Force refresh VideoList và kích hoạt re-render để hiển thị số lượng video mới
         setVideoUpdateKey(prev => prev + 1); 
     }, []);
 
@@ -155,9 +191,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                     <CourseCard 
                         key={course.id}
                         course={course}
-                        onManageVideos={handleManageVideos}
-                        onEditCourse={handleEditCourse} // PROP MỚI
-                        onDeleteCourse={handleDeleteCourse} // PROP MỚI
+                        // ✅ Đảm bảo CourseCard gọi handleManageVideos với kiểu CourseWithSessions nếu có
+                        onManageVideos={handleManageVideos} 
+                        onEditCourse={handleEditCourse} 
+                        onDeleteCourse={handleDeleteCourse} 
                         isSelected={selectedCourse?.id === course.id}
                     />
                 ))}
@@ -212,33 +249,47 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                                 </h2>
                                 <CreateCourseForm 
                                     user={user} 
-                                    initialCourse={courseToEdit} // PROP MỚI: Truyền object để kích hoạt chế độ Edit
-                                    onCourseSaved={handleCourseSaved} // Đổi tên handler cho cả Create và Update
+                                    initialCourse={courseToEdit} 
+                                    onCourseSaved={handleCourseSaved} 
                                 />
                             </div>
                         </div>
                     )}
                     
-                    {/* HIỂN THỊ KHU VỰC QUẢN LÝ VIDEO (Tạo + Danh sách) */}
+                    {/* HIỂN THỊ KHU VỰC QUẢN LÝ VIDEO VÀ SESSION */}
                     {selectedCourse && (
                          <div className="bg-white rounded-xl shadow-2xl border-t-4 border-purple-600 p-6 space-y-8">
                             <h2 className="text-2xl font-bold text-purple-700 border-b pb-3">Quản lý Video cho khóa học: "{selectedCourse.title}"</h2>
+                            <p className="text-sm text-gray-500">
+                                Tổng số Video: **{selectedCourse.videoCount}** | Tổng số Chương: **{selectedCourse.sessions?.length || 0}**
+                            </p>
                             
-                            {/* Form tạo Video (Có thể dùng cho Edit nếu bạn muốn) */}
-                            <CreateVideoForm
-                                courseId={selectedCourse.id}
-                                courseTitle={selectedCourse.title}
-                                adminUser={user}
-                                onVideoCreated={handleVideoChange} // Kích hoạt cập nhật danh sách
-                                onClose={handleCloseVideoForm}
-                            />
-                            
-                            {/* Danh sách Video */}
-                            <VideoList 
-                                // Key này giúp VideoList tự động fetch lại data khi selectedCourse đổi hoặc có thay đổi video
-                                key={selectedCourse.id + videoUpdateKey} 
-                                courseId={selectedCourse.id} 
-                            />
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                
+                                {/* Cột 2 & 3: Tạo và Danh sách Video */}
+                                <div className="lg:col-span-2 space-y-6">
+                                    {/* Form tạo Video */}
+                                    <CreateVideoForm
+                                        courseId={selectedCourse.id}
+                                        courseTitle={selectedCourse.title}
+                                        adminUser={user}
+                                        // ✅ TRUYỀN SESSIONS VÀO FORM TẠO VIDEO ĐỂ CHỌN
+                                        sessions={selectedCourse.sessions || []} 
+                                        onVideoCreated={handleVideoChange}
+                                        onClose={handleCloseVideoForm}
+                                    />
+                                    
+                                    {/* Danh sách Video */}
+                                    <VideoList 
+                                        // Key này giúp VideoList tự động fetch lại data khi selectedCourse đổi hoặc có thay đổi video
+                                        key={selectedCourse.id + videoUpdateKey} 
+                                        courseId={selectedCourse.id} 
+                                        // ✅ TRUYỀN SESSIONS VÀO VIDEOLIST ĐỂ HIỂN THỊ TÊN SESSION
+                                        sessions={selectedCourse.sessions || []}
+                                        onVideoChanged={handleVideoChange} // Kích hoạt update key nếu có xóa/cập nhật
+                                    />
+                                </div>
+                            </div>
                         </div>
                     )}
 

@@ -1,28 +1,32 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { PlayCircle, Edit2, Trash2, Save, X } from 'lucide-react';
+// ✅ BỔ SUNG Bookmark icon
+import { PlayCircle, Edit2, Trash2, Save, X, Bookmark } from 'lucide-react';
 // Giữ lại imports mặc dù không gọi trực tiếp để TypeScript biết kiểu dữ liệu
 import { type Video, updateVideo, deleteVideo } from '../../services/firebase'; 
 
 interface VideoListItemProps {
-    video: Video;
+    video: Video; // Video đã có sessionId
     index: number;
     // Chức năng: Gọi hàm cập nhật/xóa được truyền từ VideoList
     onEditVideo: (videoId: string, newTitle: string) => void;
-    onDeleteVideo: (videoId: string, videoTitle: string) => void;
+    
+    // ✅ THAY ĐỔI LỚN: Bây giờ onDeleteVideo nhận toàn bộ object Video
+    onDeleteVideo: (video: Video) => void; 
+    
     // onViewVideo được giữ lại cho luồng người dùng thường (xem video)
     onViewVideo: (video: Video) => void; 
+    // ✅ BỔ SUNG: Dùng cho CSS lồng nhau (đã thêm trong VideoList.tsx)
+    className?: string; 
 }
 
-// LƯU Ý: Đã loại bỏ formatDuration vì không sử dụng duration
-
-const VideoListItem: React.FC<VideoListItemProps> = ({ video, index, onViewVideo, onEditVideo, onDeleteVideo }) => {
+const VideoListItem: React.FC<VideoListItemProps> = ({ video, index, onViewVideo, onEditVideo, onDeleteVideo, className = '' }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [newTitle, setNewTitle] = useState(video.title);
     const [loading, setLoading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // =================================================================
-    // EFFECT & Handlers CƠ BẢN
+    // EFFECT & Handlers CƠ BẢN (Giữ nguyên)
     // =================================================================
     
     // Đảm bảo tiêu đề được đồng bộ hóa
@@ -52,7 +56,7 @@ const VideoListItem: React.FC<VideoListItemProps> = ({ video, index, onViewVideo
     }, [isEditing, onViewVideo, video]);
 
     // =================================================================
-    // Handlers GỌI PROP (Được giữ nguyên logic đúng đắn)
+    // Handlers GỌI PROP (Đã cập nhật onDeleteVideo)
     // =================================================================
     
     // Xử lý lưu tiêu đề (Kích hoạt prop onEditVideo)
@@ -81,9 +85,9 @@ const VideoListItem: React.FC<VideoListItemProps> = ({ video, index, onViewVideo
     // Xử lý xóa (Kích hoạt prop onDeleteVideo)
     const handleDeleteClick = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        // Gọi prop onDeleteVideo để VideoList (cha) hiển thị modal xác nhận
-        onDeleteVideo(video.id, video.title);
-    }, [video.id, video.title, onDeleteVideo]);
+        // ✅ THAY ĐỔI: Thay vì truyền ID và Title, truyền toàn bộ object Video
+        onDeleteVideo(video); 
+    }, [video, onDeleteVideo]); // Dependency là [video, onDeleteVideo]
 
 
     // =================================================================
@@ -92,7 +96,7 @@ const VideoListItem: React.FC<VideoListItemProps> = ({ video, index, onViewVideo
     
     if (isEditing) {
         return (
-            <div className="flex items-center p-4 bg-indigo-50 border-2 border-indigo-400 rounded-xl shadow-lg transition duration-300">
+            <div className={`flex items-center p-4 bg-indigo-50 border-2 border-indigo-400 rounded-xl shadow-lg transition duration-300 ${className}`}>
                 <div className="flex-shrink-0 w-8 text-lg font-bold text-indigo-600 mr-4 text-center">
                     #{index + 1}
                 </div>
@@ -134,14 +138,22 @@ const VideoListItem: React.FC<VideoListItemProps> = ({ video, index, onViewVideo
     return (
         <div 
             onClick={handleViewClick}
-            className="flex items-center p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition duration-300 cursor-pointer border border-gray-100 hover:border-indigo-400"
+            // ✅ BỔ SUNG className vào div chính
+            className={`flex items-center p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition duration-300 cursor-pointer border border-gray-100 hover:border-indigo-400 ${className}`}
         >
             <div className="flex-shrink-0 w-8 text-lg font-bold text-indigo-600 mr-4 text-center">
                 #{index + 1}
             </div>
             <div className="flex-grow">
                 <p className="text-gray-800 font-semibold truncate hover:text-indigo-600">{video.title}</p>
-                {/* LƯU Ý: Đã loại bỏ phần hiển thị Thời lượng */}
+                
+                {/* Hiển thị Session mà video này thuộc về */}
+                <div className="text-xs text-gray-500 mt-1 flex items-center space-x-2">
+                    <Bookmark size={14} className="text-indigo-400"/>
+                    <span className="font-medium">
+                        **Session ID:** {video.sessionId}
+                    </span>
+                </div>
             </div>
 
             {/* Vùng nút Admin (Edit/Delete) */}
