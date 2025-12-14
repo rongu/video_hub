@@ -1,15 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { type User } from 'firebase/auth';
-// Import type Firestore để sử dụng trong state
 import { doc, onSnapshot, type Firestore } from 'firebase/firestore'; 
-// ✅ FIX: Thêm Loader2 vào import
 import { Loader2 } from 'lucide-react'; 
 
 // Imports các services cần thiết cho Video Hub
 import { 
     initializeAndAuthenticate, 
     getFirebaseAuth, 
-    getFirestoreDb, // Chỉ dùng để lấy instance SAU KHI khởi tạo
+    getFirestoreDb, 
     handleSignOut, 
     getAppUsersCollectionRef,
     type AppUser 
@@ -24,7 +22,7 @@ import AdminDashboard from './pages/AdminDashboard.tsx';
 import CourseDetailPage from './pages/CourseDetailPage.tsx'; 
 
 // =================================================================
-// ĐỊNH NGHĨA TYPES (CHUẨN HÓA)
+// ĐỊNH NGHĨA TYPES & HÀM TIỆN ÍCH CHO ROUTING
 // =================================================================
 
 type PageType = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
@@ -32,17 +30,41 @@ type UserRole = 'student' | 'admin' | null;
 type Page = PageType; 
 type NavigateFunction = (page: Page, courseId?: string | null) => void;
 
+/**
+ * Phân tích URL hiện tại và chuyển đổi thành Page/CourseId
+ */
+const parseUrl = (pathname: string): { page: Page, courseId: string | null } => {
+    // Luôn đảm bảo pathname bắt đầu bằng '/'
+    const path = pathname.toLowerCase().replace(/\/$/, ''); 
+    
+    // Kiểm tra trang chi tiết khóa học: /detail/{courseId}
+    const detailMatch = path.match(/\/detail\/([a-zA-Z0-9_-]+)/);
+    if (detailMatch) {
+        return { page: 'detail', courseId: detailMatch[1] };
+    }
+    
+    // Kiểm tra các trang chính
+    if (path === '/home') return { page: 'home', courseId: null };
+    if (path === '/admin') return { page: 'admin', courseId: null };
+    if (path === '/login') return { page: 'login', courseId: null };
+    if (path === '/register') return { page: 'register', courseId: null };
+
+    // Mặc định: Landing page
+    return { page: 'landing', courseId: null };
+};
+
 // Component chính của ứng dụng
 const App: React.FC = () => {
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [user, setUser] = useState<User | null>(null);
     const [role, setRole] = useState<UserRole>(null); 
-    const [currentPage, setCurrentPage] = useState<Page>('landing');
-    const [currentCourseId, setCurrentCourseId] = useState<string | null>(null);
+    
+    // Khởi tạo state điều hướng dựa trên URL hiện tại
+    const initialRoute = parseUrl(window.location.pathname);
+    const [currentPage, setCurrentPage] = useState<Page>(initialRoute.page);
+    const [currentCourseId, setCurrentCourseId] = useState<string | null>(initialRoute.courseId);
 
-    // ✅ MỚI: State để lưu trữ instance Firestore, bắt đầu bằng null
     const [dbInstance, setDbInstance] = useState<Firestore | null>(null);
-
 
     // =================================================================
     // HOOK 1: Khởi tạo Firebase và Lắng nghe trạng thái Auth
@@ -52,8 +74,7 @@ const App: React.FC = () => {
         // 1. Khởi tạo Firebase
         initializeAndAuthenticate().then(() => {
             const auth = getFirebaseAuth();
-            // Gán instance DB sau khi khởi tạo thành công
-            setDbInstance(getFirestoreDb()); // DB đã sẵn sàng!
+            setDbInstance(getFirestoreDb()); 
 
             // 2. Lắng nghe trạng thái Auth
             const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
@@ -62,21 +83,31 @@ const App: React.FC = () => {
                 setIsAuthReady(true);
                 
                 if (!currentUser) {
-                    setCurrentPage('landing');
+                    // Nếu đăng xuất, luôn đẩy về landing page trong URL
+                    onNavigate('landing'); 
                 }
             });
 
             // Cleanup Auth Listener
             return () => unsubscribeAuth();
         });
-    }, []);
+        
+        // 3. Lắng nghe sự kiện Popstate (Back/Forward)
+        const handlePopState = () => {
+            const newRoute = parseUrl(window.location.pathname);
+            setCurrentPage(newRoute.page);
+            setCurrentCourseId(newRoute.courseId);
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []); // Chỉ chạy một lần khi mount
 
     // =================================================================
-    // HOOK 2: Lắng nghe Role từ Firestore (Phụ thuộc vào dbInstance)
+    // HOOK 2: Lắng nghe Role từ Firestore & Điều hướng ban đầu
     // =================================================================
 
     useEffect(() => {
-        // ✅ THAY ĐỔI: Chỉ chạy khi User đăng nhập VÀ DB đã sẵn sàng
         if (!user || !dbInstance) {
             setRole(null);
             return;
@@ -85,59 +116,110 @@ const App: React.FC = () => {
         const usersCollectionRef = getAppUsersCollectionRef();
         const userRoleDocRef = doc(usersCollectionRef, user.uid); 
 
-        // Lắng nghe thay đổi Role/Profile của user
         const unsubscribeRole = onSnapshot(userRoleDocRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data() as AppUser; 
                 const userRole = data.role as UserRole; 
                 setRole(userRole);
                 
+                // Sau khi Role được xác định, đảm bảo URL khớp với vai trò
+                const currentRoute = parseUrl(window.location.pathname);
+                
                 if (userRole === 'admin') {
-                    setCurrentPage('admin');
+                    // Nếu đang ở trang không phải admin/home/detail, chuyển về admin
+                    if (currentRoute.page !== 'admin' && currentRoute.page !== 'home' && currentRoute.page !== 'detail') {
+                        onNavigate('admin');
+                    }
                 } else if (userRole === 'student') { 
-                    setCurrentPage('home');
+                    // Nếu đang ở trang admin, chuyển về home
+                    if (currentRoute.page === 'admin') {
+                        onNavigate('home');
+                    }
                 }
+                
+                // Cập nhật lại state trang (để đảm bảo đồng bộ với URL)
+                setCurrentPage(currentRoute.page);
+                setCurrentCourseId(currentRoute.courseId);
+                
             } else {
                 console.warn(`Profile for user ${user.uid} not found. Defaulting to student role.`);
                 setRole('student');
-                setCurrentPage('home'); 
+                // Nếu không có profile, chuyển về Home
+                onNavigate('home');
             }
         }, (error) => {
             console.error("Lỗi khi lắng nghe Role/Profile:", error);
             setRole('student'); 
-            setCurrentPage('home'); 
+            onNavigate('home');
         });
 
-        // Cleanup Role Listener
         return () => unsubscribeRole();
     }, [user, dbInstance]); // Chạy lại khi user HOẶC dbInstance thay đổi
 
     // =================================================================
-    // HANDLERS (Giữ nguyên)
+    // HÀM ĐIỀU HƯỚNG CHÍNH (Cập nhật History API)
+    // =================================================================
+
+    const onNavigate: NavigateFunction = useCallback((page, courseId = null) => {
+        let path = '';
+        let title = 'Video Hub';
+
+        // 1. Tạo đường dẫn URL
+        if (page === 'landing') {
+            path = '/';
+            title = 'Video Hub | Chào mừng';
+        } else if (page === 'login') {
+            path = '/login';
+            title = 'Video Hub | Đăng nhập';
+        } else if (page === 'register') {
+            path = '/register';
+            title = 'Video Hub | Đăng ký';
+        } else if (page === 'home') {
+            path = '/home';
+            title = 'Video Hub | Trang chủ';
+        } else if (page === 'admin') {
+            // Kiểm tra quyền (chỉ admin mới được vào admin path)
+            if (role !== 'admin') {
+                console.warn("Truy cập Admin bị từ chối.");
+                path = '/home';
+                title = 'Video Hub | Trang chủ';
+            } else {
+                path = '/admin';
+                title = 'Video Hub | Quản trị';
+            }
+        } else if (page === 'detail' && courseId) {
+            path = `/detail/${courseId}`;
+            title = 'Video Hub | Chi tiết Khóa học';
+        } else {
+            path = '/'; 
+            title = 'Video Hub | Chào mừng';
+        }
+
+        // 2. Cập nhật History API (Làm cho nút Back/Forward hoạt động)
+        // Sử dụng replaceState nếu trang hiện tại là landing/login/register, tránh spam history
+        const historyAction = (window.location.pathname === path || window.location.pathname === '/') 
+                              ? 'replaceState' : 'pushState';
+
+        window.history[historyAction]({}, title, path);
+
+        // 3. Cập nhật state nội bộ (Component sẽ re-render)
+        setCurrentPage(page);
+        setCurrentCourseId(courseId);
+        
+    }, [role]); 
+
+    // =================================================================
+    // RENDER CONTENT (Giữ nguyên logic điều kiện)
     // =================================================================
 
     const handleLogout = useCallback(async () => {
         await handleSignOut();
-        setCurrentPage('landing');
+        onNavigate('landing'); // Chuyển hướng bằng navigator mới
         setCurrentCourseId(null);
-    }, []);
-
-    const onNavigate: NavigateFunction = useCallback((page, courseId = null) => {
-        if (page === 'admin' && role !== 'admin') {
-            console.warn("Truy cập bị từ chối: Không phải Admin.");
-            return;
-        }
-        
-        setCurrentPage(page);
-        setCurrentCourseId(courseId);
-    }, [role]); 
-
-    // =================================================================
-    // RENDER CONTENT
-    // =================================================================
+    }, [onNavigate]);
 
     const renderContent = () => {
-        // ✅ THAY ĐỔI: Chờ cả Auth và DB Instance sẵn sàng
+        // Chờ Auth và DB Instance sẵn sàng
         if (!isAuthReady || !dbInstance) {
             return (
                 <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -160,9 +242,9 @@ const App: React.FC = () => {
                 );
             }
 
-            // 1b. Đã có Role
             let ComponentToRender: React.ReactElement; 
 
+            // Logic điều hướng dựa trên currentPage và role (đã đồng bộ với URL)
             if (role === 'admin' && currentPage === 'admin') {
                 ComponentToRender = (
                     <AdminDashboard 
@@ -179,6 +261,7 @@ const App: React.FC = () => {
                     />
                 );
             } else {
+                // Trang Home cho Student, hoặc default cho Admin
                 ComponentToRender = (
                     <HomePage 
                         onLogout={handleLogout} 

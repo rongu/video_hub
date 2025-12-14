@@ -1,38 +1,38 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { type User } from 'firebase/auth';
-import { LogOut, Loader2, BookOpen, Home } from 'lucide-react';
-import { onSnapshot } from 'firebase/firestore'; // Cần import onSnapshot từ firebase/firestore
+import { LogOut, Loader2, BookOpen, Home, ArrowRight, BarChart3, Users } from 'lucide-react';
+import { onSnapshot } from 'firebase/firestore';
 import { 
     type Course, 
-    type Enrollment, // Import Enrollment type
-    subscribeToUserEnrollments, // Hàm mới: Lắng nghe bản ghi ghi danh
-    getCourseDocRef, // Hàm lấy tham chiếu Course Doc
+    type Enrollment, 
+    subscribeToUserEnrollments, 
+    getCourseDocRef, 
 } from '../services/firebase.ts';
 import CourseListItem from '../components/User/CourseListItem.tsx';
 
-// Định nghĩa lại Page type để sử dụng trong component này
 type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
+type UserRole = 'student' | 'admin' | null; 
 
 interface HomePageProps {
     user: User; 
     onLogout: () => Promise<void>;
     onNavigate: (page: Page, courseId?: string | null) => void;
-    // ✅ FIX LỖI TYPE: Sửa 'user' thành 'student' để khớp với firebase.ts và App.tsx
-    role: 'student' | 'admin' | null; 
+    role: UserRole; 
 }
 
-/**
- * Trang chủ hiển thị các khóa học mà người dùng hiện tại đã ghi danh (enrolled).
- */
 const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role }) => {
-    // Đổi tên state từ 'courses' thành 'enrolledCourses' cho rõ ràng
     const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]); 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Lắng nghe Real-time danh sách Khóa học đã ghi danh
+    const isAdmin = role === 'admin';
+
     useEffect(() => {
-        if (!user) {
+        if (!user || isAdmin) {
+            if (isAdmin) { 
+                setLoading(false); 
+                return; 
+            }
             setError("Lỗi: Người dùng chưa đăng nhập.");
             setLoading(false);
             return;
@@ -40,14 +40,11 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
 
         setLoading(true);
         const userId = user.uid;
-        // Mảng để lưu trữ các hàm hủy đăng ký (unsubscribe functions) cho từng Course Doc
         let courseUnsubscribes: (() => void)[] = []; 
 
-        // --- 1. Lắng nghe các bản ghi ghi danh (Enrollments) ---
         const unsubscribeEnrollment = subscribeToUserEnrollments(userId, (enrollments: Enrollment[]) => {
-            // Hủy các listener Course cũ trước khi thêm các listener mới
             courseUnsubscribes.forEach(unsub => unsub());
-            courseUnsubscribes = []; // Đặt lại mảng unsubscribes
+            courseUnsubscribes = [];
 
             if (enrollments.length === 0) {
                 setEnrolledCourses([]);
@@ -56,39 +53,36 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
             }
 
             const courseIds = enrollments.map(e => e.courseId);
-            const coursesMap = new Map<string, Course>(); // Dùng Map để quản lý và cập nhật khóa học
-
+            const coursesMap = new Map<string, Course>(); 
             let loadedCount = 0;
             
-            // --- 2. Lắng nghe chi tiết từng khóa học ---
             courseIds.forEach(courseId => {
                 const courseDocRef = getCourseDocRef(courseId);
                 
-                // Lắng nghe real-time chi tiết của từng khóa học
                 const unsubscribeCourse = onSnapshot(courseDocRef, (docSnap) => {
                     loadedCount++;
                     
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        // NOTE: Timestamp to Date conversion (Tùy thuộc vào firebase.ts)
+                        // Chuyển Timestamp sang Number (Giả định firebase.ts dùng milliseconds)
+                        const createdAt = data.createdAt?.toMillis() || Date.now();
+                        const updatedAt = data.updatedAt?.toMillis() || Date.now();
+                        
                         const course: Course = {
                             id: docSnap.id,
                             title: data.title as string,
                             description: data.description as string,
                             videoCount: data.videoCount as number || 0,
                             adminId: data.adminId as string,
-                            // Chú ý: Timestamp to Date conversion có thể gây lỗi nếu không đồng bộ
-                            createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
-                            updatedAt: data.updatedAt ? data.updatedAt.toDate() : new Date(), 
+                            createdAt: createdAt,
+                            updatedAt: updatedAt, 
                         };
                         
                         coursesMap.set(course.id, course);
                     } else {
-                        // Xóa khóa học nếu nó không còn tồn tại
                         coursesMap.delete(courseId);
                     }
                     
-                    // Chỉ cập nhật state và dừng loading khi tất cả course đã được check lần đầu
                     if (loadedCount >= courseIds.length) {
                         setEnrolledCourses(Array.from(coursesMap.values()));
                         setLoading(false);
@@ -96,7 +90,6 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                     }
                 }, (courseErr) => {
                     console.error(`Lỗi lắng nghe Course ID ${courseId}:`, courseErr);
-                    // Bỏ qua lỗi 1 khóa học, tiếp tục với các khóa học khác
                     loadedCount++;
                     if (loadedCount >= courseIds.length) {
                          setLoading(false);
@@ -105,23 +98,21 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                 courseUnsubscribes.push(unsubscribeCourse);
             });
 
-            // Nếu không có khóa học nào được ghi danh (sau khi hủy listener cũ)
             if (courseIds.length === 0) {
                 setLoading(false);
             }
         });
 
-        // Cleanup: Hủy đăng ký Enrollment listener và tất cả Course Doc listeners
         return () => {
             unsubscribeEnrollment();
             courseUnsubscribes.forEach(unsub => unsub());
         };
         
-    }, [user]); 
+    }, [user, isAdmin]); 
 
     // Xử lý khi User nhấp vào Khóa học: Chuyển đến Trang Chi tiết
     const handleViewCourse = useCallback((course: Course) => {
-        // Chuyển sang trạng thái 'detail' và truyền ID khóa học
+        // ✅ SỬ DỤNG ONNAVIGATE MỚI (UPDATE URL)
         onNavigate('detail', course.id); 
     }, [onNavigate]);
 
@@ -150,6 +141,17 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                             <BookOpen className="h-4 w-4 mr-1"/> Admin Panel
                         </button>
                     )}
+                    
+                    {/* Nút Quay lại Admin Dashboard (Nếu đang ở Home mà là Admin) */}
+                    {isAdmin && (
+                        <button 
+                            onClick={() => onNavigate('admin')}
+                            className="flex items-center bg-indigo-500 text-white px-3 py-1 rounded-full text-sm font-semibold hover:bg-indigo-600 transition"
+                        >
+                            <BarChart3 className="h-4 w-4 mr-1"/> Dashboard
+                        </button>
+                    )}
+
 
                     <button 
                         onClick={onLogout} 

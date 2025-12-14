@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { ChevronLeft, List, Loader2, PlayCircle, Video as VideoIcon } from 'lucide-react';
-// ĐÃ SỬA LỖI: Thay đổi đường dẫn import để giải quyết vấn đề phân giải module
-// Giả định service file 'firebase' nằm cùng cấp hoặc có thể được truy cập đơn giản hơn
 import { type Course, type Video, subscribeToCourseDetail, subscribeToVideos } from '../services/firebase';
 
 // Định nghĩa Page type và Props cho CourseDetailPage
@@ -21,7 +19,6 @@ interface VideoPlayerProps {
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
-    // ĐÃ SỬA: Thay video.url bằng video.videoUrl
     if (!video || !video.videoUrl) {
         return (
             <div className="bg-gray-800 rounded-xl flex items-center justify-center aspect-video text-white/70 shadow-inner">
@@ -31,7 +28,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video }) => {
         );
     }
     
-    // ĐÃ SỬA: Thay src={video.url} bằng src={video.videoUrl}
     return (
         <div className="relative w-full aspect-video bg-black rounded-xl shadow-2xl overflow-hidden">
             <iframe
@@ -81,13 +77,9 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             });
 
             // B. Lắng nghe danh sách Video
-            // ✅ FIX LỖI 1 (Argument) & LỖI 2 (Implicit Any)
-            unsubscribeVideos = subscribeToVideos(
-                courseId, 
-                null, // Tham số thứ hai: sessionId (null = lấy tất cả)
-                (fetchedVideos: Video[]) => { // Tham số thứ ba: callback với Type annotation
-                
-                const sortedVideos = fetchedVideos; 
+            // Truyền null cho sessionId (tham số thứ hai)
+            unsubscribeVideos = subscribeToVideos(courseId, null, (fetchedVideos) => { 
+                const sortedVideos = fetchedVideos;
                 setVideos(sortedVideos);
                 
                 // Nếu chưa có video nào được chọn, chọn video đầu tiên
@@ -128,6 +120,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
     if (error || !course) {
         return (
             <div className="min-h-screen p-8 bg-gray-100">
+                {/* Nút quay lại sử dụng onNavigate('home') */}
                 <button onClick={() => onNavigate('home')} className="flex items-center text-indigo-600 hover:text-indigo-800 mb-4">
                     <ChevronLeft size={20} className="mr-2"/> Quay lại Trang chủ
                 </button>
@@ -144,7 +137,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             {/* Header */}
             <header className="bg-white shadow-md p-4 sticky top-0 z-20 border-b border-gray-200">
                    <button 
-                       onClick={() => onNavigate('home')} 
+                       onClick={() => onNavigate('home')} // ✅ SỬ DỤNG ONNAVIGATE MỚI
                        className="flex items-center text-indigo-600 font-medium hover:text-indigo-800 transition duration-150"
                      >
                         <ChevronLeft size={20} className="mr-2"/> Quay lại Khóa học của tôi

@@ -233,6 +233,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                 <div className="flex items-center space-x-4">
                     <span className="text-indigo-200 font-medium hidden sm:inline">Quản trị viên: {user.displayName || user.email}</span>
                     <button
+                        onClick={() => onNavigate('home')} // ✅ FIX: Thêm nút chuyển về HOME
+                        className="py-1 px-3 bg-indigo-500 text-white text-sm font-semibold rounded-lg hover:bg-indigo-600 transition duration-200"
+                    >
+                        Trang chủ
+                    </button>
+                    <button
                         onClick={onLogout}
                         className="py-1 px-3 bg-red-500 text-white text-sm font-semibold rounded-lg hover:bg-red-600 transition duration-200"
                     >
@@ -335,7 +341,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                                         {/* Cột 2 & 3: Danh sách Video */}
                                         <div className="lg:col-span-2 space-y-6">
                                             {/* Danh sách Video */}
-                                            {/* Truyền sessions và videos cho VideoList để nó tự build Tree View */}
+                                            {/* TRUYỀN PROPS ĐẦY ĐỦ CHO VIDEOLIST */}
                                             <VideoList 
                                                 key={selectedCourse.id + videoUpdateKey} 
                                                 courseId={selectedCourse.id} 
