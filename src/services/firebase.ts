@@ -32,7 +32,7 @@ import {
     getDocs, 
     updateDoc, 
     getDoc, 
-    type Query, // BỔ SUNG
+    type Query, 
 } from 'firebase/firestore';
 
 // BỔ SUNG CÁC FIREBASE STORAGE IMPORTS CHO QUẢN LÝ VIDEO
@@ -44,7 +44,7 @@ import {
     deleteObject,
     uploadBytesResumable, 
 } from "firebase/storage";
-import { v4 as uuidv4 } from 'uuid'; // Thêm UUID cho ID video
+import { v4 as uuidv4 } from 'uuid'; 
 
 // =================================================================
 // 1. CẤU HÌNH CỐ ĐỊNH (LOCAL PC CONFIG)
@@ -74,16 +74,26 @@ let db: Firestore | null = null;
 let auth: Auth | null = null;
 export let storage: ReturnType<typeof getStorage> | null = null; 
 
+// ✅ MỚI: Interface cho Hồ sơ User trong Firestore (dùng cho Admin quản lý)
+export interface AppUser {
+    uid: string; 
+    displayName: string;
+    email: string;
+    role: 'admin' | 'student'; 
+    createdAt: number;
+}
+
+
 export interface Video {
     id: string;
     courseId: string;
-    // BỔ SUNG: Thêm sessionId
     sessionId: string; 
     title: string;
     videoUrl: string; 
     storagePath: string; 
     adminId: string;
     createdAt: number; // milliseconds
+    order?: number; 
 }
 
 /**
@@ -102,7 +112,7 @@ export interface Session {
 }
 
 /**
- * FIX: Đổi kiểu dữ liệu của createdAt và updatedAt thành number để khớp với formatDate.
+ * Interface Course
  */
 export interface Course {
     id: string;
@@ -113,6 +123,7 @@ export interface Course {
     adminId: string; 
     videoCount: number;
     imageUrl?: string; 
+    sessions?: Session[]; // Dùng cho client side UI
 }
 
 // Cấu trúc của Bản ghi Ghi danh (Enrollment)
@@ -178,18 +189,26 @@ export const getFirebaseStorage = (): ReturnType<typeof getStorage> => {
 export const getCurrentAppId = (): string => APP_ID_ROOT;
 
 // =================================================================
-// 5. PATHS (Giữ nguyên)
+// 5. PATHS (Đã chuẩn hóa)
 // =================================================================
 
-/** Trả về document reference cho profile người dùng hiện tại */
-export const getUserDocumentPath = (uid: string) => {
+/** ✅ PATH Private Profile đã bị loại bỏ khỏi code để tránh nhầm lẫn */
+/* export const getUserDocumentPath = (uid: string) => {
     const firestore = getFirestoreDb();
-    return doc(firestore, `artifacts/${APP_ID_ROOT}/users/${uid}/profile/user_data`);
+    return doc(firestore, `artifacts/${APP_ID_ROOT}/users/${uid}/profile/user_data`); 
+}; */
+
+/** ✅ Public User List (Nơi duy nhất lưu Role/Profile) */
+export const getAppUsersCollectionRef = () => {
+    const firestore = getFirestoreDb();
+    // Path: /artifacts/{APP_ID_ROOT}/public/data/users
+    return collection(firestore, `artifacts/${APP_ID_ROOT}/public/data/users`); 
 };
 
 /** Trả về collection reference cho các khóa học công khai */
 export const getCoursesCollectionRef = () => {
     const firestore = getFirestoreDb();
+    // Path: /artifacts/{APP_ID_ROOT}/public/data/courses
     return collection(firestore, `artifacts/${APP_ID_ROOT}/public/data/courses`);
 };
 
@@ -199,10 +218,12 @@ export const getCourseDocRef = (courseId: string) => {
     return doc(firestore, `artifacts/${APP_ID_ROOT}/public/data/courses`, courseId);
 };
 
+
 /** BỔ SUNG: Trả về collection reference cho Sub-Collection sessions của một Khóa học */
 export const getSessionsCollectionRef = (courseId: string) => {
     const coursesRef = getCoursesCollectionRef();
-    return collection(coursesRef, courseId, 'sessions'); // Path: /courses/{courseId}/sessions
+    // Path: /courses/{courseId}/sessions
+    return collection(coursesRef, courseId, 'sessions'); 
 };
 
 /** BỔ SUNG: Trả về document reference cho một Session cụ thể */
@@ -226,14 +247,15 @@ export const getVideoDocRef = (courseId: string, videoId: string) => {
 /** Trả về collection reference cho các bản ghi ghi danh (Enrollments) */
 export const getEnrollmentsCollectionRef = () => {
     const firestore = getFirestoreDb();
+    // Path: /artifacts/{APP_ID_ROOT}/public/data/enrollments
     return collection(firestore, `artifacts/${APP_ID_ROOT}/public/data/enrollments`);
 };
 
 // =================================================================
-// 6. AUTH HANDLERS (Giữ nguyên)
+// 6. AUTH & REGISTER HANDLERS 
 // =================================================================
 
-/** Đăng ký người dùng mới và tạo document role mặc định là 'user' */
+/** Đăng ký người dùng mới và tạo document role mặc định là 'student' */
 export async function handleRegister(email: string, password: string, displayName: string): Promise<User> {
     const auth = getFirebaseAuth();
     
@@ -242,16 +264,17 @@ export async function handleRegister(email: string, password: string, displayNam
 
     await updateProfile(user, { displayName });
     
-    // Ghi role mặc định "user" vào Firestore
-    const userDocRef = getUserDocumentPath(user.uid);
-    await setDoc(userDocRef, {
-        role: 'user',
+    // 1. Ghi hồ sơ User vào Collection public/data/users (NƠI DUY NHẤT)
+    const usersRef = getAppUsersCollectionRef();
+    await setDoc(doc(usersRef, user.uid), {
+        uid: user.uid,
         displayName: displayName,
         email: email,
-        createdAt: new Date(),
+        role: 'student', 
+        createdAt: serverTimestamp(),
     });
-
-    console.log("Đăng ký thành công và đã gán role 'user'.");
+    
+    console.log("Đăng ký thành công và đã gán role 'student'.");
     return user;
 }
 
@@ -270,155 +293,83 @@ export async function handleSignOut(): Promise<void> {
 }
 
 // =================================================================
-// 7. SESSION MANAGEMENT FUNCTIONS (Giữ nguyên)
+// 7. USER MANAGEMENT FUNCTIONS (Đã được merge)
 // =================================================================
 
 /**
- * Lắng nghe tất cả các Session của một Khóa học theo real-time.
- * Sắp xếp theo orderIndex (cũ nhất/index thấp nhất lên trước).
+ * ✅ Admin tạo User (tài khoản Auth) và hồ sơ Firestore (role: student).
+ * 🛑 FIX: Chỉ lưu vào Public Path và sau đó đăng xuất.
+ * @returns {AppUser} Thông tin user đã tạo
  */
-export const subscribeToSessions = (courseId: string, callback: (sessions: Session[]) => void): () => void => {
-    const sessionsRef = getSessionsCollectionRef(courseId);
-    // Sắp xếp theo orderIndex để đảm bảo thứ tự luôn đúng
-    const q = query(sessionsRef, orderBy('orderIndex', 'asc')); 
+export async function adminCreateUserAndProfile(
+    email: string, 
+    password: string, 
+    displayName: string
+): Promise<AppUser> {
+    const auth = getFirebaseAuth();
+    const db = getFirestoreDb();
+
+    // 1. Tạo tài khoản trong Firebase Auth (Tự động đăng nhập User mới)
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    await updateProfile(user, { displayName });
+
+    const userProfile: AppUser = {
+        uid: user.uid,
+        displayName: displayName,
+        email: email,
+        role: 'student', 
+        createdAt: Date.now(),
+    };
+
+    // 2. Lưu hồ sơ User vào Collection public/data/users (NƠI DUY NHẤT)
+    const usersRef = getAppUsersCollectionRef();
+    await setDoc(doc(usersRef, user.uid), { ...userProfile, createdAt: serverTimestamp() });
+    
+    // 3. BƯỚC QUAN TRỌNG: Đăng xuất User mới vừa được tạo
+    await signOut(auth);
+    
+    return userProfile;
+}
+
+/**
+ * ✅ MỚI: Lắng nghe danh sách tất cả AppUser (dùng cho Admin Page)
+ */
+export const subscribeToAppUsers = (callback: (users: AppUser[]) => void): () => void => {
+    const usersRef = getAppUsersCollectionRef();
+    const q = query(usersRef, orderBy('createdAt', 'desc')); 
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const sessions: Session[] = snapshot.docs.map(doc => {
+        const users: AppUser[] = snapshot.docs.map(doc => {
             const data = doc.data();
             const createdAtTimestamp = data.createdAt as Timestamp | undefined;
-            const updatedAtTimestamp = data.updatedAt as Timestamp | undefined;
 
             return {
-                id: doc.id,
-                courseId: data.courseId as string,
-                title: data.title as string,
-                orderIndex: data.orderIndex as number || 0,
-                videoCount: data.videoCount as number || 0,
-                // 🟢 THAY ĐỔI: Đọc trường parentId. Mặc định là null nếu không có
-                parentId: (data.parentId as string | null) || null, 
+                uid: doc.id,
+                displayName: data.displayName as string || 'Unknown',
+                email: data.email as string,
+                role: data.role as 'admin' | 'student',
                 createdAt: createdAtTimestamp?.toMillis() || Date.now(),
-                updatedAt: updatedAtTimestamp?.toMillis() || Date.now(),
-            } as Session;
+            } as AppUser;
         });
 
-        callback(sessions);
+        callback(users);
     }, (error: FirestoreError) => {
-        console.error(`Lỗi khi lắng nghe Session cho Course ID ${courseId}:`, error);
+        console.error("Lỗi khi lắng nghe Users:", error);
         callback([]);
     });
 
     return unsubscribe;
 };
 
-/**
- * Tạo một Session mới. Gán orderIndex bằng số lượng session hiện có + 1.
- * 🟢 THAY ĐỔI: Thêm tham số parentId.
- */
-export async function addSession(
-    courseId: string, 
-    title: string, 
-    currentSessionCount: number,
-    parentId: string | null = null, // 🟢 THÊM: parentId
-): Promise<void> {
-    const sessionsRef = getSessionsCollectionRef(courseId);
-    
-    await addDoc(sessionsRef, {
-        courseId,
-        title,
-        orderIndex: currentSessionCount + 1, // Index tiếp theo
-        videoCount: 0,
-        parentId: parentId, // 🟢 GHI: parentId vào Firestore
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-    });
-}
-
-/**
- * Cập nhật tiêu đề của một Session. (Giữ nguyên)
- */
-export async function updateSession(
-    courseId: string, 
-    sessionId: string, 
-    newTitle: string
-): Promise<void> {
-    const sessionDocRef = getSessionDocRef(courseId, sessionId);
-    
-    await updateDoc(sessionDocRef, {
-        title: newTitle,
-        updatedAt: serverTimestamp(),
-    });
-}
-
-/**
- * Xóa Session và tất cả Video liên quan trong Session đó. (Giữ nguyên)
- * QUAN TRỌNG: Cần cập nhật videoCount của Course cha.
- */
-export const deleteSession = async (courseId: string, sessionId: string): Promise<void> => {
-    const db = getFirestoreDb();
-    const storage = getFirebaseStorage();
-    const batch = writeBatch(db);
-
-    const sessionDocRef = getSessionDocRef(courseId, sessionId);
-    const courseDocRef = getCourseDocRef(courseId);
-    const videosRef = getVideosCollectionRef(courseId); // Lấy refs cho videos
-
-    // 1. Lấy tất cả Video Docs thuộc Session này
-    const videosQuery = query(videosRef, where('sessionId', '==', sessionId));
-    const videosSnapshot = await getDocs(videosQuery);
-    
-    const storagePaths: string[] = [];
-    let videosDeletedCount = 0;
-
-    videosSnapshot.docs.forEach(docSnap => {
-        const data = docSnap.data() as Video;
-        if (data.storagePath) {
-            storagePaths.push(data.storagePath);
-        }
-        // Thêm document video vào batch để xóa
-        batch.delete(docSnap.ref); 
-        videosDeletedCount++;
-    });
-
-    // 2. Xóa tất cả file trong Storage (bước này không dùng batch)
-    const deletionPromises = storagePaths.map(path => {
-        try {
-            const fileRef = ref(storage, path);
-            return deleteObject(fileRef);
-        } catch (e) {
-            console.warn(`Không thể xóa file Storage tại ${path}. Có thể file không tồn tại. Tiếp tục...`);
-            return Promise.resolve();
-        }
-    });
-    
-    await Promise.all(deletionPromises);
-    
-    // 3. Xóa document Session
-    batch.delete(sessionDocRef);
-
-    // 4. Cập nhật Course cha (Giảm tổng số video)
-    if (videosDeletedCount > 0) {
-        batch.update(courseDocRef, {
-            videoCount: increment(-videosDeletedCount),
-            updatedAt: serverTimestamp(),
-        });
-    }
-
-    // 5. Commit batch
-    try {
-        await batch.commit();
-        console.log(`✅ Đã xóa thành công Session ID: ${sessionId} và ${videosDeletedCount} video liên quan.`);
-    } catch (error) {
-        console.error(`❌ LỖI XÓA SESSION ID: ${sessionId}. KHÔNG THỂ COMMIT BATCH (Kiểm tra Security Rules):`, error);
-        throw new Error("Xóa Session thất bại. Vui lòng kiểm tra Firebase Security Rules hoặc kết nối.");
-    }
-};
 
 // =================================================================
-// 8. COURSE MANAGEMENT (Giữ nguyên)
+// 8. COURSE MANAGEMENT 
 // =================================================================
 
 /** Lắng nghe tất cả các khóa học trong real-time. */
-export const subscribeToCourses = (callback: (courses: Course[]) => void): () => void => {
+export const subscribeToCourses = (callback: (courses: Course[]) => void): (() => void) => {
     const coursesRef = getCoursesCollectionRef();
     const q = query(coursesRef, orderBy('createdAt', 'desc')); 
 
@@ -435,6 +386,7 @@ export const subscribeToCourses = (callback: (courses: Course[]) => void): () =>
                 videoCount: data.videoCount as number || 0,
                 adminId: data.adminId as string,
                 imageUrl: data.imageUrl as string || 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course+Image', 
+                sessions: [], // Gán sessions rỗng khi fetch từ doc Course chính
                 // CHUYỂN ĐỔI SANG MILLISECONDS (NUMBER)
                 createdAt: createdAtTimestamp?.toMillis() || Date.now(),
                 updatedAt: updatedAtTimestamp?.toMillis() || Date.now(),
@@ -450,7 +402,6 @@ export const subscribeToCourses = (callback: (courses: Course[]) => void): () =>
     return unsubscribe;
 };
 
-/** Admin tạo một khóa học mới. */
 export async function addCourse(
     updateData: { title?: string; description?: string ; adminId?: string}
 ): Promise<void> {
@@ -464,17 +415,12 @@ export async function addCourse(
     });
 }
 
-/** * Admin cập nhật Khóa học (Title/Description).
- * @param courseId ID của Khóa học.
- * @param updateData Dữ liệu muốn cập nhật (title, description).
- */
 export async function updateCourse(
     courseId: string, 
     updateData: { title?: string; description?: string }
 ): Promise<void> {
     const courseDocRef = getCourseDocRef(courseId);
     
-    // Đảm bảo không ghi đè createdAt, chỉ cập nhật updatedAt
     await updateDoc(courseDocRef, {
         ...updateData,
         updatedAt: serverTimestamp(),
@@ -482,11 +428,6 @@ export async function updateCourse(
 }
 
 
-/**
- * Admin xóa một Khóa học.
- * QUAN TRỌNG: Xóa tất cả Sub-collection Videos và các file Storage liên quan.
- * @param courseId ID của Khóa học cần xóa.
- */
 export const deleteCourse = async (courseId: string): Promise<void> => {
     const db = getFirestoreDb();
     const storage = getFirebaseStorage();
@@ -568,6 +509,7 @@ export const subscribeToCourseDetail = (courseId: string, callback: (course: Cou
                 // CHUYỂN ĐỔI SANG MILLISECONDS (NUMBER)
                 createdAt: createdAtTimestamp?.toMillis() || Date.now(),
                 updatedAt: updatedAtTimestamp?.toMillis() || Date.now(),
+                sessions: [],
             };
             callback(course);
         } else {
@@ -584,7 +526,151 @@ export const subscribeToCourseDetail = (courseId: string, callback: (course: Cou
 
 
 // =================================================================
-// 9. VIDEO MANAGEMENT FUNCTIONS (ĐÃ CẬP NHẬT HOÀN TOÀN)
+// 9. SESSION MANAGEMENT FUNCTIONS (CẬP NHẬT: FIX INDEX)
+// =================================================================
+
+/** * Lắng nghe tất cả các Session của một Khóa học. 
+ * ✅ FIX: Chỉ sắp xếp theo orderIndex để tránh lỗi index. Sắp xếp client-side nếu cần.
+*/
+export const subscribeToSessions = (courseId: string, callback: (sessions: Session[]) => void): (() => void) => {
+    const sessionsRef = getSessionsCollectionRef(courseId);
+    // 🛑 FIX LỖI INDEXING: Chỉ dùng 1 orderBy
+    const q = query(sessionsRef, orderBy('orderIndex', 'asc')); 
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        let sessions: Session[] = snapshot.docs.map(doc => {
+            const data = doc.data();
+            const createdAtTimestamp = data.createdAt as Timestamp | undefined;
+            
+            return {
+                id: doc.id,
+                courseId: courseId,
+                title: data.title as string,
+                orderIndex: data.orderIndex as number || 999, // Mặc định 999
+                videoCount: data.videoCount as number || 0,
+                parentId: data.parentId as string || null, // Cần trường này cho Session Tree
+                createdAt: createdAtTimestamp?.toMillis() || Date.now(),
+            } as Session;
+        });
+
+        // ✅ CLIENT-SIDE SORTING (Nếu cần sắp xếp phức tạp hơn)
+        // sessions.sort((a, b) => a.orderIndex - b.orderIndex || a.createdAt - b.createdAt);
+        
+        callback(sessions);
+    }, (error: FirestoreError) => {
+        console.error("Lỗi khi lắng nghe Sessions (subscribeToSessions):", error);
+        callback([]);
+    });
+
+    return unsubscribe;
+};
+
+/**
+ * ✅ EXPORT NÀY BỊ THIẾU: Admin tạo một Session mới.
+ * CẬP NHẬT: Tăng sessionCount trong Course.
+ */
+export async function addSession(
+    courseId: string, 
+    title: string, 
+    currentSessionCount: number,
+    parentId: string | null = null,
+): Promise<void> {
+    const db = getFirestoreDb();
+    const batch = writeBatch(db);
+    const sessionsRef = getSessionsCollectionRef(courseId);
+    const courseDocRef = getCourseDocRef(courseId);
+    
+    const nextOrderIndex = currentSessionCount + 1; 
+
+    // 1. Thêm Document Session
+    batch.set(doc(sessionsRef), {
+        courseId,
+        title: title.trim(),
+        orderIndex: nextOrderIndex,
+        videoCount: 0,
+        parentId: parentId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    });
+
+    // 2. Cập nhật Course
+    // LƯU Ý: Trường sessionCount cần tồn tại trên Course doc
+    // batch.update(courseDocRef, {
+    //     sessionCount: increment(1),
+    //     updatedAt: serverTimestamp(),
+    // });
+    
+    // Tạm thời bỏ qua sessionCount update để không crash nếu field không tồn tại
+
+    await batch.commit();
+}
+
+/**
+ * ✅ EXPORT NÀY BỊ THIẾU: Admin cập nhật Session.
+ */
+export async function updateSession(courseId: string, sessionId: string, newTitle: string): Promise<void> {
+    const sessionDocRef = getSessionDocRef(courseId, sessionId);
+    await updateDoc(sessionDocRef, {
+        title: newTitle.trim(),
+        updatedAt: serverTimestamp(),
+    });
+}
+
+/**
+ * ✅ EXPORT NÀY BỊ THIẾU: Admin xóa Session và tất cả Video liên quan
+ */
+export const deleteSession = async (courseId: string, sessionId: string): Promise<void> => {
+    const db = getFirestoreDb();
+    const storage = getFirebaseStorage();
+    const batch = writeBatch(db);
+
+    const sessionDocRef = getSessionDocRef(courseId, sessionId);
+    const courseDocRef = getCourseDocRef(courseId);
+    const videosRef = getVideosCollectionRef(courseId);
+
+    // 1. Lấy tất cả videos thuộc Session này
+    const q = query(videosRef, where('sessionId', '==', sessionId));
+    const videosSnapshot = await getDocs(q);
+    
+    const storagePaths: string[] = [];
+    const videoCountToDelete = videosSnapshot.size;
+
+    // 2. Chuẩn bị xóa videos và files
+    videosSnapshot.docs.forEach(docSnap => {
+        const data = docSnap.data() as Video;
+        if (data.storagePath) {
+            storagePaths.push(data.storagePath);
+        }
+        batch.delete(docSnap.ref); // Thêm video vào batch để xóa
+    });
+
+    // 3. Xóa document Session
+    batch.delete(sessionDocRef);
+
+    // 4. Cập nhật Course: giảm sessionCount và tổng videoCount
+    // batch.update(courseDocRef, {
+    //     sessionCount: increment(-1),
+    //     videoCount: increment(-videoCountToDelete), // Giảm tổng số video của course
+    //     updatedAt: serverTimestamp(),
+    // });
+
+    // 5. Xóa files khỏi Storage
+    const deletionPromises = storagePaths.map(path => {
+        const fileRef = ref(storage, path);
+        return deleteObject(fileRef).catch(e => {
+            console.warn(`Lỗi khi xóa file Storage: ${path}. Tiếp tục...`, e);
+            return Promise.resolve();
+        });
+    });
+    await Promise.all(deletionPromises);
+    
+    // 6. Commit
+    await batch.commit();
+};
+
+
+// =================================================================
+// 10. VIDEO MANAGEMENT FUNCTIONS (Giữ nguyên)
 // =================================================================
 
 /**
@@ -602,7 +688,7 @@ export const uploadVideoFile = async (
 ): Promise<{videoUrl: string, storagePath: string}> => {
     
     const storage = getFirebaseStorage();
-    // Path: artifacts/{APP_ID_ROOT}/videos/{courseId}/{videoId}/unique_filename
+    // Path: artifacts/{APP_ID_ROOT}/videos/{courseId}/{videoId}/{videoName}
     const path = `artifacts/${APP_ID_ROOT}/videos/${courseId}/${videoId}/${file.name}`; 
     const videoRef = ref(storage, path);
     
@@ -729,7 +815,7 @@ export const deleteVideo = async (
             updatedAt: serverTimestamp(),
         });
         
-        // c) Cập nhật Session cha (Giảm số lượng) (ĐÃ CÓ TRONG LỖI TRƯỚC)
+        // c) Cập nhật Session cha (Giảm số lượng)
         batch.update(sessionDocRef, {
             videoCount: increment(-1), 
             updatedAt: serverTimestamp(),
@@ -762,13 +848,14 @@ export const subscribeToVideos = (
     
     // Nếu có Session ID, thêm điều kiện lọc
     if (sessionId) {
+        // Tối ưu hóa truy vấn: Chỉ lọc theo sessionId và sắp xếp theo createdAt
         q = query(
             videosRef, 
             where('sessionId', '==', sessionId), // ✅ LỌC THEO SESSION ID
-            orderBy('createdAt', 'desc') // Sắp xếp theo mới nhất (tùy chọn)
+            orderBy('createdAt', 'desc') 
         );
     } else {
-        // Trường hợp không có Session ID (có thể hiển thị tất cả nếu muốn, nhưng VideoList đã chặn)
+        // Trường hợp không có Session ID, lấy TẤT CẢ video trong Course
         q = query(videosRef, orderBy('createdAt', 'desc'));
     }
 
@@ -789,8 +876,7 @@ export const subscribeToVideos = (
             } as Video;
         });
 
-        // Nếu đã dùng orderBy('desc') ở query, việc sắp xếp này có thể không cần thiết
-        // Nếu bạn muốn sắp xếp từ cũ nhất lên trước: videos.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); 
+        // Có thể sắp xếp client-side nếu cần (hiện tại đã orderBy('createdAt', 'desc'))
         
         callback(videos);
     }, (error: FirestoreError) => {
@@ -801,7 +887,7 @@ export const subscribeToVideos = (
 };
 
 // =================================================================
-// 10. ENROLLMENTS & ACCESS MANAGEMENT (Giữ nguyên)
+// 11. ENROLLMENTS & ACCESS MANAGEMENT (Giữ nguyên)
 // =================================================================
 
 /**
@@ -835,7 +921,10 @@ export const subscribeToUserEnrollments = (userId: string, callback: (enrollment
  */
 export async function enrollUser(userId: string, courseId: string): Promise<void> {
     const enrollmentsRef = getEnrollmentsCollectionRef();
-    await addDoc(enrollmentsRef, {
+    // Tạo ID Document kết hợp: {userId}_{courseId}
+    const enrollmentId = `${userId}_${courseId}`; 
+
+    await setDoc(doc(enrollmentsRef, enrollmentId), { 
         userId,
         courseId,
         status: 'active',
@@ -850,21 +939,19 @@ export async function enrollUser(userId: string, courseId: string): Promise<void
 export async function unenrollUser(userId: string, courseId: string): Promise<boolean> {
     const enrollmentsRef = getEnrollmentsCollectionRef();
     
-    const q = query(
-        enrollmentsRef,
-        where("userId", "==", userId),
-        where("courseId", "==", courseId),
-        limit(1) 
-    );
-    const snapshot = await getDocs(q);
+    // Tạo ID Document kết hợp để tìm kiếm
+    const enrollmentId = `${userId}_${courseId}`; 
 
-    if (!snapshot.empty) {
-        const docToDelete = snapshot.docs[0];
-        await deleteDoc(doc(enrollmentsRef, docToDelete.id));
+    // SỬ DỤNG doc() và deleteDoc() trực tiếp với ID đã biết
+    const docRef = doc(enrollmentsRef, enrollmentId);
+    
+    try {
+        await deleteDoc(docRef);
         console.log(`User ${userId} unenrolled from course ${courseId} successfully.`);
         return true;
-    } else {
-        console.warn(`Enrollment record not found for user ${userId} and course ${courseId}.`);
+    } catch (e) {
+        // Lỗi thường xảy ra nếu document không tồn tại, có thể bỏ qua
+        console.warn(`Attempted to unenroll, but record not found for user ${userId} and course ${courseId}.`);
         return false;
     }
 }
