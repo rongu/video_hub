@@ -1,27 +1,29 @@
-import React, { useState, type FormEvent, type ReactNode } from 'react';
+import React, { useState, useCallback } from 'react';
+import { type Session } from '../../services/firebase';
 import { 
-    X, Plus, Trash2, CheckCircle, Pencil, Loader2, ChevronRight, ChevronDown, BookOpen, Film, Folder
-} from 'lucide-react';
-import { type Session, addSession, deleteSession, updateSession } from '../../services/firebase'; 
+    Plus, Edit, Trash2, ChevronDown, ChevronRight, 
+    BookOpen, Folder, X, CheckCircle, Save, Video as VideoIcon, 
+    Loader2
+} from 'lucide-react'; 
+import ConfirmDeleteModal from './ConfirmDeleteModal'; 
 
-// Props cho SessionNode
 interface SessionNodeProps {
+    session: Session & { children: SessionNodeProps['session'][] };
     courseId: string;
-    session: Session & { children: SessionNodeProps['session'][] }; // Session có thêm mảng children
-    level: number;
-    loading: boolean;
+    level: number; 
+    loading: boolean; 
     selectedSessionId: string | null;
     onSessionSelected: (sessionId: string, sessionTitle: string) => void;
     onDelete: (sessionId: string) => Promise<void>;
     onUpdate: (sessionId: string, newTitle: string) => Promise<void>;
-    onAddChild: (parentId: string, title: string, orderIndex: number) => Promise<void>;
+    onAddChild: (parentId: string, title: string, orderIndex: number) => Promise<void>; 
 }
 
-const SessionNode: React.FC<SessionNodeProps> = ({
-    courseId,
-    session,
-    level,
-    loading,
+const SessionNode: React.FC<SessionNodeProps> = ({ 
+    session, 
+    courseId, 
+    level, 
+    loading, 
     selectedSessionId,
     onSessionSelected,
     onDelete,
@@ -31,207 +33,216 @@ const SessionNode: React.FC<SessionNodeProps> = ({
     const [isExpanded, setIsExpanded] = useState(true);
     const [isAddingChild, setIsAddingChild] = useState(false);
     const [newChildTitle, setNewChildTitle] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
+    const [editTitle, setEditTitle] = useState(session.title);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    // =================================================================
+    // LOGIC NGHIỆP VỤ TỪ BẢN BASE
+    // =================================================================
     
-    // State cho chỉnh sửa
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [editingTitle, setEditingTitle] = useState(session.title);
-
-    // Xử lý tạo Session con mới
-    const handleAddChild = async (e: FormEvent) => {
-        e.preventDefault();
-        if (!newChildTitle.trim()) return;
-
-        const currentChildCount = session.children.length; 
-        
-        await onAddChild(session.id, newChildTitle.trim(), currentChildCount);
-        setNewChildTitle('');
-        setIsAddingChild(false);
-        setIsExpanded(true); // Mở rộng nút cha sau khi thêm con
-    };
-
-    // Xử lý cập nhật inline
-    const handleUpdate = async () => {
-        if (!editingTitle.trim() || editingTitle.trim() === session.title) {
-            setEditingId(null);
-            return;
-        }
-        await onUpdate(session.id, editingTitle.trim());
-        setEditingId(null);
-    };
-    
-    // Xác định xem một session có được phép CHỌN để upload video hay không
-    // Quy tắc: Chỉ Session LÁ (không có con) mới được chọn.
-    // Session đã có videos (videoCount > 0) là session lá cuối cùng.
+    // Quy tắc: Chỉ Session LÁ (không có con) mới được chọn để upload.
+    // Hoặc session đã có videos cũng được coi là node lá cuối cùng.
     const isSelectable = session.videoCount > 0 || session.children.length === 0;
 
-    // Xác định xem một session có được phép THÊM con hay không
-    // Quy tắc: Session đã có videos (videoCount > 0) không được phép có session con.
+    // Quy tắc: Session đã có videos không được phép có session con.
     const canAddChild = session.videoCount === 0;
 
-    const Icon = level === 0 ? BookOpen : Folder;
-    
-    // Đảm bảo padding-left
-    const paddingLeft = `${(level + 0.5) * 1.5}rem`; 
+    // Icon dựa trên cấp độ
+    const IconComponent = level === 0 ? BookOpen : Folder;
+    const isSelected = session.id === selectedSessionId;
+
+    // ------------------------------------
+    // Handlers
+    // ------------------------------------
+
+    const handleUpdateSubmit = async () => {
+        if (!editTitle.trim() || editTitle === session.title || loading) {
+            setIsEditing(false);
+            return;
+        }
+        try {
+            await onUpdate(session.id, editTitle);
+            setIsEditing(false);
+        } catch (error) {
+            console.error("Lỗi cập nhật tên Session:", error);
+        }
+    };
+
+    const handleAddChildSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newChildTitle.trim() || loading) return;
+        try {
+            await onAddChild(session.id, newChildTitle, session.children.length);
+            setNewChildTitle('');
+            setIsAddingChild(false);
+            setIsExpanded(true); 
+        } catch (error) {
+             console.error("Lỗi thêm Session con:", error);
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        setShowDeleteModal(false);
+        try {
+            await onDelete(session.id);
+        } catch (error) {
+            console.error("Lỗi xóa Session:", error);
+        }
+    };
+
+    const paddingLeft = `${level * 20}px`;
 
     return (
-        <div className="relative">
-            {/* Nút Session hiện tại */}
+        <div className="space-y-1">
+            {/* THANH TIÊU ĐỀ SESSION */}
             <div 
-                className={`flex items-center p-3 rounded-lg border transition space-x-2 w-full ${
-                    session.id === selectedSessionId 
-                        ? 'border-indigo-500 bg-indigo-50 shadow-md' 
-                        : 'border-gray-200 hover:bg-gray-50'
+                className={`flex items-center justify-between p-2.5 rounded-lg transition border ${
+                    isSelected 
+                        ? 'bg-indigo-100 border-indigo-400 shadow-sm' 
+                        : 'bg-white hover:bg-gray-50 border-gray-100'
                 }`}
                 style={{ paddingLeft }}
             >
-                {/* Toggle Expand */}
-                <button 
-                    onClick={() => setIsExpanded(!isExpanded)} 
-                    disabled={session.children.length === 0}
-                    className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-0"
-                    title={isExpanded ? "Thu gọn" : "Mở rộng"}
-                >
-                    {session.children.length > 0 ? (isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />) : <Icon size={20} className="text-gray-500"/>}
-                </button>
+                <div className="flex items-center flex-grow overflow-hidden">
+                    {/* Nút Toggle mở rộng */}
+                    <div 
+                        className="cursor-pointer p-1 text-gray-400 hover:text-indigo-600 transition" 
+                        onClick={() => setIsExpanded(!isExpanded)}
+                    >
+                        {session.children.length > 0 ? (
+                            isExpanded ? <ChevronDown size={16}/> : <ChevronRight size={16}/>
+                        ) : (
+                            <div className="w-4" /> 
+                        )}
+                    </div>
 
-                <div className="flex-grow cursor-pointer flex items-center">
-                    {editingId === session.id ? (
-                        // Chế độ chỉnh sửa (Input)
-                        <input
-                            type="text"
-                            value={editingTitle}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            onBlur={handleUpdate}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleUpdate();
-                                }
-                            }}
-                            className="flex-grow border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-1 text-sm"
-                            autoFocus
-                            disabled={loading}
-                        />
+                    {/* HIỂN THỊ CHẾ ĐỘ SỬA HOẶC XEM */}
+                    {isEditing ? (
+                        <div className="flex items-center space-x-2 flex-grow">
+                            <input 
+                                autoFocus
+                                value={editTitle}
+                                onChange={(e) => setEditTitle(e.target.value)}
+                                onBlur={handleUpdateSubmit}
+                                onKeyDown={(e) => e.key === 'Enter' && handleUpdateSubmit()}
+                                className="border-b-2 border-indigo-500 bg-transparent focus:outline-none text-sm font-bold w-full text-indigo-800"
+                            />
+                            <button onClick={handleUpdateSubmit} className="text-green-600 hover:text-green-700">
+                                <Save size={18}/>
+                            </button>
+                        </div>
                     ) : (
-                        // Chế độ xem (Display)
-                        <div className="flex items-center space-x-1">
-                            {session.videoCount > 0 && <Film size={16} className="text-pink-500 mr-1"/>}
-                            <span className="font-semibold text-gray-800 text-sm">
+                        <div 
+                            className={`flex items-center flex-grow overflow-hidden ${isSelectable ? 'cursor-pointer' : 'cursor-default'}`}
+                            onClick={() => isSelectable && onSessionSelected(session.id, session.title)}
+                        >
+                            <IconComponent 
+                                size={18} 
+                                className={`mr-2 flex-shrink-0 ${level === 0 ? 'text-indigo-600' : 'text-amber-500'}`} 
+                            />
+                            
+                            <span className={`text-sm truncate ${isSelected ? 'font-bold text-indigo-700' : 'text-gray-700 font-medium'}`}>
                                 {session.title}
+                                {session.videoCount > 0 && (
+                                    <span className="text-xs font-normal text-green-600 ml-2 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+                                        {session.videoCount} video
+                                    </span>
+                                )}
                             </span>
-                            <span className="text-xs text-gray-500 ml-2">({session.videoCount} video)</span>
+                            
+                            {isSelected && <CheckCircle size={16} className="ml-2 text-indigo-600 flex-shrink-0" />}
                         </div>
                     )}
                 </div>
 
-                {/* Các nút hành động */}
-                <div className="flex space-x-2 ml-4 items-center flex-shrink-0">
-                    {/* Nút Thêm Session Con */}
-                    {canAddChild && (
-                        <button
-                            onClick={() => setIsAddingChild(true)}
-                            disabled={loading || isAddingChild}
-                            className="p-1 text-gray-400 hover:text-green-600 transition"
-                            title="Thêm Session con"
-                        >
-                            <Plus size={20} />
-                        </button>
-                    )}
-                    
-                    {/* Nút Edit */}
-                    {editingId !== session.id && (
-                        <button
-                            onClick={() => setEditingId(session.id)}
-                            disabled={loading}
-                            className="p-1 text-gray-400 hover:text-indigo-600 transition"
-                            title="Chỉnh sửa tiêu đề"
-                        >
-                            <Pencil size={20} />
-                        </button>
-                    )}
-                    
-                    {/* Nút Chọn / Đã chọn */}
-                    {isSelectable ? (
-                        session.id === selectedSessionId ? (
-                            <span className="text-green-600 flex items-center text-xs font-medium whitespace-nowrap">
-                                <CheckCircle size={18} className="mr-1" /> Đã chọn
-                            </span>
-                        ) : (
-                            <button
-                                onClick={() => onSessionSelected(session.id, session.title)}
-                                disabled={loading}
-                                className="text-xs px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 transition whitespace-nowrap"
+                {/* KHU VỰC CÁC NÚT HÀNH ĐỘNG */}
+                {!isEditing && (
+                    <div className="flex items-center space-x-1 ml-2 opacity-60 hover:opacity-100 transition">
+                        {/* Nút thêm con (Chỉ hiện nếu thỏa mãn canAddChild) */}
+                        {canAddChild && (
+                            <button 
+                                onClick={() => setIsAddingChild(!isAddingChild)} 
+                                className="text-green-600 p-1 hover:bg-green-50 rounded" 
+                                title="Thêm chương con"
                             >
-                                Chọn
+                                <Plus size={18}/>
                             </button>
-                        )
-                    ) : (
-                        <span className="text-sm text-yellow-600 font-medium">Session Cha</span>
-                    )}
-
-                    {/* Nút Xóa */}
-                    <button
-                        onClick={() => onDelete(session.id)}
-                        disabled={loading}
-                        className="p-1 text-gray-400 hover:text-red-500 transition"
-                        title="Xóa Session và Video liên quan"
-                    >
-                        <Trash2 size={20} />
-                    </button>
-                </div>
+                        )}
+                        
+                        {/* Nút sửa tên */}
+                        <button 
+                            onClick={() => setIsEditing(true)} 
+                            className="text-blue-600 p-1 hover:bg-blue-50 rounded" 
+                            title="Đổi tên"
+                        >
+                            <Edit size={18}/>
+                        </button>
+                        
+                        {/* Nút xóa */}
+                        <button 
+                            onClick={() => setShowDeleteModal(true)} 
+                            className="text-red-600 p-1 hover:bg-red-50 rounded" 
+                            title="Xóa chương"
+                        >
+                            <Trash2 size={18}/>
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* Input thêm con */}
+            {/* FORM NHẬP LIỆU THÊM CHƯƠNG CON */}
             {isAddingChild && (
-                <form onSubmit={handleAddChild} className="mt-2 ml-4 flex space-x-2" style={{ paddingLeft }}>
-                    <input
-                        type="text"
-                        placeholder={`Tiêu đề Session con của "${session.title}"...`}
+                <form onSubmit={handleAddChildSubmit} className="flex items-center space-x-2 p-2 bg-indigo-50 rounded-lg" style={{ marginLeft: `calc(${paddingLeft} + 24px)` }}>
+                    <input 
+                        autoFocus
+                        placeholder="Tên chương con mới..."
                         value={newChildTitle}
                         onChange={(e) => setNewChildTitle(e.target.value)}
-                        className="flex-grow border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 text-sm"
-                        autoFocus
-                        required
+                        className="flex-grow text-xs border border-indigo-200 rounded p-1.5 focus:ring-1 focus:ring-indigo-500"
                         disabled={loading}
                     />
-                    <button
-                        type="submit"
-                        disabled={loading || !newChildTitle.trim()}
-                        className={`px-3 py-1 text-white text-sm font-medium rounded-md shadow-sm transition flex items-center ${
-                            loading ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700'
-                        }`}
-                    >
-                        <Plus size={16} />
+                    <button type="submit" disabled={loading || !newChildTitle.trim()} className="text-indigo-600 hover:text-indigo-800 disabled:text-gray-400">
+                        {loading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>}
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => { setIsAddingChild(false); setNewChildTitle(''); }}
-                        className="px-2 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
-                        disabled={loading}
-                    >
-                        <X size={16} />
+                    <button type="button" onClick={() => setIsAddingChild(false)}>
+                        <X size={18} className="text-gray-400 hover:text-red-500"/>
                     </button>
                 </form>
             )}
 
-            {/* Hiển thị Sessions con (Đệ quy) */}
+            {/* HIỂN THỊ CÁC CHƯƠNG CON (ĐỆ QUY) */}
             {isExpanded && session.children.length > 0 && (
-                <div className="ml-4 mt-2 space-y-2 border-l border-gray-200 pl-4">
-                    {session.children.map((child) => (
+                <div className="space-y-1">
+                    {session.children.map(child => (
                         <SessionNode 
                             key={child.id}
-                            courseId={courseId}
-                            session={child}
-                            level={level + 1}
-                            loading={loading}
-                            selectedSessionId={selectedSessionId}
-                            onSessionSelected={onSessionSelected}
-                            onDelete={onDelete}
-                            onUpdate={onUpdate}
-                            onAddChild={onAddChild}
+                            {...{ 
+                                session: child, 
+                                courseId, 
+                                level: level + 1, 
+                                loading, 
+                                selectedSessionId, 
+                                onSessionSelected, 
+                                onDelete, 
+                                onUpdate, 
+                                onAddChild 
+                            }}
                         />
                     ))}
                 </div>
+            )}
+
+            {/* MODAL XÁC NHẬN XÓA (Không dùng children để tránh lỗi TS) */}
+            {showDeleteModal && (
+                <ConfirmDeleteModal
+                    isOpen={showDeleteModal}
+                    onClose={() => setShowDeleteModal(false)}
+                    onConfirm={handleConfirmDelete}
+                    title="Xác nhận xóa chương?"
+                    description={`Bạn có chắc chắn muốn xóa chương "${session.title}"? Mọi nội dung bên trong cũng sẽ bị xóa bỏ.`}
+                    isProcessing={loading}
+                />
             )}
         </div>
     );

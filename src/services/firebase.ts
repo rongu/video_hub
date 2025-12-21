@@ -623,49 +623,67 @@ export const deleteSession = async (courseId: string, sessionId: string): Promis
     const db = getFirestoreDb();
     const storage = getFirebaseStorage();
     const batch = writeBatch(db);
-
-    const sessionDocRef = getSessionDocRef(courseId, sessionId);
-    const courseDocRef = getCourseDocRef(courseId);
-    const videosRef = getVideosCollectionRef(courseId);
-
-    // 1. Lấy tất cả videos thuộc Session này
-    const q = query(videosRef, where('sessionId', '==', sessionId));
-    const videosSnapshot = await getDocs(q);
     
-    const storagePaths: string[] = [];
-    const videoCountToDelete = videosSnapshot.size;
+    // Mảng lưu các đường dẫn file cần xóa trên Storage
+    const storagePathsToDelete: string[] = [];
 
-    // 2. Chuẩn bị xóa videos và files
-    videosSnapshot.docs.forEach(docSnap => {
-        const data = docSnap.data() as Video;
-        if (data.storagePath) {
-            storagePaths.push(data.storagePath);
+    // 1. Lấy toàn bộ Sessions của khóa học để tìm cây con client-side (nhanh hơn query nhiều lần)
+    const allSessionsSnapshot = await getDocs(getSessionsCollectionRef(courseId));
+    const allVideosSnapshot = await getDocs(getVideosCollectionRef(courseId));
+
+    const allSessions = allSessionsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Session));
+    const allVideos = allVideosSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+
+    // 2. Hàm đệ quy để thu thập tất cả ID cần xóa
+    const sessionIdsToDelete = new Set<string>();
+    
+    const collectIdsRecursive = (targetId: string) => {
+        sessionIdsToDelete.add(targetId);
+        
+        // Tìm các session con
+        const children = allSessions.filter(s => s.parentId === targetId);
+        children.forEach(child => collectIdsRecursive(child.id));
+    };
+
+    collectIdsRecursive(sessionId);
+
+    // 3. Thêm các Session vào Batch xóa
+    sessionIdsToDelete.forEach(id => {
+        const sRef = doc(getSessionsCollectionRef(courseId), id);
+        batch.delete(sRef);
+    });
+
+    // 4. Thêm các Video thuộc các Session này vào Batch xóa và lấy đường dẫn Storage
+    allVideos.forEach(video => {
+        if (sessionIdsToDelete.has(video.sessionId)) {
+            const vRef = doc(getVideosCollectionRef(courseId), video.id);
+            batch.delete(vRef);
+            if (video.storagePath) {
+                storagePathsToDelete.push(video.storagePath);
+            }
         }
-        batch.delete(docSnap.ref); // Thêm video vào batch để xóa
     });
 
-    // 3. Xóa document Session
-    batch.delete(sessionDocRef);
-
-    // 4. Cập nhật Course: giảm sessionCount và tổng videoCount
-    // batch.update(courseDocRef, {
-    //     sessionCount: increment(-1),
-    //     videoCount: increment(-videoCountToDelete), // Giảm tổng số video của course
-    //     updatedAt: serverTimestamp(),
-    // });
-
-    // 5. Xóa files khỏi Storage
-    const deletionPromises = storagePaths.map(path => {
-        const fileRef = ref(storage, path);
-        return deleteObject(fileRef).catch(e => {
-            console.warn(`Lỗi khi xóa file Storage: ${path}. Tiếp tục...`, e);
-            return Promise.resolve();
-        });
+    // 5. Cập nhật lại videoCount của Course (giảm đi số video bị xóa)
+    const videosDeletedCount = allVideos.filter(v => sessionIdsToDelete.has(v.sessionId)).length;
+    const courseDocRef = doc(getCoursesCollectionRef(), courseId);
+    batch.update(courseDocRef, {
+        videoCount: increment(-videosDeletedCount),
+        updatedAt: serverTimestamp()
     });
-    await Promise.all(deletionPromises);
-    
-    // 6. Commit
+
+    // 6. Thực thi Batch (Xóa toàn bộ Firestore Docs trong 1 lần)
     await batch.commit();
+
+    // 7. Xóa các file vật lý trên Storage (Chạy sau khi Firestore thành công)
+    const storagePromises = storagePathsToDelete.map(path => {
+        const fileRef = ref(storage, path);
+        return deleteObject(fileRef).catch(e => console.warn("Lỗi xóa file storage (có thể file không tồn tại):", path));
+    });
+    
+    await Promise.all(storagePromises);
+    
+    console.log(`✅ Đã xóa sạch Session ${sessionId}, các session con và ${videosDeletedCount} video.`);
 };
 
 
