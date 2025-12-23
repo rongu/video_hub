@@ -7,7 +7,7 @@ import {
     type Enrollment, 
     subscribeToUserEnrollments, 
     getCourseDocRef, 
-} from '../services/firebase.ts';
+} from '../services/firebase';
 import CourseListItem from '../components/User/CourseListItem.tsx';
 
 type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 

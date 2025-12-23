@@ -5,7 +5,6 @@ import { Loader2 } from 'lucide-react';
 
 // Imports các services cần thiết cho Video Hub
 import { 
-    initializeAndAuthenticate, 
     getFirebaseAuth, 
     getFirestoreDb, 
     handleSignOut, 
@@ -71,25 +70,19 @@ const App: React.FC = () => {
     // =================================================================
 
     useEffect(() => {
-        // 1. Khởi tạo Firebase
-        initializeAndAuthenticate().then(() => {
-            const auth = getFirebaseAuth();
-            setDbInstance(getFirestoreDb()); 
+        const auth = getFirebaseAuth();
+        setDbInstance(getFirestoreDb()); 
 
-            // 2. Lắng nghe trạng thái Auth
-            const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
-                setUser(currentUser);
-                setRole(null); 
-                setIsAuthReady(true);
-                
-                if (!currentUser) {
-                    // Nếu đăng xuất, luôn đẩy về landing page trong URL
-                    onNavigate('landing'); 
-                }
-            });
-
-            // Cleanup Auth Listener
-            return () => unsubscribeAuth();
+        // 2. Lắng nghe trạng thái Auth
+        const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
+            setUser(currentUser);
+            setRole(null); 
+            setIsAuthReady(true);
+            
+            if (!currentUser) {
+                // Nếu đăng xuất, luôn đẩy về landing page trong URL
+                onNavigate('landing'); 
+            }
         });
         
         // 3. Lắng nghe sự kiện Popstate (Back/Forward)
@@ -100,7 +93,10 @@ const App: React.FC = () => {
         };
 
         window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
+        return () => { 
+            unsubscribeAuth();
+            window.removeEventListener('popstate', handlePopState) 
+        }
     }, []); // Chỉ chạy một lần khi mount
 
     // =================================================================
