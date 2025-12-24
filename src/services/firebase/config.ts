@@ -52,6 +52,12 @@ export const getFirebaseStorage = () => {
  */
 export const getBasePublicPath = () => `artifacts/${APP_ID_ROOT}/public/data`;
 
+/**
+ * Đường dẫn gốc cho dữ liệu riêng tư của từng User theo Rule 1
+ * ✅ Đảm bảo hàm này được export chính xác
+ */
+export const getBaseUserPath = (userId: string) => `artifacts/${APP_ID_ROOT}/users/${userId}`;
+
 export const getCurrentAppId = (): string => APP_ID_ROOT;
 
 // --- SHARED PATH GETTERS ---

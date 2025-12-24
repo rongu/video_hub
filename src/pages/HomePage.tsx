@@ -1,219 +1,168 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { type User } from 'firebase/auth';
-import { LogOut, Loader2, BookOpen, Home, ArrowRight, BarChart3, Users } from 'lucide-react';
+import { LogOut, Loader2, BookOpen, Home, BarChart3 } from 'lucide-react';
 import { onSnapshot } from 'firebase/firestore';
 import { 
-    type Course, 
-    type Enrollment, 
-    subscribeToUserEnrollments, 
-    getCourseDocRef, 
-} from '../services/firebase';
-import CourseListItem from '../components/User/CourseListItem.tsx';
+    type Course, 
+    type Enrollment, 
+    subscribeToUserEnrollments, 
+    getCourseDocRef,
+    subscribeToAllUserProgress
+} from '../services/firebase'; // Sửa lỗi resolution bằng cách bỏ /index
+import CourseListItem from '../components/User/CourseListItem'; // Sửa lỗi resolution bằng cách bỏ .tsx
 
 type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
 type UserRole = 'student' | 'admin' | null; 
 
 interface HomePageProps {
-    user: User; 
-    onLogout: () => Promise<void>;
-    onNavigate: (page: Page, courseId?: string | null) => void;
-    role: UserRole; 
+    user: User; 
+    onLogout: () => Promise<void>;
+    onNavigate: (page: Page, courseId?: string | null) => void;
+    role: UserRole; 
 }
 
 const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role }) => {
-    const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]); 
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]); 
+    const [progressMap, setProgressMap] = useState<{[courseId: string]: number}>({}); // Lưu số video đã hoàn thành
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const isAdmin = role === 'admin';
 
-    useEffect(() => {
-        if (!user || isAdmin) {
-            if (isAdmin) { 
-                setLoading(false); 
-                return; 
+    useEffect(() => {
+        if (!user) return;
+
+        // 1. Lắng nghe tiến độ học tập (All courses)
+        const unsubscribeProgress = subscribeToAllUserProgress(user.uid, (map) => {
+            setProgressMap(map);
+        });
+
+        // 2. Lắng nghe danh sách ghi danh
+        const userId = user.uid;
+        let courseUnsubscribes: (() => void)[] = []; 
+
+        const unsubscribeEnrollment = subscribeToUserEnrollments(userId, (enrollments: Enrollment[]) => {
+            courseUnsubscribes.forEach(unsub => unsub());
+            courseUnsubscribes = [];
+
+            if (enrollments.length === 0) {
+                setEnrolledCourses([]);
+                setLoading(false);
+                return;
             }
-            setError("Lỗi: Người dùng chưa đăng nhập.");
-            setLoading(false);
-            return;
-        }
 
-        setLoading(true);
-        const userId = user.uid;
-        let courseUnsubscribes: (() => void)[] = []; 
-
-        const unsubscribeEnrollment = subscribeToUserEnrollments(userId, (enrollments: Enrollment[]) => {
-            courseUnsubscribes.forEach(unsub => unsub());
-            courseUnsubscribes = [];
-
-            if (enrollments.length === 0) {
-                setEnrolledCourses([]);
-                setLoading(false);
-                return;
-            }
-
-            const courseIds = enrollments.map(e => e.courseId);
-            const coursesMap = new Map<string, Course>(); 
-            let loadedCount = 0;
-            
-            courseIds.forEach(courseId => {
-                const courseDocRef = getCourseDocRef(courseId);
-                
-                const unsubscribeCourse = onSnapshot(courseDocRef, (docSnap) => {
-                    loadedCount++;
-                    
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        // Chuyển Timestamp sang Number (Giả định firebase.ts dùng milliseconds)
-                        const createdAt = data.createdAt?.toMillis() || Date.now();
-                        const updatedAt = data.updatedAt?.toMillis() || Date.now();
-                        
-                        const course: Course = {
-                            id: docSnap.id,
-                            title: data.title as string,
-                            description: data.description as string,
-                            videoCount: data.videoCount as number || 0,
-                            adminId: data.adminId as string,
-                            createdAt: createdAt,
-                            updatedAt: updatedAt, 
-                        };
-                        
-                        coursesMap.set(course.id, course);
-                    } else {
-                        coursesMap.delete(courseId);
-                    }
-                    
-                    if (loadedCount >= courseIds.length) {
-                        setEnrolledCourses(Array.from(coursesMap.values()));
-                        setLoading(false);
-                        setError(null);
-                    }
-                }, (courseErr) => {
-                    console.error(`Lỗi lắng nghe Course ID ${courseId}:`, courseErr);
-                    loadedCount++;
-                    if (loadedCount >= courseIds.length) {
-                         setLoading(false);
-                    }
-                });
-                courseUnsubscribes.push(unsubscribeCourse);
-            });
-
-            if (courseIds.length === 0) {
-                setLoading(false);
-            }
-        });
-
-        return () => {
-            unsubscribeEnrollment();
-            courseUnsubscribes.forEach(unsub => unsub());
-        };
-        
-    }, [user, isAdmin]); 
-
-    // Xử lý khi User nhấp vào Khóa học: Chuyển đến Trang Chi tiết
-    const handleViewCourse = useCallback((course: Course) => {
-        // ✅ SỬ DỤNG ONNAVIGATE MỚI (UPDATE URL)
-        onNavigate('detail', course.id); 
-    }, [onNavigate]);
-
-    return (
-        <div className="min-h-screen w-full bg-gray-50 flex flex-col font-sans">
-            {/* Header */}
-            <header className="bg-white shadow-md p-4 flex justify-between items-center w-full sticky top-0 z-10">
-                <h1 className="text-2xl font-bold text-indigo-700 flex items-center">
-                    <Home className="h-6 w-6 mr-2"/> Home Hub
-                </h1>
-                <div className="flex items-center space-x-3">
-                    <span className="text-gray-600 font-medium hidden sm:inline">
-                        Chào mừng, {user?.displayName || user?.email?.split('@')[0]} 
-                        {/* HIỂN THỊ ROLE */}
-                        {role && <span className={`text-xs font-bold ml-2 px-2 py-0.5 rounded-full ${role === 'admin' ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                            {role.toUpperCase()}
-                        </span>}
-                    </span>
-                    
-                    {/* Nút Admin (Chỉ hiển thị cho Admin) */}
-                    {role === 'admin' && (
-                        <button 
-                            onClick={() => onNavigate('admin')}
-                            className="flex items-center bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold hover:bg-green-600 transition"
-                        >
-                            <BookOpen className="h-4 w-4 mr-1"/> Admin Panel
-                        </button>
-                    )}
+            const courseIds = enrollments.map(e => e.courseId);
+            const coursesMap = new Map<string, Course>(); 
+            let loadedCount = 0;
+            
+            courseIds.forEach(courseId => {
+                const unsubscribeCourse = onSnapshot(getCourseDocRef(courseId), (docSnap) => {
+                    loadedCount++;
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        coursesMap.set(docSnap.id, {
+                            id: docSnap.id,
+                            ...data,
+                            createdAt: data.createdAt?.toMillis() || Date.now(),
+                            updatedAt: data.updatedAt?.toMillis() || Date.now(),
+                        } as Course);
+                    }
                     
-                    {/* Nút Quay lại Admin Dashboard (Nếu đang ở Home mà là Admin) */}
+                    if (loadedCount >= courseIds.length) {
+                        setEnrolledCourses(Array.from(coursesMap.values()));
+                        setLoading(false);
+                    }
+                });
+                courseUnsubscribes.push(unsubscribeCourse);
+            });
+        });
+
+        return () => {
+            unsubscribeProgress();
+            unsubscribeEnrollment();
+            courseUnsubscribes.forEach(unsub => unsub());
+        };
+    }, [user]);
+
+    return (
+        <div className="min-h-screen w-full bg-gray-50 flex flex-col font-sans">
+            <header className="bg-white shadow-md p-4 flex justify-between items-center w-full sticky top-0 z-10">
+                <h1 className="text-2xl font-bold text-indigo-700 flex items-center">
+                    <Home className="h-6 w-6 mr-2"/> Home Hub
+                </h1>
+                <div className="flex items-center space-x-3">
+                    <div className="hidden sm:flex flex-col items-end mr-2">
+                        <span className="text-sm font-bold text-gray-800">{user?.displayName}</span>
+                        <span className="text-[10px] uppercase bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-black">{role}</span>
+                    </div>
+
                     {isAdmin && (
-                        <button 
-                            onClick={() => onNavigate('admin')}
-                            className="flex items-center bg-indigo-500 text-white px-3 py-1 rounded-full text-sm font-semibold hover:bg-indigo-600 transition"
-                        >
-                            <BarChart3 className="h-4 w-4 mr-1"/> Dashboard
+                        <button onClick={() => onNavigate('admin')} className="flex items-center bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-green-600 transition shadow-sm">
+                            <BarChart3 className="h-4 w-4 mr-2"/> Admin Panel
                         </button>
                     )}
 
+                    <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition">
+                        <LogOut className="h-6 w-6"/>
+                    </button>
+                </div>
+            </header>
 
-                    <button 
-                        onClick={onLogout} 
-                        className="flex items-center bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold hover:bg-red-600 transition"
-                    >
-                        <LogOut className="h-4 w-4 mr-1"/> Đăng xuất
-                    </button>
-                </div>
-            </header>
+            <main className="flex-grow p-4 sm:p-8 max-w-7xl mx-auto w-full">
+                <div className="mb-8">
+                    <h2 className="text-4xl font-black text-gray-900 mb-2">Khóa học của bạn</h2>
+                    <p className="text-gray-500">Tiếp tục hành trình chinh phục kiến thức ngay hôm nay.</p>
+                </div>
+                
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-indigo-500">
+                        <Loader2 className="h-12 w-12 animate-spin mb-4" />
+                        <p className="font-medium">Đang tải danh sách bài học...</p>
+                    </div>
+                ) : enrolledCourses.length === 0 ? (
+                    <div className="bg-white p-10 rounded-3xl shadow-sm border border-dashed border-gray-300 text-center">
+                        <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                        <p className="text-xl font-bold text-gray-600">Bạn chưa có khóa học nào</p>
+                        <p className="text-gray-400">Vui lòng liên hệ Admin để được cấp quyền truy cập.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {enrolledCourses.map(course => {
+                            // Tính toán % cho từng card
+                            const completedCount = progressMap[course.id] || 0;
+                            const percent = course.videoCount > 0 
+                                ? Math.min(Math.round((completedCount / course.videoCount) * 100), 100) 
+                                : 0;
 
-            {/* Main Content */}
-            <main className="flex-grow p-4 sm:p-8 max-w-6xl mx-auto w-full">
-                <h2 className="text-3xl font-extrabold text-gray-800 mb-6 border-b-2 border-indigo-300 pb-2 text-center sm:text-left flex items-center">
-                    <BookOpen className='w-7 h-7 mr-2 text-indigo-600'/> Các Khóa học đã ghi danh
-                </h2>
-                
-                {loading && (
-                    <div className="flex justify-center items-center h-48 bg-white rounded-xl shadow-md mt-6">
-                        <Loader2 className="h-8 w-8 text-indigo-500 animate-spin mr-3" />
-                        <span className="text-lg text-gray-600">Đang tải danh sách khóa học đã ghi danh...</span>
-                    </div>
-                )}
-                
-                {!loading && enrolledCourses.length === 0 && !error && (
-                    <div className="bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700 p-6 rounded-lg shadow-md mt-6" role="alert">
-                        <p className="font-bold text-xl">Chưa có Khóa học nào</p>
-                        <p className="mt-2">Bạn chưa được ghi danh vào bất kỳ khóa học nào. Vui lòng liên hệ quản trị viên.</p>
-                        {role === 'admin' && (
-                            <p className="mt-3 text-sm text-indigo-600">Với vai trò Admin, bạn có thể tạo khóa học mới trong Admin Panel.</p>
-                        )}
-                    </div>
-                )}
-
-                {error && (
-                    <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-md mt-6" role="alert">
-                        <p className="font-bold">Lỗi!</p>
-                        <p>{error}</p>
-                    </div>
-                )}
-
-
-                {/* Danh sách Khóa học đã ghi danh */}
-                {!loading && enrolledCourses.length > 0 && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {enrolledCourses.map(course => (
-                            <CourseListItem 
-                                key={course.id} 
-                                course={course}
-                                isEnrolled={true} 
-                                onViewCourse={handleViewCourse}
-                            />
-                        ))}
-                    </div>
-                )}
-            </main>
-            
-            {/* Footer */}
-            <footer className="bg-white border-t border-gray-200 p-4 text-center text-sm text-gray-500 mt-auto">
-                &copy; {new Date().getFullYear()} Video Hub.
-            </footer>
-        </div>
-    );
+                            return (
+                                <div key={course.id} className="group relative">
+                                    <CourseListItem 
+                                        course={course}
+                                        isEnrolled={true} 
+                                        onViewCourse={() => onNavigate('detail', course.id)}
+                                    />
+                                    {/* Thanh Progress Bar hiển thị trên thẻ khóa học */}
+                                    <div className="absolute bottom-4 left-6 right-6 z-10">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[10px] font-black text-white bg-black/50 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                                                {percent}% HOÀN THÀNH
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-gray-200/50 rounded-full h-1.5 backdrop-blur-sm overflow-hidden">
+                                            <div 
+                                                className="bg-green-500 h-full transition-all duration-1000 shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                                                style={{ width: `${percent}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </main>
+        </div>
+    );
 };
 
 export default HomePage;

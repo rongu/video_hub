@@ -1,17 +1,81 @@
-import { doc, setDoc, deleteDoc, query, where, onSnapshot, collection, serverTimestamp } from 'firebase/firestore';
-import { getFirestoreDb, getCurrentAppId } from './config';
+import { 
+    doc, 
+    setDoc, 
+    deleteDoc, 
+    onSnapshot, 
+    collection, 
+    serverTimestamp 
+} from 'firebase/firestore';
+import { getFirestoreDb, getBaseUserPath } from './config';
 
+/**
+ * Cập nhật tiến độ xem video
+ */
 export const toggleVideoProgress = async (userId: string, courseId: string, videoId: string, completed: boolean) => {
-    const ref = doc(getFirestoreDb(), 'artifacts', getCurrentAppId(), 'users', userId, 'progress', videoId);
+    if (!userId) return;
+    const db = getFirestoreDb();
+    const progressDocRef = doc(db, getBaseUserPath(userId), 'progress', videoId);
+
     if (completed) {
-        await setDoc(ref, { videoId, courseId, completed: true, updatedAt: serverTimestamp() });
+        await setDoc(progressDocRef, {
+            videoId,
+            courseId,
+            completed: true,
+            updatedAt: serverTimestamp()
+        });
     } else {
-        await deleteDoc(ref);
+        await deleteDoc(progressDocRef);
     }
 };
 
-export const subscribeToUserProgress = (userId: string, courseId: string, callback: (ids: string[]) => void) => {
-    const col = collection(getFirestoreDb(), 'artifacts', getCurrentAppId(), 'users', userId, 'progress');
-    const q = query(col, where('courseId', '==', courseId));
-    return onSnapshot(q, (snap) => callback(snap.docs.map(d => d.id)));
+/**
+ * QUY TẮC 2: Lắng nghe tiến độ - Lọc bằng JavaScript thay vì query complex
+ */
+export const subscribeToUserProgress = (userId: string | undefined, courseId: string, callback: (completedIds: string[]) => void) => {
+    if (!userId) {
+        callback([]);
+        return () => {};
+    }
+
+    const db = getFirestoreDb();
+    const progressColRef = collection(db, getBaseUserPath(userId), 'progress');
+    
+    // Sử dụng snapshot đơn giản và lọc tại Client để tuân thủ Rule 2
+    return onSnapshot(progressColRef, (snapshot) => {
+        const completedIds = snapshot.docs
+            .filter(doc => doc.data().courseId === courseId)
+            .map(d => d.id);
+        callback(completedIds);
+    }, (error) => {
+        console.error("Lỗi Progress Listener:", error);
+        callback([]);
+    });
+};
+
+/**
+ * Lắng nghe toàn bộ tiến độ của User cho HomePage
+ */
+export const subscribeToAllUserProgress = (userId: string | undefined, callback: (progressMap: {[courseId: string]: number}) => void) => {
+    if (!userId) {
+        callback({});
+        return () => {};
+    }
+
+    const db = getFirestoreDb();
+    const progressColRef = collection(db, getBaseUserPath(userId), 'progress');
+
+    return onSnapshot(progressColRef, (snapshot) => {
+        const counts: {[courseId: string]: number} = {};
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const cid = data.courseId;
+            if (cid) {
+                counts[cid] = (counts[cid] || 0) + 1;
+            }
+        });
+        callback(counts);
+    }, (error) => {
+        console.error("Lỗi All Progress Listener:", error);
+        callback({});
+    });
 };
