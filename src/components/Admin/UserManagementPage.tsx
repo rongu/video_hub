@@ -1,267 +1,330 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Mail, Plus, UserPlus, X, Check, Loader2, ArrowRight } from 'lucide-react';
-// ✅ Đường dẫn này phải đúng: '../../services/firebase'
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+    UserPlus, Search, User as UserIcon, BookOpen, 
+    CheckCircle2, PlusCircle, Loader2, X, Mail, Shield, ChevronRight
+} from 'lucide-react';
 import { 
     type AppUser, 
-    type Course,
+    type Course, 
+    type Enrollment,
     subscribeToAppUsers, 
-    enrollUser, 
+    subscribeToCourses,
+    subscribeToUserEnrollments,
+    enrollUser,
     unenrollUser,
-    adminCreateUserAndProfile,
-    subscribeToCourses, 
-    getEnrollmentsCollectionRef, 
-} from '../../services/firebase'; 
-import { onSnapshot, doc } from 'firebase/firestore'; 
-
-// =================================================================
-// 1. COMPONENT TẠO USER MỚI (Giữ nguyên)
-// =================================================================
-
-interface CreateUserFormProps {
-    onUserCreated: () => void;
-}
-
-const CreateUserForm: React.FC<CreateUserFormProps> = ({ onUserCreated }) => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [displayName, setDisplayName] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        setMessage(null);
-
-        try {
-            // Sau khi tạo user, Admin sẽ bị đăng xuất (Hành vi hiện tại đã chấp nhận)
-            const newUser = await adminCreateUserAndProfile(email, password, displayName);
-            setMessage({ type: 'success', text: `Tạo user ${newUser.email} thành công! Vui lòng đăng nhập lại Admin.` });
-            setEmail('');
-            setPassword('');
-            setDisplayName('');
-            onUserCreated(); // Kích hoạt refresh danh sách
-        } catch (err: any) {
-            setMessage({ type: 'error', text: `Lỗi tạo user: ${err.message || 'Lỗi không xác định.'}` });
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="p-6 border rounded-xl shadow-lg bg-white space-y-4">
-            <h3 className="text-xl font-bold text-indigo-700 flex items-center">
-                <UserPlus className="w-5 h-5 mr-2" /> Tạo User Mới
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-3">
-                <input type="text" placeholder="Tên hiển thị" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required className="w-full p-2 border rounded-lg" disabled={loading} />
-                <input type="email" placeholder="Email (Tên đăng nhập)" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full p-2 border rounded-lg" disabled={loading} />
-                <input type="password" placeholder="Mật khẩu (Tối thiểu 6 ký tự)" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full p-2 border rounded-lg" minLength={6} disabled={loading} />
-                <button type="submit" disabled={loading} className={`w-full py-2 flex justify-center items-center rounded-lg text-white font-semibold transition ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Plus className="w-5 h-5 mr-2" />}
-                    Tạo User
-                </button>
-            </form>
-            {message && (
-                <div className={`p-3 rounded-lg text-sm ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    {message.text}
-                </div>
-            )}
-        </div>
-    );
-};
-
-// =================================================================
-// 2. COMPONENT QUẢN LÝ GHI DANH VÀ DANH SÁCH USER
-// =================================================================
+    adminCreateUserAndProfile
+} from '../../services/firebase';
 
 const UserManagementPage: React.FC = () => {
-    // FIX: Đảm bảo appUsers hiển thị tài khoản đã tạo
-    const [appUsers, setAppUsers] = useState<AppUser[]>([]);
+    // State dữ liệu gốc
+    const [users, setUsers] = useState<AppUser[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [userUpdateKey, setUserUpdateKey] = useState(0); 
+    
+    // State tương tác
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+    const [userEnrollments, setUserEnrollments] = useState<string[]>([]); // Danh sách courseId đã ghi danh
+    
+    // State Modal Tạo User
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [newUserData, setNewUserData] = useState({ email: '', password: '', displayName: '' });
+    
+    // State loading/error
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [loadingData, setLoadingData] = useState(true);
 
-    // ------------------------------------
-    // Lắng nghe danh sách Users và Courses
-    // ------------------------------------
+    // 1. Load danh sách User và Khóa học ban đầu
     useEffect(() => {
-        setLoading(true);
-        // 1. Lắng nghe Users (Sử dụng hàm subscribeToAppUsers đã có trong firebase.ts)
-        const unsubUsers = subscribeToAppUsers((fetchedUsers) => {
-            setAppUsers(fetchedUsers);
-            setLoading(false);
+        const unsubUsers = subscribeToAppUsers(setUsers);
+        const unsubCourses = subscribeToCourses((fetched) => {
+            setCourses(fetched);
+            setLoadingData(false);
         });
-
-        // 2. Lắng nghe Courses (Sử dụng hàm subscribeToCourses đã có trong firebase.ts)
-        const unsubCourses = subscribeToCourses((fetchedCourses) => {
-            setCourses(fetchedCourses);
-        });
-
         return () => {
             unsubUsers();
             unsubCourses();
         };
-    }, [userUpdateKey]);
-
-    // ------------------------------------
-    // Xử lý Ghi danh (Enrollment)
-    // ------------------------------------
-    const handleEnrollmentToggle = useCallback(async (userId: string, courseId: string, isEnrolled: boolean) => {
-        try {
-            if (isEnrolled) {
-                await unenrollUser(userId, courseId);
-            } else {
-                await enrollUser(userId, courseId);
-            }
-        } catch (err: any) {
-            alert(`Thao tác ghi danh thất bại: ${err.message}`);
-        }
     }, []);
 
-    // ------------------------------------
-    // Render
-    // ------------------------------------
-    
-    if (loading) {
-        return <Loader2 className="w-6 h-6 animate-spin text-indigo-500 mx-auto mt-10" />;
-    }
-    
-    // Kiểm tra: Nếu chưa có khóa học, không thể gán
-    if (courses.length === 0) {
-        return (
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                <h3 className="text-xl font-bold text-red-600">Lỗi Cấu hình</h3>
-                <p>Vui lòng tạo ít nhất một Khóa học trước khi quản lý ghi danh User.</p>
-                <p className='text-sm text-gray-500 mt-2'>Lưu ý: Nếu bạn vừa đăng nhập lại, vui lòng refresh trang để tải lại khóa học.</p>
-            </div>
-        );
-    }
-
-
-    return (
-        <div className="space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-1">
-                    {/* Component Tạo User */}
-                    <CreateUserForm onUserCreated={() => setUserUpdateKey(prev => prev + 1)} />
-                </div>
-
-                <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                    <h3 className="text-xl font-bold text-indigo-700 border-b pb-2 mb-4">Quản lý Ghi danh User ({appUsers.length})</h3>
-                    
-                    <div className="overflow-x-auto">
-                        {/* Bảng Hiển thị Users và Trạng thái Ghi danh */}
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    {/* Cột User */}
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50 z-10">User</th>
-                                    {/* Cột Khóa học (Được tạo động từ courses state) */}
-                                    {courses.map(course => (
-                                        <th key={course.id} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px] whitespace-nowrap sticky top-0 bg-gray-50 z-10">
-                                            {course.title}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {appUsers.map(user => (
-                                    <tr key={user.uid} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-medium text-gray-900">{user.displayName}</div>
-                                            <div className="text-xs text-gray-500">{user.email} (Role: {user.role})</div>
-                                            <div className="text-xs text-gray-400 break-all">UID: {user.uid}</div>
-                                        </td>
-                                        {courses.map(course => (
-                                            <td key={course.id} className="px-6 py-4 whitespace-nowrap text-center">
-                                                {/* Component Button quản lý Ghi danh */}
-                                                <EnrollmentStatusButton 
-                                                    userId={user.uid} 
-                                                    courseId={course.id}
-                                                    onToggle={handleEnrollmentToggle}
-                                                />
-                                            </td>
-                                        ))}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// =================================================================
-// 3. COMPONENT KIỂM TRA ENROLLMENT (Dùng onSnapshot để lắng nghe trạng thái)
-// =================================================================
-
-interface EnrollmentStatusButtonProps {
-    userId: string;
-    courseId: string;
-    onToggle: (userId: string, courseId: string, isEnrolled: boolean) => void;
-}
-
-const EnrollmentStatusButton: React.FC<EnrollmentStatusButtonProps> = ({ userId, courseId, onToggle }) => {
-    // isEnrolled: Trạng thái ghi danh hiện tại (true/false)
-    const [isEnrolled, setIsEnrolled] = useState(false);
-    const [loading, setLocalLoading] = useState(false);
-    
-    // ✅ Logic kiểm tra Enrollment real-time
+    // 2. Lắng nghe ghi danh khi chọn một User cụ thể
     useEffect(() => {
-        if (!userId || !courseId) return;
-        
-        const enrollmentRef = getEnrollmentsCollectionRef(); 
-        // ID Document trong collection `enrollments` là {userId}_{courseId}
-        const enrollmentId = `${userId}_${courseId}`; 
-        
-        // Lắng nghe trạng thái ghi danh của user cho khóa học này
-        const unsubscribe = onSnapshot(doc(enrollmentRef, enrollmentId), (docSnap) => {
-            // Nếu document tồn tại -> User đã ghi danh
-            setIsEnrolled(docSnap.exists());
-        }, (err) => {
-            console.error(`Lỗi lắng nghe Enrollment ${enrollmentId}:`, err);
+        if (!selectedUserId) {
+            setUserEnrollments([]);
+            return;
+        }
+        const unsubEnrollments = subscribeToUserEnrollments(selectedUserId, (enrollments) => {
+            setUserEnrollments(enrollments.map(e => e.courseId));
         });
+        return () => unsubEnrollments();
+    }, [selectedUserId]);
 
-        return () => unsubscribe();
-    }, [userId, courseId]);
+    // 3. Logic lọc danh sách User (Search)
+    const filteredUsers = useMemo(() => {
+        const term = searchTerm.toLowerCase();
+        return users
+            .filter(u => u.displayName.toLowerCase().includes(term) || u.email.toLowerCase().includes(term))
+            .slice(0, 10); // Hiển thị default 10 users hoặc theo kết quả search
+    }, [users, searchTerm]);
 
+    const selectedUser = useMemo(() => 
+        users.find(u => u.uid === selectedUserId), [users, selectedUserId]
+    );
 
-    const handleClick = async () => {
-        setLocalLoading(true);
-        // Gọi hàm toggle cha để thực hiện logic DB
-        await onToggle(userId, courseId, isEnrolled);
-        // Sau khi DB update, useEffect trên sẽ tự động cập nhật isEnrolled
-        setLocalLoading(false);
+    // 4. Handlers
+    const handleCreateUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsProcessing(true);
+        try {
+            await adminCreateUserAndProfile(newUserData.email, newUserData.password, newUserData.displayName);
+            setIsCreateModalOpen(false);
+            setNewUserData({ email: '', password: '', displayName: '' });
+        } catch (error: any) {
+            alert("Lỗi tạo user: " + error.message);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const toggleEnrollment = async (courseId: string) => {
+        if (!selectedUserId || isProcessing) return;
+        setIsProcessing(true);
+        try {
+            const isCurrentlyEnrolled = userEnrollments.includes(courseId);
+            if (isCurrentlyEnrolled) {
+                await unenrollUser(selectedUserId, courseId);
+            } else {
+                await enrollUser(selectedUserId, courseId);
+            }
+        } catch (error) {
+            console.error("Lỗi thay đổi ghi danh:", error);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     return (
-        <button 
-            onClick={handleClick} 
-            disabled={loading} 
-            className={`py-1 px-3 text-xs font-semibold rounded-full transition duration-150 flex items-center justify-center min-w-[80px] ${
-                isEnrolled 
-                    ? 'bg-red-500 text-white hover:bg-red-600' // Đang ghi danh -> Nút Hủy Gán (Unenroll)
-                    : 'bg-green-500 text-white hover:bg-green-600' // Chưa ghi danh -> Nút Gán (Enroll)
-            }`}
-        >
-            {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-            ) : isEnrolled ? (
-                <>
-                    <X className="w-4 h-4 mr-1" /> Hủy Gán
-                </>
-            ) : (
-                <>
-                    <Check className="w-4 h-4 mr-1" /> Gán Khóa học
-                </>
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div>
+                    <h2 className="text-2xl font-black text-gray-900 flex items-center">
+                        <Shield className="mr-2 text-indigo-600" size={24} /> Quản lý Học viên & Ghi danh
+                    </h2>
+                    <p className="text-gray-500 text-sm">Tìm kiếm học viên và cấp quyền truy cập khóa học nhanh chóng.</p>
+                </div>
+                <button 
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="flex items-center justify-center bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100"
+                >
+                    <UserPlus size={20} className="mr-2" /> Tạo tài khoản mới
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* CỘT TRÁI: SEARCHABLE USER LISTBOX */}
+                <div className="lg:col-span-1 space-y-4">
+                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 flex flex-col h-[600px]">
+                        <div className="relative mb-4">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                            <input 
+                                type="text"
+                                placeholder="Tìm tên hoặc email..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm"
+                            />
+                        </div>
+
+                        <div className="flex-grow overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2">Danh sách học viên</h3>
+                            {filteredUsers.length === 0 ? (
+                                <div className="text-center py-10 text-gray-400 text-sm italic">Không tìm thấy user nào</div>
+                            ) : (
+                                filteredUsers.map(u => (
+                                    <div 
+                                        key={u.uid}
+                                        onClick={() => setSelectedUserId(u.uid)}
+                                        className={`group p-3 rounded-2xl cursor-pointer transition-all flex items-center justify-between border ${
+                                            selectedUserId === u.uid 
+                                                ? 'bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-100' 
+                                                : 'bg-white border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30'
+                                        }`}
+                                    >
+                                        <div className="flex items-center space-x-3 overflow-hidden">
+                                            <div className={`p-2 rounded-xl flex-shrink-0 ${selectedUserId === u.uid ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                                <UserIcon size={18} className={selectedUserId === u.uid ? 'text-white' : 'text-gray-500'} />
+                                            </div>
+                                            <div className="overflow-hidden">
+                                                <p className={`text-sm font-bold truncate ${selectedUserId === u.uid ? 'text-white' : 'text-gray-800'}`}>
+                                                    {u.displayName}
+                                                </p>
+                                                <p className={`text-[10px] truncate ${selectedUserId === u.uid ? 'text-indigo-100' : 'text-gray-400'}`}>
+                                                    {u.email}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={16} className={selectedUserId === u.uid ? 'text-white' : 'text-gray-300'} />
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* CỘT PHẢI: ENROLLMENT CARD GRID */}
+                <div className="lg:col-span-2">
+                    {selectedUserId ? (
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 min-h-[600px]">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h3 className="text-xl font-black text-gray-900">
+                                        Khóa học của <span className="text-indigo-600">{selectedUser?.displayName}</span>
+                                    </h3>
+                                    <p className="text-sm text-gray-500">Nhấn vào thẻ để Ghi danh hoặc Hủy ghi danh.</p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-black">
+                                        {userEnrollments.length} / {courses.length} KHÓA
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {courses.map(course => {
+                                    const isEnrolled = userEnrollments.includes(course.id);
+                                    return (
+                                        <div 
+                                            key={course.id}
+                                            onClick={() => toggleEnrollment(course.id)}
+                                            className={`relative group p-4 rounded-2xl cursor-pointer transition-all border-2 flex flex-col justify-between h-32 overflow-hidden ${
+                                                isEnrolled 
+                                                    ? 'bg-blue-50 border-blue-500 shadow-sm' 
+                                                    : 'bg-gray-50 border-transparent hover:border-gray-200'
+                                            }`}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div className={`p-2 rounded-xl ${isEnrolled ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                                                    <BookOpen size={18} className="text-white" />
+                                                </div>
+                                                {isEnrolled ? (
+                                                    <CheckCircle2 size={24} className="text-blue-500" />
+                                                ) : (
+                                                    <PlusCircle size={24} className="text-gray-300 group-hover:text-gray-400" />
+                                                )}
+                                            </div>
+                                            
+                                            <div>
+                                                <h4 className={`font-bold text-sm leading-tight mb-1 ${isEnrolled ? 'text-blue-900' : 'text-gray-700'}`}>
+                                                    {course.title}
+                                                </h4>
+                                                <p className={`text-[10px] ${isEnrolled ? 'text-blue-600' : 'text-gray-400'}`}>
+                                                    {course.videoCount} videos
+                                                </p>
+                                            </div>
+
+                                            {/* Hiệu ứng loading nhỏ khi đang xử lý card này */}
+                                            {isProcessing && (
+                                                <div className="absolute inset-0 bg-white/40 flex items-center justify-center">
+                                                    <Loader2 className="animate-spin text-indigo-600" size={20} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 min-h-[600px] flex flex-col items-center justify-center text-center">
+                            <div className="p-6 bg-indigo-50 rounded-full mb-4">
+                                <UserIcon size={48} className="text-indigo-200" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-800">Chọn một học viên</h3>
+                            <p className="text-gray-400 max-w-xs mt-2">Vui lòng chọn học viên ở danh sách bên trái để quản lý ghi danh khóa học.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* MODAL: TẠO TÀI KHOẢN MỚI */}
+            {isCreateModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="bg-indigo-600 p-6 flex justify-between items-center text-white">
+                            <div>
+                                <h3 className="text-xl font-black">Tạo tài khoản học viên</h3>
+                                <p className="text-indigo-100 text-xs">Điền thông tin để đăng ký tài khoản mới.</p>
+                            </div>
+                            <button onClick={() => setIsCreateModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+                            <div className="space-y-1">
+                                <label className="text-xs font-black text-gray-400 uppercase ml-1">Họ và tên</label>
+                                <div className="relative">
+                                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                    <input 
+                                        required
+                                        type="text"
+                                        placeholder="Nguyễn Văn A"
+                                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500"
+                                        value={newUserData.displayName}
+                                        onChange={(e) => setNewUserData({...newUserData, displayName: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-xs font-black text-gray-400 uppercase ml-1">Email</label>
+                                <div className="relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                    <input 
+                                        required
+                                        type="email"
+                                        placeholder="hocvien@email.com"
+                                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500"
+                                        value={newUserData.email}
+                                        onChange={(e) => setNewUserData({...newUserData, email: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-xs font-black text-gray-400 uppercase ml-1">Mật khẩu</label>
+                                <input 
+                                    required
+                                    type="password"
+                                    placeholder="••••••••"
+                                    className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500"
+                                    value={newUserData.password}
+                                    onChange={(e) => setNewUserData({...newUserData, password: e.target.value})}
+                                />
+                            </div>
+
+                            <div className="pt-4 flex space-x-3">
+                                <button 
+                                    type="button"
+                                    onClick={() => setIsCreateModalOpen(false)}
+                                    className="flex-grow py-3 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition"
+                                >
+                                    Hủy bỏ
+                                </button>
+                                <button 
+                                    type="submit"
+                                    disabled={isProcessing}
+                                    className="flex-grow py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition flex items-center justify-center shadow-lg shadow-indigo-100"
+                                >
+                                    {isProcessing ? <Loader2 className="animate-spin mr-2" size={20} /> : 'Tạo tài khoản'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
-        </button>
+        </div>
     );
 };
-
 
 export default UserManagementPage;
