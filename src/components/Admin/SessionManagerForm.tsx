@@ -1,6 +1,6 @@
 import React, { useState, useMemo, type FormEvent, useCallback } from 'react';
 import { 
-    X, Plus, Trash2, CheckCircle, Pencil, Loader2, BookOpen, ChevronDown
+    X, Plus,  Loader2, BookOpen,
 } from 'lucide-react'; 
 
 import { 

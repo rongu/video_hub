@@ -3,7 +3,7 @@ import {
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { 
-    getFirestoreDb, getFirebaseStorage, getCoursesCollectionRef, 
+    getFirestoreDb, getFirebaseStorage, 
     getSessionsCollectionRef, getVideosCollectionRef, getCourseDocRef 
 } from './config';
 

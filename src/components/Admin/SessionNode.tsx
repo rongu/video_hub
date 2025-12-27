@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, } from 'react';
 import { type Session } from '../../services/firebase';
 import { 
     Plus, Edit, Trash2, ChevronDown, ChevronRight, 
-    BookOpen, Folder, X, CheckCircle, Save, Video as VideoIcon, 
+    BookOpen, Folder, X, CheckCircle, Save, 
     Loader2
 } from 'lucide-react'; 
 import ConfirmDeleteModal from './ConfirmDeleteModal'; 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { type User } from 'firebase/auth';
 import { LogOut, Loader2, BookOpen, Home, BarChart3 } from 'lucide-react';
 import { onSnapshot } from 'firebase/firestore';
@@ -25,7 +25,6 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
     const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]); 
     const [progressMap, setProgressMap] = useState<{[courseId: string]: number}>({}); // Lưu số video đã hoàn thành
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
 
     const isAdmin = role === 'admin';
 
@@ -138,7 +137,6 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                                 <div key={course.id} className="group relative">
                                     <CourseListItem 
                                         course={course}
-                                        isEnrolled={true} 
                                         onViewCourse={() => onNavigate('detail', course.id)}
                                     />
                                     {/* Thanh Progress Bar hiển thị trên thẻ khóa học */}

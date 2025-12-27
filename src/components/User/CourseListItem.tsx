@@ -4,12 +4,10 @@ import { BookOpen, Video } from 'lucide-react';
 
 interface CourseListItemProps {
     course: Course;
-    isEnrolled: boolean;
-    // Tạm thời để trống. Sẽ được điền logic sau ở Level 4.2
     onViewCourse: (course: Course) => void;
 }
 
-const CourseListItem: React.FC<CourseListItemProps> = ({ course, isEnrolled, onViewCourse }) => {
+const CourseListItem: React.FC<CourseListItemProps> = ({ course, onViewCourse }) => {
     return (
         <div 
             className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer border-t-4 border-indigo-500"

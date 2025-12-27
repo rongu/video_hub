@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { ChevronLeft, List, Loader2, PlayCircle, CheckCircle2, Circle } from 'lucide-react';
 import { 
     type Course, 
@@ -28,7 +28,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
     const [error, setError] = useState<string | null>(null);
 
     // Sử dụng Hook Progress
-    const { completedVideoIds, loadingProgress } = useUserProgress(currentUser?.uid, courseId);
+    const { completedVideoIds } = useUserProgress(currentUser?.uid, courseId);
 
     // Tính toán phần trăm hoàn thành
     const progressPercentage = useMemo(() => {

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Mail, Lock, LogIn, UserPlus, ArrowLeft, Loader2 } from 'lucide-react';
+import { Mail, Lock, LogIn, ArrowLeft, Loader2 } from 'lucide-react';
 import { handleLogin } from '../services/firebase';
 
 type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 

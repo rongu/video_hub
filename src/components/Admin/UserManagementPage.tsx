@@ -6,7 +6,6 @@ import {
 import { 
     type AppUser, 
     type Course, 
-    type Enrollment,
     subscribeToAppUsers, 
     subscribeToCourses,
     subscribeToUserEnrollments,
@@ -31,14 +30,12 @@ const UserManagementPage: React.FC = () => {
     
     // State loading/error
     const [isProcessing, setIsProcessing] = useState(false);
-    const [loadingData, setLoadingData] = useState(true);
 
     // 1. Load danh sách User và Khóa học ban đầu
     useEffect(() => {
         const unsubUsers = subscribeToAppUsers(setUsers);
         const unsubCourses = subscribeToCourses((fetched) => {
             setCourses(fetched);
-            setLoadingData(false);
         });
         return () => {
             unsubUsers();

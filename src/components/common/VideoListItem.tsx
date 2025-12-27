@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 // ✅ BỔ SUNG Bookmark icon
 import { PlayCircle, Edit2, Trash2, Save, X, Bookmark } from 'lucide-react';
 // Giữ lại imports mặc dù không gọi trực tiếp để TypeScript biết kiểu dữ liệu
-import { type Video, updateVideo, deleteVideo } from '../../services/firebase'; 
+import { type Video} from '../../services/firebase'; 
 
 interface VideoListItemProps {
     video: Video; // Video đã có sessionId

@@ -1,9 +1,9 @@
 import { 
-    collection, doc, query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, 
+    query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, 
     updateDoc, getDocs, writeBatch, type Timestamp ,
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
-import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef,  getBasePublicPath, getCourseDocRef, getCoursesCollectionRef } from './config';
+import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef } from './config';
 import { type Video } from './videos';
 
 export interface Course {

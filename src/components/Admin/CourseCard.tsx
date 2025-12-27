@@ -1,5 +1,4 @@
-import React, { useCallback } from 'react';
-import { type Course, deleteCourse } from '../../services/firebase'; 
+import { type Course, } from '../../services/firebase'; 
 import { Video, Edit, Trash2 } from 'lucide-react';
 
 interface CourseCardProps {

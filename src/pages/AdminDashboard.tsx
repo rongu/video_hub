@@ -5,7 +5,7 @@ import CreateVideoForm from '../components/Admin/CreateVideoForm';
 import CourseCard from '../components/Admin/CourseCard'; 
 import VideoList from '../components/Admin/VideoList';
 import UserManagementPage from '../components/Admin/UserManagementPage'; 
-import { Plus, X, BookOpen, Users, Loader2 } from 'lucide-react'; 
+import { Plus, X, BookOpen, Users } from 'lucide-react'; 
 import { 
     type Course, 
     type Session, 
