@@ -1,164 +1,168 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
-import { LogOut, Loader2, BookOpen, Home, BarChart3 } from 'lucide-react';
-import { onSnapshot } from 'firebase/firestore';
 import { 
-    type Course, 
+    BookOpen, 
+    PlayCircle, 
+    ChevronRight, 
+    LogOut, 
+    Compass,
+    Loader2
+} from 'lucide-react';
+import { 
     type Enrollment, 
+    type Course, 
     subscribeToUserEnrollments, 
-    getCourseDocRef,
+    subscribeToCourses,
     subscribeToAllUserProgress
-} from '../services/firebase'; // Sửa lỗi resolution bằng cách bỏ /index
-import CourseListItem from '../components/User/CourseListItem'; // Sửa lỗi resolution bằng cách bỏ .tsx
+} from '../services/firebase';
 
-type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
-type UserRole = 'student' | 'admin' | null; 
+type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail';
 
 interface HomePageProps {
-    user: User; 
+    user: User;
     onLogout: () => Promise<void>;
     onNavigate: (page: Page, courseId?: string | null) => void;
-    role: UserRole; 
+    role: 'student' | 'admin';
 }
 
 const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role }) => {
-    const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]); 
-    const [progressMap, setProgressMap] = useState<{[courseId: string]: number}>({}); // Lưu số video đã hoàn thành
+    const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+    const [courses, setCourses] = useState<Course[]>([]);
+    const [progressMap, setProgressMap] = useState<{[courseId: string]: number}>({});
     const [loading, setLoading] = useState(true);
 
-    const isAdmin = role === 'admin';
-
     useEffect(() => {
-        if (!user) return;
-
-        // 1. Lắng nghe tiến độ học tập (All courses)
-        const unsubscribeProgress = subscribeToAllUserProgress(user.uid, (map) => {
-            setProgressMap(map);
-        });
-
-        // 2. Lắng nghe danh sách ghi danh
-        const userId = user.uid;
-        let courseUnsubscribes: (() => void)[] = []; 
-
-        const unsubscribeEnrollment = subscribeToUserEnrollments(userId, (enrollments: Enrollment[]) => {
-            courseUnsubscribes.forEach(unsub => unsub());
-            courseUnsubscribes = [];
-
-            if (enrollments.length === 0) {
-                setEnrolledCourses([]);
-                setLoading(false);
-                return;
-            }
-
-            const courseIds = enrollments.map(e => e.courseId);
-            const coursesMap = new Map<string, Course>(); 
-            let loadedCount = 0;
-            
-            courseIds.forEach(courseId => {
-                const unsubscribeCourse = onSnapshot(getCourseDocRef(courseId), (docSnap) => {
-                    loadedCount++;
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        coursesMap.set(docSnap.id, {
-                            id: docSnap.id,
-                            ...data,
-                            createdAt: data.createdAt?.toMillis() || Date.now(),
-                            updatedAt: data.updatedAt?.toMillis() || Date.now(),
-                        } as Course);
-                    }
-                    
-                    if (loadedCount >= courseIds.length) {
-                        setEnrolledCourses(Array.from(coursesMap.values()));
-                        setLoading(false);
-                    }
-                });
-                courseUnsubscribes.push(unsubscribeCourse);
-            });
+        const unsubEnroll = subscribeToUserEnrollments(user.uid, setEnrollments);
+        const unsubCourses = subscribeToCourses(setCourses);
+        const unsubProgress = subscribeToAllUserProgress(user.uid, (counts) => {
+            setProgressMap(counts);
+            setLoading(false);
         });
 
         return () => {
-            unsubscribeProgress();
-            unsubscribeEnrollment();
-            courseUnsubscribes.forEach(unsub => unsub());
+            unsubEnroll();
+            unsubCourses();
+            unsubProgress();
         };
-    }, [user]);
+    }, [user.uid]);
+
+    const enrolledCourses = courses.filter(c => 
+        enrollments.some(e => e.courseId === c.id)
+    );
 
     return (
-        <div className="min-h-screen w-full bg-gray-50 flex flex-col font-sans">
-            <header className="bg-white shadow-md p-4 flex justify-between items-center w-full sticky top-0 z-10">
-                <h1 className="text-2xl font-bold text-indigo-700 flex items-center">
-                    <Home className="h-6 w-6 mr-2"/> Home Hub
-                </h1>
-                <div className="flex items-center space-x-3">
-                    <div className="hidden sm:flex flex-col items-end mr-2">
-                        <span className="text-sm font-bold text-gray-800">{user?.displayName}</span>
-                        <span className="text-[10px] uppercase bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-black">{role}</span>
+        <div className="min-h-screen bg-gray-50 font-sans text-gray-900 w-full flex flex-col">
+            {/* Navbar */}
+            <nav className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+                <div className="flex items-center space-x-2">
+                    <div className="bg-indigo-600 p-1.5 rounded-lg">
+                        <PlayCircle className="text-white" size={24} />
                     </div>
+                    <span className="text-xl font-black text-indigo-900 uppercase tracking-tighter">VideoHub</span>
+                </div>
 
-                    {isAdmin && (
-                        <button onClick={() => onNavigate('admin')} className="flex items-center bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-green-600 transition shadow-sm">
-                            <BarChart3 className="h-4 w-4 mr-2"/> Admin Panel
+                <div className="flex items-center space-x-6">
+                    {/* NÚT QUAY LẠI THƯ VIỆN ĐỂ TÌM KHÓA MỚI */}
+                    <button 
+                        onClick={() => onNavigate('landing')}
+                        className="hidden md:flex items-center text-indigo-600 font-bold text-sm hover:bg-indigo-50 px-4 py-2 rounded-xl transition"
+                    >
+                        <Compass size={18} className="mr-2" /> Khám phá thư viện
+                    </button>
+                    
+                    <div className="flex items-center space-x-3 border-l pl-6 border-gray-100">
+                        <div className="text-right hidden sm:block">
+                            <p className="text-sm font-black text-gray-900">{user.displayName || 'Học viên'}</p>
+                            <p className="text-[10px] font-bold text-indigo-500 uppercase">{role}</p>
+                        </div>
+                        <button onClick={onLogout} className="p-2 text-gray-400 hover:text-red-500 transition">
+                            <LogOut size={20} />
                         </button>
-                    )}
+                    </div>
+                </div>
+            </nav>
 
-                    <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition">
-                        <LogOut className="h-6 w-6"/>
+            <main className="max-w-7xl mx-auto w-full p-6 space-y-10">
+                {/* Welcome Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div>
+                        <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tighter">Khóa học của tôi</h1>
+                        <p className="text-gray-500 font-medium">Bạn đã ghi danh {enrolledCourses.length} khóa học.</p>
+                    </div>
+                    {/* Mobile Discover Button */}
+                    <button 
+                        onClick={() => onNavigate('landing')}
+                        className="md:hidden flex items-center justify-center bg-indigo-50 text-indigo-600 font-bold p-3 rounded-2xl"
+                    >
+                        <Compass size={18} className="mr-2" /> Khám phá thêm
                     </button>
                 </div>
-            </header>
 
-            <main className="flex-grow p-4 sm:p-8 max-w-7xl mx-auto w-full">
-                <div className="mb-8">
-                    <h2 className="text-4xl font-black text-gray-900 mb-2">Khóa học của bạn</h2>
-                    <p className="text-gray-500">Tiếp tục hành trình chinh phục kiến thức ngay hôm nay.</p>
-                </div>
-                
+                {/* Course Grid */}
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-indigo-500">
-                        <Loader2 className="h-12 w-12 animate-spin mb-4" />
-                        <p className="font-medium">Đang tải danh sách bài học...</p>
-                    </div>
-                ) : enrolledCourses.length === 0 ? (
-                    <div className="bg-white p-10 rounded-3xl shadow-sm border border-dashed border-gray-300 text-center">
-                        <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                        <p className="text-xl font-bold text-gray-600">Bạn chưa có khóa học nào</p>
-                        <p className="text-gray-400">Vui lòng liên hệ Admin để được cấp quyền truy cập.</p>
-                    </div>
-                ) : (
+                    <div className="flex justify-center py-20"><Loader2 className="animate-spin text-indigo-600" /></div>
+                ) : enrolledCourses.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {enrolledCourses.map(course => {
-                            // Tính toán % cho từng card
                             const completedCount = progressMap[course.id] || 0;
-                            const percent = course.videoCount > 0 
-                                ? Math.min(Math.round((completedCount / course.videoCount) * 100), 100) 
-                                : 0;
+                            const progress = Math.round((completedCount / course.videoCount) * 100);
 
                             return (
-                                <div key={course.id} className="group relative">
-                                    <CourseListItem 
-                                        course={course}
-                                        onViewCourse={() => onNavigate('detail', course.id)}
-                                    />
-                                    {/* Thanh Progress Bar hiển thị trên thẻ khóa học */}
-                                    <div className="absolute bottom-4 left-6 right-6 z-10">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="text-[10px] font-black text-white bg-black/50 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                                                {percent}% HOÀN THÀNH
-                                            </span>
+                                <div 
+                                    key={course.id}
+                                    onClick={() => onNavigate('detail', course.id)}
+                                    className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                                >
+                                    <div className="aspect-video bg-gray-100 relative">
+                                        <img src={course.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={course.title} />
+                                        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-indigo-600">
+                                            {course.videoCount} VIDEO
                                         </div>
-                                        <div className="w-full bg-gray-200/50 rounded-full h-1.5 backdrop-blur-sm overflow-hidden">
-                                            <div 
-                                                className="bg-green-500 h-full transition-all duration-1000 shadow-[0_0_8px_rgba(34,197,94,0.6)]"
-                                                style={{ width: `${percent}%` }}
-                                            />
+                                    </div>
+                                    <div className="p-8 space-y-4">
+                                        <h3 className="text-xl font-black text-gray-900 uppercase line-clamp-1">{course.title}</h3>
+                                        
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                                <span>Tiến độ</span>
+                                                <span className="text-indigo-600">{progress}%</span>
+                                            </div>
+                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                <div className="h-full bg-indigo-600 transition-all duration-700" style={{ width: `${progress}%` }} />
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-4 flex items-center justify-between border-t border-gray-50">
+                                            <span className="text-xs font-black text-indigo-600 uppercase flex items-center group-hover:translate-x-1 transition-transform">
+                                                Học tiếp <ChevronRight size={16} className="ml-1" />
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
+                ) : (
+                    <div className="bg-white border-2 border-dashed border-gray-200 rounded-[3rem] p-20 text-center space-y-6">
+                        <div className="bg-indigo-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto">
+                            <BookOpen className="text-indigo-300" size={40} />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-900">Chưa có khóa học nào</h3>
+                            <p className="text-gray-500 max-w-sm mx-auto mt-2">Hãy khám phá thư viện để bắt đầu hành trình học tập của bạn.</p>
+                        </div>
+                        <button 
+                            onClick={() => onNavigate('landing')}
+                            className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-sm shadow-lg shadow-indigo-100"
+                        >
+                            Khám phá thư viện ngay
+                        </button>
+                    </div>
                 )}
             </main>
+            <footer className="py-12 border-t border-gray-100 text-center text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                <p>© 2025 VideoHub. Học tập để vươn xa.</p>
+            </footer>
         </div>
     );
 };

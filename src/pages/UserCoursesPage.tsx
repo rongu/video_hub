@@ -41,6 +41,9 @@ const UserCoursesPage: React.FC<UserCoursesPageProps> = ({ user, onLogout }) => 
                     </div>
                 </div>
             </main>
+            <footer className="py-12 border-t border-gray-100 text-center text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                <p>© 2025 VideoHub. Học tập để vươn xa.</p>
+            </footer>
         </div>
     );
 };
