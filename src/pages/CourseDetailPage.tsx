@@ -454,7 +454,12 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                  </span>
                              )}
                         </div>
-                        <p className="text-gray-500 leading-relaxed text-lg font-medium pt-2">{course?.description}</p>
+                        {/* UPDATE: Hỗ trợ Markdown cho Mô tả khóa học */}
+                        <div className="prose prose-indigo prose-lg text-gray-500 font-medium pt-2 max-w-none">
+                            <ReactMarkdown>
+                                {course?.description || ""}
+                            </ReactMarkdown>
+                        </div>
                     </div>
                 </div>
 

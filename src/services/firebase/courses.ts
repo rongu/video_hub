@@ -2,7 +2,8 @@ import {
     query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, 
     updateDoc, getDocs, writeBatch, type Timestamp ,
 } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage';
+// BỔ SUNG: Import uploadBytes, getDownloadURL
+import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef } from './config';
 import { type Video } from './videos';
 
@@ -29,17 +30,30 @@ export const subscribeToCourses = (callback: (courses: Course[]) => void) => {
     });
 };
 
+// BỔ SUNG: Hàm upload ảnh khóa học
+export async function uploadCourseImage(file: File): Promise<string> {
+    const storage = getFirebaseStorage();
+    // Tạo đường dẫn file: course_images/timestamp_filename
+    // Sử dụng timestamp để tránh trùng tên
+    const storagePath = `course_images/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, storagePath);
+    
+    const snapshot = await uploadBytes(storageRef, file);
+    return getDownloadURL(snapshot.ref);
+}
+
 export async function addCourse(data: any) {
     await addDoc(getCoursesCollectionRef(), {
         ...data,
-        imageUrl: 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course',
+        // Nếu không có imageUrl thì mới dùng ảnh mặc định
+        imageUrl: data.imageUrl || 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         videoCount: 0,
     });
 }
 
-export async function updateCourse(courseId: string, data: { title?: string; description?: string }): Promise<void> {
+export async function updateCourse(courseId: string, data: { title?: string; description?: string; imageUrl?: string }): Promise<void> {
     await updateDoc(getCourseDocRef(courseId), { ...data, updatedAt: serverTimestamp() });
 }
 
