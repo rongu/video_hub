@@ -6,15 +6,23 @@ import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDo
 // ✅ RE-EXPORT CÁC HÀM SDK CHO UI COMPONENTS
 export { ref, uploadBytesResumable, getDownloadURL };
 
+// 1. ĐỊNH NGHĨA TYPE MỚI
+export type LessonType = 'video' | 'quiz' | 'text';
+
 export interface Video {
     id: string;
     courseId: string;
     sessionId: string;
     title: string;
-    videoUrl: string;
-    storagePath: string;
+    videoUrl?: string; // Optional: chỉ dùng cho type='video'
+    storagePath?: string; // Optional: chỉ dùng cho type='video'
     adminId: string;
     createdAt: number;
+    
+    // CÁC TRƯỜNG BỔ SUNG CHO ĐA PHƯƠNG TIỆN
+    type?: LessonType; // Mặc định là 'video'
+    content?: string;  // Dùng cho bài giảng text (HTML/Markdown)
+    quizData?: string; // Dùng lưu JSON string của danh sách câu hỏi
 }
 
 export const generateVideoId = () => uuidv4();
@@ -24,13 +32,47 @@ const getVideoDocRef = (courseId: string, videoId: string) => {
     return doc(videosRef, videoId);
 }
 
-export async function addVideo(courseId: string, sessionId: string, title: string, videoUrl: string, storagePath: string, adminId: string, videoId: string): Promise<void> {
+// CẬP NHẬT HÀM ADD VIDEO ĐỂ NHẬN THÊM THAM SỐ
+export async function addVideo(
+    courseId: string, 
+    sessionId: string, 
+    title: string, 
+    videoUrl: string, 
+    storagePath: string, 
+    adminId: string, 
+    videoId: string,
+    // Tham số mới (optional)
+    type: LessonType = 'video',
+    content: string = '',
+    quizData: string = ''
+): Promise<void> {
     const db = getFirestoreDb();
     const batch = writeBatch(db);
     const vRef = doc(getVideosCollectionRef(courseId), videoId);
     const sRef = doc(getCoursesCollectionRef(), courseId, 'sessions', sessionId);
 
-    batch.set(vRef, { courseId, sessionId, title, videoUrl, storagePath, adminId, createdAt: serverTimestamp() });
+    // Tạo object data cơ bản
+    const docData: any = { 
+        courseId, 
+        sessionId, 
+        title, 
+        adminId, 
+        createdAt: serverTimestamp(),
+        type 
+    };
+
+    // Chỉ thêm các trường cần thiết theo type
+    if (type === 'video') {
+        docData.videoUrl = videoUrl;
+        docData.storagePath = storagePath;
+    } else if (type === 'text') {
+        docData.content = content;
+        // Text lesson không cần videoUrl, storagePath
+    } else if (type === 'quiz') {
+        docData.quizData = quizData;
+    }
+
+    batch.set(vRef, docData);
     batch.update(getCourseDocRef(courseId), { videoCount: increment(1), updatedAt: serverTimestamp() });
     batch.update(sRef, { videoCount: increment(1), updatedAt: serverTimestamp() });
     await batch.commit();
@@ -49,7 +91,11 @@ export const deleteVideo = async (courseId: string, sessionId: string, videoId: 
     const batch = writeBatch(db);
     const sRef = doc(getCoursesCollectionRef(), courseId, 'sessions', sessionId);
     
-    await deleteObject(ref(getFirebaseStorage(), storagePath)).catch(() => {});
+    // Chỉ xóa trên Storage nếu có đường dẫn (Video)
+    if (storagePath) {
+        await deleteObject(ref(getFirebaseStorage(), storagePath)).catch(() => {});
+    }
+
     batch.delete(doc(getVideosCollectionRef(courseId), videoId));
     batch.update(getCourseDocRef(courseId), { videoCount: increment(-1), updatedAt: serverTimestamp() });
     batch.update(sRef, { videoCount: increment(-1), updatedAt: serverTimestamp() });
