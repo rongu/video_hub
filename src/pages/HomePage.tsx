@@ -6,7 +6,8 @@ import {
     ChevronRight, 
     LogOut, 
     Compass,
-    Loader2
+    Loader2,
+    ShieldCheck // Icon cho Admin
 } from 'lucide-react';
 import { 
     type Enrollment, 
@@ -16,12 +17,13 @@ import {
     subscribeToAllUserProgress
 } from '../services/firebase';
 
-type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail';
+// Import Page Type cho khớp với App.tsx
+import type { PageType } from '../App';
 
 interface HomePageProps {
     user: User;
     onLogout: () => Promise<void>;
-    onNavigate: (page: Page, courseId?: string | null) => void;
+    onNavigate: (page: PageType, courseId?: string | null) => void;
     role: 'student' | 'admin';
 }
 
@@ -61,16 +63,25 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                     <span className="text-xl font-black text-indigo-900 uppercase tracking-tighter">VideoHub</span>
                 </div>
 
-                <div className="flex items-center space-x-6">
-                    {/* NÚT QUAY LẠI THƯ VIỆN ĐỂ TÌM KHÓA MỚI */}
+                <div className="flex items-center space-x-4">
+                    {/* --- NÚT DÀNH RIÊNG CHO ADMIN --- */}
+                    {role === 'admin' && (
+                        <button 
+                            onClick={() => onNavigate('admin')}
+                            className="flex items-center bg-gray-900 text-white font-bold text-sm px-4 py-2 rounded-xl hover:bg-black transition shadow-lg"
+                        >
+                            <ShieldCheck size={18} className="mr-2" /> Trang Quản Trị
+                        </button>
+                    )}
+
                     <button 
                         onClick={() => onNavigate('landing')}
                         className="hidden md:flex items-center text-indigo-600 font-bold text-sm hover:bg-indigo-50 px-4 py-2 rounded-xl transition"
                     >
-                        <Compass size={18} className="mr-2" /> Khám phá thư viện
+                        <Compass size={18} className="mr-2" /> Khám phá
                     </button>
                     
-                    <div className="flex items-center space-x-3 border-l pl-6 border-gray-100">
+                    <div className="flex items-center space-x-3 border-l pl-4 border-gray-100">
                         <div className="text-right hidden sm:block">
                             <p className="text-sm font-black text-gray-900">{user.displayName || 'Học viên'}</p>
                             <p className="text-[10px] font-bold text-indigo-500 uppercase">{role}</p>
@@ -83,22 +94,13 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
             </nav>
 
             <main className="max-w-7xl mx-auto w-full p-6 space-y-10">
-                {/* Welcome Section */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
                         <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tighter">Khóa học của tôi</h1>
                         <p className="text-gray-500 font-medium">Bạn đã ghi danh {enrolledCourses.length} khóa học.</p>
                     </div>
-                    {/* Mobile Discover Button */}
-                    <button 
-                        onClick={() => onNavigate('landing')}
-                        className="md:hidden flex items-center justify-center bg-indigo-50 text-indigo-600 font-bold p-3 rounded-2xl"
-                    >
-                        <Compass size={18} className="mr-2" /> Khám phá thêm
-                    </button>
                 </div>
 
-                {/* Course Grid */}
                 {loading ? (
                     <div className="flex justify-center py-20"><Loader2 className="animate-spin text-indigo-600" /></div>
                 ) : enrolledCourses.length > 0 ? (
@@ -121,7 +123,6 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                                     </div>
                                     <div className="p-8 space-y-4">
                                         <h3 className="text-xl font-black text-gray-900 uppercase line-clamp-1">{course.title}</h3>
-                                        
                                         <div className="space-y-2">
                                             <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
                                                 <span>Tiến độ</span>
@@ -131,7 +132,6 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                                                 <div className="h-full bg-indigo-600 transition-all duration-700" style={{ width: `${progress}%` }} />
                                             </div>
                                         </div>
-
                                         <div className="pt-4 flex items-center justify-between border-t border-gray-50">
                                             <span className="text-xs font-black text-indigo-600 uppercase flex items-center group-hover:translate-x-1 transition-transform">
                                                 Học tiếp <ChevronRight size={16} className="ml-1" />

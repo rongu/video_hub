@@ -1,4 +1,4 @@
-import React, { useState, useMemo, type FormEvent, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, type FormEvent, useCallback } from 'react';
 import { X, Plus, Loader2, BookOpen, Layers } from 'lucide-react'; 
 import { type Session, addSession, deleteSession, updateSession } from '../../services/firebase'; 
 import useCourseSessions from '../../hooks/useCourseSessions';

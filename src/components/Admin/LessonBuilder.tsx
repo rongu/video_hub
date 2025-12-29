@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
     Plus, Trash2, Image as ImageIcon, Headphones, HelpCircle, 
-    UploadCloud, X, ChevronDown, ChevronUp, Loader2, Eye, EyeOff 
+    UploadCloud, X, Loader2 
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -11,7 +11,7 @@ import {
 
 interface LessonBuilderProps {
     courseId: string;
-    lessonId: string; // ID nháp để lưu file
+    lessonId: string; 
     initialBlocks?: LessonBlock[];
     onChange: (blocks: LessonBlock[]) => void;
 }
@@ -20,13 +20,11 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
     const [blocks, setBlocks] = useState<LessonBlock[]>(initialBlocks);
     const [uploading, setUploading] = useState(false);
 
-    // --- HELPER: UPDATE BLOCKS & NOTIFY PARENT ---
     const updateBlocks = (newBlocks: LessonBlock[]) => {
         setBlocks(newBlocks);
         onChange(newBlocks);
     };
 
-    // --- BLOCK ACTIONS ---
     const addBlock = () => {
         const newBlock: LessonBlock = {
             id: uuidv4(),
@@ -50,23 +48,19 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
         updateBlocks(newBlocks);
     };
 
-    // --- UPLOAD HANDLER (AUDIO & IMAGE) ---
     const handleUpload = async (file: File, type: 'audio' | 'image', blockId: string) => {
         if (!file) return;
         setUploading(true);
         try {
-            // Path: artifacts/video-hub-prod-id/assets/{courseId}/{lessonId}/{fileName}
             const filePath = `artifacts/video-hub-prod-id/assets/${courseId}/${lessonId}/${uuidv4()}_${file.name}`;
             const storageRef = ref(getFirebaseStorage(), filePath);
             const uploadTask = uploadBytesResumable(storageRef, file);
 
-            // Wait for upload
             await new Promise<void>((resolve, reject) => {
                 uploadTask.on('state_changed', null, reject, () => resolve());
             });
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
 
-            // Update Block Data
             const targetBlock = blocks.find(b => b.id === blockId);
             if (!targetBlock) return;
 
@@ -74,6 +68,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                 const newAudio: BlockAudio = { id: uuidv4(), name: file.name, url: downloadURL };
                 updateBlockField(blockId, 'audios', [...(targetBlock.audios || []), newAudio]);
             } else {
+                // Vẫn giữ isSpoiler: false để khớp Type DB, nhưng không dùng UI để chỉnh nó nữa
                 const newImage: BlockImage = { id: uuidv4(), url: downloadURL, caption: '', isSpoiler: false };
                 updateBlockField(blockId, 'images', [...(targetBlock.images || []), newImage]);
             }
@@ -85,7 +80,6 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
         }
     };
 
-    // --- SUB-ITEM ACTIONS (DELETE, TOGGLE SPOILER) ---
     const removeSubItem = (blockId: string, type: 'audios' | 'images' | 'quizzes', itemId: string) => {
         const targetBlock = blocks.find(b => b.id === blockId);
         if (!targetBlock) return;
@@ -93,18 +87,10 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
         updateBlockField(blockId, type, list.filter(i => i.id !== itemId));
     };
 
-    const toggleSpoiler = (blockId: string, imgId: string) => {
-        const targetBlock = blocks.find(b => b.id === blockId);
-        if (!targetBlock || !targetBlock.images) return;
-        const newImages = targetBlock.images.map(img => img.id === imgId ? { ...img, isSpoiler: !img.isSpoiler } : img);
-        updateBlockField(blockId, 'images', newImages);
-    };
-
-    // --- QUIZ ACTIONS ---
     const addQuiz = (blockId: string) => {
         const question = prompt("Nhập câu hỏi:");
         if (!question) return;
-        const ansStr = prompt("Nhập các đáp án ngăn cách bởi dấu phẩy (VD: Cam, Táo, Xoài):");
+        const ansStr = prompt("Nhập các đáp án (ngăn cách bởi dấu phẩy):");
         if (!ansStr) return;
         const answers = ansStr.split(',').map(s => s.trim());
         const correctStr = prompt(`Chọn đáp án đúng (1-${answers.length}):`, "1");
@@ -127,7 +113,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <p className="text-sm text-gray-500 italic">Kéo thả để sắp xếp (Tính năng sắp cập nhật)</p>
+                <p className="text-sm text-gray-500 italic">Kéo xuống để xem thêm nội dung.</p>
                 <button type="button" onClick={addBlock} className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-bold text-sm hover:bg-indigo-200 flex items-center">
                     <Plus size={16} className="mr-2"/> Thêm Block nội dung
                 </button>
@@ -135,7 +121,6 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
 
             {blocks.map((block, index) => (
                 <div key={block.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 relative group">
-                    {/* Header Block */}
                     <div className="flex justify-between items-start mb-4">
                         <div className="flex-grow mr-4">
                             <input 
@@ -158,14 +143,11 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                         </button>
                     </div>
 
-                    {/* Content Areas */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         
                         {/* 1. AUDIO COLUMN */}
                         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-                            <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center">
-                                <Headphones size={12} className="mr-1"/> Audio
-                            </h4>
+                            <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center"><Headphones size={12} className="mr-1"/> Audio</h4>
                             <div className="space-y-2 mb-3">
                                 {block.audios?.map(audio => (
                                     <div key={audio.id} className="flex justify-between items-center bg-gray-50 p-2 rounded text-xs">
@@ -175,44 +157,49 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                 ))}
                             </div>
                             <label className={`cursor-pointer flex items-center justify-center p-2 border border-dashed border-indigo-200 rounded text-indigo-600 text-xs font-bold hover:bg-indigo-50 transition ${uploading ? 'opacity-50' : ''}`}>
-                                {uploading ? <Loader2 size={14} className="animate-spin"/> : <UploadCloud size={14} className="mr-1"/>}
-                                Upload Audio
+                                {uploading ? <Loader2 size={14} className="animate-spin"/> : <UploadCloud size={14} className="mr-1"/>} Upload Audio
                                 <input type="file" accept="audio/*" className="hidden" disabled={uploading} onChange={(e) => e.target.files && handleUpload(e.target.files[0], 'audio', block.id)}/>
                             </label>
                         </div>
 
-                        {/* 2. IMAGE COLUMN */}
+                        {/* 2. IMAGE COLUMN (ĐÃ CLEAN UP: CHỈ CÒN HIỆN VÀ XÓA) */}
                         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-                            <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center">
-                                <ImageIcon size={12} className="mr-1"/> Hình ảnh
-                            </h4>
-                            <div className="space-y-2 mb-3">
+                            <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center"><ImageIcon size={12} className="mr-1"/> Hình ảnh</h4>
+                            
+                            <div className="space-y-3 mb-3">
                                 {block.images?.map(img => (
-                                    <div key={img.id} className="relative group/img rounded overflow-hidden bg-gray-100">
-                                        <img src={img.url} className={`w-full h-12 object-cover ${img.isSpoiler ? 'blur-sm grayscale' : ''}`} alt="thumb"/>
-                                        <div className="absolute top-0 right-0 flex bg-black/50 rounded-bl-lg">
-                                            <button type="button" onClick={() => toggleSpoiler(block.id, img.id)} className="p-1 text-white hover:text-yellow-300" title="Toggle Spoiler">
-                                                {img.isSpoiler ? <EyeOff size={10}/> : <Eye size={10}/>}
-                                            </button>
-                                            <button type="button" onClick={() => removeSubItem(block.id, 'images', img.id)} className="p-1 text-white hover:text-red-400">
-                                                <X size={10}/>
-                                            </button>
+                                    <div key={img.id} className="bg-gray-50 p-2 rounded border border-gray-100 relative group/img">
+                                        {/* Hiển thị ảnh rõ ràng */}
+                                        <div className="rounded overflow-hidden">
+                                            <img 
+                                                src={img.url} 
+                                                className="w-full h-24 object-contain bg-white" 
+                                                alt="thumb"
+                                            />
                                         </div>
+
+                                        {/* Nút Xóa (Góc trên phải) */}
+                                        <button 
+                                            type="button" 
+                                            onClick={() => removeSubItem(block.id, 'images', img.id)} 
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-md hover:bg-red-600 transition"
+                                            title="Xóa ảnh này"
+                                        >
+                                            <X size={12}/>
+                                        </button>
                                     </div>
                                 ))}
                             </div>
+
                             <label className={`cursor-pointer flex items-center justify-center p-2 border border-dashed border-blue-200 rounded text-blue-600 text-xs font-bold hover:bg-blue-50 transition ${uploading ? 'opacity-50' : ''}`}>
-                                {uploading ? <Loader2 size={14} className="animate-spin"/> : <UploadCloud size={14} className="mr-1"/>}
-                                Upload Ảnh
+                                {uploading ? <Loader2 size={14} className="animate-spin"/> : <UploadCloud size={14} className="mr-1"/>} Upload Ảnh
                                 <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => e.target.files && handleUpload(e.target.files[0], 'image', block.id)}/>
                             </label>
                         </div>
 
                          {/* 3. QUIZ COLUMN */}
                          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
-                            <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center">
-                                <HelpCircle size={12} className="mr-1"/> Quiz Nhanh
-                            </h4>
+                            <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center"><HelpCircle size={12} className="mr-1"/> Quiz Nhanh</h4>
                             <div className="space-y-2 mb-3">
                                 {block.quizzes?.map(q => (
                                     <div key={q.id} className="flex justify-between items-start bg-gray-50 p-2 rounded text-xs">

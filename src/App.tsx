@@ -18,12 +18,12 @@ import HomePage from './pages/HomePage';
 import AdminDashboard from './pages/AdminDashboard'; 
 import CourseDetailPage from './pages/CourseDetailPage'; 
 
-type PageType = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
+// Định nghĩa Page Type khớp với AdminDashboard
+export type PageType = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
 type UserRole = 'student' | 'admin' | null; 
-type Page = PageType; 
-type NavigateFunction = (page: Page, courseId?: string | null) => void;
+type NavigateFunction = (page: PageType, courseId?: string | null) => void;
 
-const parseUrl = (pathname: string): { page: Page, courseId: string | null } => {
+const parseUrl = (pathname: string): { page: PageType, courseId: string | null } => {
     const path = pathname.toLowerCase().replace(/\/$/, '') || '/'; 
     const detailMatch = path.match(/\/detail\/([a-zA-Z0-9_-]+)/);
     if (detailMatch) return { page: 'detail', courseId: detailMatch[1] };
@@ -40,7 +40,7 @@ const App: React.FC = () => {
     const [role, setRole] = useState<UserRole>(null); 
     
     const initialRoute = parseUrl(window.location.pathname);
-    const [currentPage, setCurrentPage] = useState<Page>(initialRoute.page);
+    const [currentPage, setCurrentPage] = useState<PageType>(initialRoute.page);
     const [currentCourseId, setCurrentCourseId] = useState<string | null>(initialRoute.courseId);
     const [dbInstance, setDbInstance] = useState<Firestore | null>(null);
 
@@ -95,9 +95,24 @@ const App: React.FC = () => {
             if (docSnap.exists()) {
                 const data = docSnap.data() as AppUser; 
                 setRole(data.role as UserRole);
+                
                 const currentRoute = parseUrl(window.location.pathname);
-                if (['login', 'register'].includes(currentRoute.page)) {
-                    onNavigate(data.role === 'admin' ? 'admin' : 'home');
+                
+                // --- LOGIC ROUTING & BẢO VỆ MỚI ---
+                if (data.role === 'admin') {
+                    // Admin không được ở các trang của User/Guest
+                    if (['login', 'register', 'home', 'landing'].includes(currentRoute.page)) {
+                        onNavigate('admin');
+                    }
+                } else {
+                    // Student không được vào trang Admin
+                    if (currentRoute.page === 'admin') {
+                        onNavigate('home');
+                    }
+                    // Student đã login không được vào Login/Register
+                    if (['login', 'register'].includes(currentRoute.page)) {
+                        onNavigate('home');
+                    }
                 }
             } else {
                 setRole('student');
@@ -131,7 +146,7 @@ const App: React.FC = () => {
 
         if (user && role) {
             if (role === 'admin' && currentPage === 'admin') {
-                return <AdminDashboard onLogout={handleLogout} user={user} onNavigate={onNavigate} />;
+                return <AdminDashboard user={user} onLogout={handleLogout}/>;
             }
             return <HomePage onLogout={handleLogout} user={user} onNavigate={onNavigate} role={role} />;
         }

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
-import { getFirebaseAuth, handleSignOut } from '../services/firebase';
 import { 
     LayoutDashboard, Users, LogOut, Plus, Search, 
     PlusCircle
@@ -9,7 +8,6 @@ import {
 import CourseCard from '../components/Admin/CourseCard';
 import CreateCourseForm from '../components/Admin/CreateCourseForm';
 import CreateVideoForm from '../components/Admin/CreateVideoForm';
-import CreateCourseFormWrapper from '../components/Admin/CreateCourseForm'; // Re-use for Edit
 import VideoList from '../components/Admin/VideoList';
 import UserManagementPage from '../components/Admin/UserManagementPage';
 import SessionManagerForm from '../components/Admin/SessionManagerForm'; 
@@ -63,12 +61,10 @@ const VideoManagerContainer: React.FC<{
 interface AdminDashboardProps {
     user: User;
     onLogout: () => void;
-    // ✅ FIX: Sửa lại type của page để khớp với App.tsx
-    onNavigate: (page: PageType, courseId?: string | null) => void;
 }
 
 // --- COMPONENT CHÍNH ---
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavigate }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
     const [activeTab, setActiveTab] = useState<'courses' | 'users'>('courses');
     
     const [courses, setCourses] = useState<Course[]>([]);
