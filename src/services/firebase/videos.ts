@@ -6,23 +6,71 @@ import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDo
 // ✅ RE-EXPORT CÁC HÀM SDK CHO UI COMPONENTS
 export { ref, uploadBytesResumable, getDownloadURL };
 
-// 1. ĐỊNH NGHĨA TYPE MỚI
-export type LessonType = 'video' | 'quiz' | 'text';
+// =================================================================
+// 1. ĐỊNH NGHĨA TYPE CHO RICH LESSON (TEMPLATE BLOCK)
+// =================================================================
+
+// Thêm 'audio' và 'custom' vào LessonType
+export type LessonType = 'video' | 'quiz' | 'text' | 'custom' | 'audio';
+
+// -- Sub-types cho các thành phần trong Block --
+
+export interface BlockAudio {
+    id: string;
+    url: string;
+    name: string;
+}
+
+export interface BlockImage {
+    id: string;
+    url: string;
+    caption?: string;
+    isSpoiler?: boolean; // True = bị che mờ, click mới hiện
+}
+
+export interface BlockQuiz {
+    id: string;
+    question: string;
+    answers: string[];
+    correctIndex: number;
+    explanation?: string; // Giải thích hiển thị sau khi chọn
+}
+
+export interface LessonBlock {
+    id: string;
+    title: string;
+    description?: string; // Hỗ trợ Markdown
+    audios?: BlockAudio[];
+    images?: BlockImage[];
+    quizzes?: BlockQuiz[];
+}
 
 export interface Video {
     id: string;
     courseId: string;
     sessionId: string;
     title: string;
-    videoUrl?: string; // Optional: chỉ dùng cho type='video'
-    storagePath?: string; // Optional: chỉ dùng cho type='video'
     adminId: string;
     createdAt: number;
+    type?: LessonType;
+
+    // -- Data riêng cho từng loại --
     
-    // CÁC TRƯỜNG BỔ SUNG CHO ĐA PHƯƠNG TIỆN
-    type?: LessonType; // Mặc định là 'video'
-    content?: string;  // Dùng cho bài giảng text (HTML/Markdown)
-    quizData?: string; // Dùng lưu JSON string của danh sách câu hỏi
+    // 1. Video thường
+    videoUrl?: string;       
+    storagePath?: string;    
+    
+    // 2. Bài giảng Text (Markdown)
+    content?: string;        
+    
+    // 3. Bài kiểm tra (Quiz lớn - tính điểm)
+    quizData?: string; 
+    
+    // 4. Bài giảng Audio
+    audioUrl?: string; 
+    
+    // 5. Custom Rich Lesson (Template mới)
+    blockData?: LessonBlock[]; 
 }
 
 export const generateVideoId = () => uuidv4();
@@ -32,7 +80,10 @@ const getVideoDocRef = (courseId: string, videoId: string) => {
     return doc(videosRef, videoId);
 }
 
-// CẬP NHẬT HÀM ADD VIDEO ĐỂ NHẬN THÊM THAM SỐ
+// =================================================================
+// 2. CẬP NHẬT HÀM ADD VIDEO (HỖ TRỢ ĐẦY ĐỦ THAM SỐ)
+// =================================================================
+
 export async function addVideo(
     courseId: string, 
     sessionId: string, 
@@ -41,17 +92,19 @@ export async function addVideo(
     storagePath: string, 
     adminId: string, 
     videoId: string,
-    // Tham số mới (optional)
     type: LessonType = 'video',
+    // Các tham số optional cho từng loại
     content: string = '',
-    quizData: string = ''
+    quizData: string = '',
+    blockData: LessonBlock[] = [], // <--- Tham số mới cho Custom Template
+    audioUrl: string = ''          // <--- Tham số mới cho Audio
 ): Promise<void> {
     const db = getFirestoreDb();
     const batch = writeBatch(db);
     const vRef = doc(getVideosCollectionRef(courseId), videoId);
     const sRef = doc(getCoursesCollectionRef(), courseId, 'sessions', sessionId);
 
-    // Tạo object data cơ bản
+    // Data chung
     const docData: any = { 
         courseId, 
         sessionId, 
@@ -61,15 +114,21 @@ export async function addVideo(
         type 
     };
 
-    // Chỉ thêm các trường cần thiết theo type
+    // Mapping Data theo Type
     if (type === 'video') {
         docData.videoUrl = videoUrl;
         docData.storagePath = storagePath;
     } else if (type === 'text') {
         docData.content = content;
-        // Text lesson không cần videoUrl, storagePath
     } else if (type === 'quiz') {
         docData.quizData = quizData;
+    } else if (type === 'audio') {
+        docData.audioUrl = audioUrl;
+        docData.storagePath = storagePath; // Lưu path file để xóa
+        docData.content = content; // Transcript
+    } else if (type === 'custom') {
+        docData.blockData = blockData;     // Lưu cấu trúc Blocks
+        docData.storagePath = storagePath; // Lưu path folder assets (nếu có)
     }
 
     batch.set(vRef, docData);
@@ -91,9 +150,14 @@ export const deleteVideo = async (courseId: string, sessionId: string, videoId: 
     const batch = writeBatch(db);
     const sRef = doc(getCoursesCollectionRef(), courseId, 'sessions', sessionId);
     
-    // Chỉ xóa trên Storage nếu có đường dẫn (Video)
+    // Nếu có storagePath (Video file hoặc Folder assets của bài Custom)
     if (storagePath) {
-        await deleteObject(ref(getFirebaseStorage(), storagePath)).catch(() => {});
+        // Lưu ý: deleteObject chỉ xóa được File. 
+        // Nếu storagePath là folder (Type Custom), logic xóa folder đệ quy cần xử lý ở Client (loop) hoặc Cloud Function.
+        // Tạm thời try-catch để tránh lỗi nếu path là folder.
+        await deleteObject(ref(getFirebaseStorage(), storagePath)).catch((err) => {
+            console.warn("Could not delete object at path (might be a folder):", storagePath, err);
+        });
     }
 
     batch.delete(doc(getVideosCollectionRef(courseId), videoId));

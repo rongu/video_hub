@@ -6,11 +6,15 @@ import {
     getDownloadURL, 
     generateVideoId, 
     getFirebaseStorage,
-    type LessonType 
+    type LessonType,
+    type LessonBlock 
 } from '../../services/firebase'; 
 import { type User } from 'firebase/auth';
-import { Loader2, X, UploadCloud, FileText, FolderPlus, Zap, CheckCircle, ListPlus, Video as VideoIcon, FileQuestion, Save } from 'lucide-react';
-import SessionManagerForm from './SessionManagerForm';
+import { 
+    Loader2, X, UploadCloud, FileText, Zap, CheckCircle, 
+    ListPlus, Video as VideoIcon, FileQuestion, Save, Headphones, LayoutTemplate 
+} from 'lucide-react';
+import LessonBuilder from './LessonBuilder'; 
 
 interface CreateVideoFormProps {
     courseId: string;
@@ -18,77 +22,104 @@ interface CreateVideoFormProps {
     adminUser: User;
     onVideoCreated: () => void;
     onClose: () => void;
+    
+    // PROP MỚI: Hàm callback để yêu cầu cha (Dashboard) mở Modal chọn Session
+    onRequestSessionManager: (
+        currentSessionId: string | null, 
+        onSelect: (id: string, title: string) => void
+    ) => void;
 }
 
-const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle, adminUser, onVideoCreated, onClose }) => {
-    // STATE QUẢN LÝ TYPE
+const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ 
+    courseId, courseTitle, adminUser, onVideoCreated, onClose, onRequestSessionManager 
+}) => {
+    // 1. STATE QUẢN LÝ LOẠI BÀI HỌC
     const [contentType, setContentType] = useState<LessonType>('video');
     
-    // State cho Text/Quiz
+    // Tạo ID nháp (Dùng để định danh folder chứa file cho bài Custom/Audio)
+    const [draftVideoId] = useState(generateVideoId());
+
+    // State chung cho Text / Quiz / Audio Title
     const [textTitle, setTextTitle] = useState('');
     const [textContent, setTextContent] = useState(''); 
+    
+    // State riêng cho Lesson Builder (Mảng các Block)
+    const [lessonBlocks, setLessonBlocks] = useState<LessonBlock[]>([]);
 
-    // State cho Video Files
+    // State cho File Upload (Video / Audio)
     const [files, setFiles] = useState<File[]>([]); 
     
+    // State chọn Session (Lưu kết quả chọn từ Modal cha)
     const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
     const [selectedSessionTitle, setSelectedSessionTitle] = useState<string | null>(null);
-    const [showSessionManager, setShowSessionManager] = useState(false);
     
+    // UI State
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [currentFileIndex, setCurrentFileIndex] = useState(0); 
-
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    const handleSessionSelected = (id: string, title: string) => {
-        setSelectedSessionId(id);
-        setSelectedSessionTitle(title);
+    // --- HANDLERS ---
+
+    // Hàm gọi lên cha để mở Modal Session
+    const handleOpenSessionManager = () => {
+        onRequestSessionManager(selectedSessionId, (id, title) => {
+            // Callback này sẽ chạy khi User chọn xong session ở Modal ngoài kia
+            setSelectedSessionId(id);
+            setSelectedSessionTitle(title);
+        });
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFiles([]);
+        setError('');
         
         if (e.target.files && e.target.files.length > 0) {
-            const selectedFiles = Array.from(e.target.files).filter(f => f.type.startsWith('video/'));
-
-            if (selectedFiles.length === 0) {
-                setError('Vui lòng chọn ít nhất một tệp video hợp lệ.');
-                setFiles([]);
-                return;
+            const selectedFiles = Array.from(e.target.files);
+            
+            // Validate loại file
+            if (contentType === 'video') {
+                const invalidFile = selectedFiles.find(f => !f.type.startsWith('video/'));
+                if (invalidFile) {
+                    setError('Vui lòng chỉ chọn file Video (.mp4, .mov...)');
+                    return;
+                }
+            } else if (contentType === 'audio') {
+                const invalidFile = selectedFiles.find(f => !f.type.startsWith('audio/'));
+                if (invalidFile) {
+                    setError('Vui lòng chỉ chọn file Audio (.mp3, .wav...)');
+                    return;
+                }
+                if (selectedFiles.length > 1) {
+                    setError('Mỗi bài học Audio chỉ được upload 1 file.');
+                    return;
+                }
             }
             
             setFiles(selectedFiles);
-            setError('');
-            setSuccess('');
-        } else {
-            setFiles([]);
         }
     };
     
-    const uploadFile = async (videoFile: File, videoId: string): Promise<{ videoUrl: string, storagePath: string }> => {
-        const filePath = `artifacts/video-hub-prod-id/videos/${courseId}/${videoId}/${videoFile.name}`;
+    // Hàm Upload File dùng chung
+    const uploadFile = async (file: File, fileId: string, folderName: string): Promise<{ url: string, storagePath: string }> => {
+        const filePath = `artifacts/video-hub-prod-id/${folderName}/${courseId}/${fileId}/${file.name}`;
         const storageRef = ref(getFirebaseStorage(), filePath);
-        
-        const uploadTask = uploadBytesResumable(storageRef, videoFile);
+        const uploadTask = uploadBytesResumable(storageRef, file);
 
         return new Promise((resolve, reject) => {
-            uploadTask.on(
-                'state_changed',
+            uploadTask.on('state_changed', 
                 (snapshot) => {
                     const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                     setUploadProgress(Math.round(progress)); 
                 },
-                (uploadError) => {
-                    reject(uploadError);
-                },
+                (err) => reject(err),
                 async () => {
                     try {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        resolve({ videoUrl: downloadURL, storagePath: filePath });
-                    } catch (urlError) {
-                        reject(urlError);
+                        const url = await getDownloadURL(uploadTask.snapshot.ref);
+                        resolve({ url, storagePath: filePath });
+                    } catch (e) {
+                        reject(e);
                     }
                 }
             );
@@ -107,17 +138,12 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
 
         setUploading(true);
         setUploadProgress(0);
-        setCurrentFileIndex(0); 
 
         try {
-            // XỬ LÝ THEO LOẠI CONTENT
+            // CASE 1: VIDEO (Upload nhiều file cùng lúc)
             if (contentType === 'video') {
-                if (files.length === 0) {
-                    setError("Vui lòng chọn ít nhất một tệp video.");
-                    setUploading(false);
-                    return;
-                }
-
+                if (files.length === 0) throw new Error("Chưa chọn file Video nào.");
+                
                 let successCount = 0;
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
@@ -125,59 +151,71 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
                     setUploadProgress(0); 
                     
                     const videoId = generateVideoId(); 
-                    const { videoUrl, storagePath } = await uploadFile(file, videoId);
-
-                    const fileContext = (file as any).webkitRelativePath || file.name;
-                    const finalTitle = fileContext.replace(/\.[^/.]+$/, ""); 
+                    const { url, storagePath } = await uploadFile(file, videoId, 'videos');
+                    const title = file.name.replace(/\.[^/.]+$/, ""); 
                     
                     await addVideo(
-                        courseId, 
-                        selectedSessionId, 
-                        finalTitle, 
-                        videoUrl, 
-                        storagePath, 
-                        adminUser.uid, 
-                        videoId,
-                        'video'
+                        courseId, selectedSessionId, title, url, storagePath, adminUser.uid, 
+                        videoId, 'video'
                     );
-                    
                     successCount++;
                 }
                 setSuccess(`Đã tải lên ${successCount} video thành công!`);
                 setFiles([]); 
-            } else {
-                // XỬ LÝ TEXT HOẶC QUIZ
-                if (!textTitle.trim()) {
-                    setError("Vui lòng nhập tiêu đề.");
-                    setUploading(false);
-                    return;
-                }
+            } 
+            
+            // CASE 2: AUDIO (1 File + Transcript)
+            else if (contentType === 'audio') {
+                if (files.length === 0) throw new Error("Chưa chọn file Audio.");
+                if (!textTitle.trim()) throw new Error("Vui lòng nhập tiêu đề Audio.");
 
-                const contentId = generateVideoId();
+                const { url, storagePath } = await uploadFile(files[0], draftVideoId, 'audios');
+                
                 await addVideo(
-                    courseId, 
-                    selectedSessionId, 
-                    textTitle, 
-                    '', 
-                    '', 
-                    adminUser.uid, 
-                    contentId,
-                    contentType,
-                    contentType === 'text' ? textContent : '', 
-                    contentType === 'quiz' ? textContent : ''  
+                    courseId, selectedSessionId, textTitle, '', storagePath, adminUser.uid, 
+                    draftVideoId, 'audio', textContent, '', [], url
                 );
                 
-                setSuccess(`Đã thêm ${contentType === 'text' ? 'Bài giảng' : 'Quiz'} thành công!`);
-                setTextTitle('');
-                setTextContent('');
+                setSuccess("Đã thêm bài Audio thành công!");
+                setTextTitle(''); setTextContent(''); setFiles([]);
+            }
+
+            // CASE 3: CUSTOM / INTERACTIVE (Dùng LessonBuilder)
+            else if (contentType === 'custom') {
+                if (!textTitle.trim()) throw new Error("Vui lòng nhập tiêu đề bài học.");
+                if (lessonBlocks.length === 0) throw new Error("Bài học chưa có nội dung nào. Hãy thêm ít nhất 1 Block.");
+
+                const storageFolderPath = `artifacts/video-hub-prod-id/assets/${courseId}/${draftVideoId}`;
+
+                await addVideo(
+                    courseId, selectedSessionId, textTitle, '', storageFolderPath, adminUser.uid,
+                    draftVideoId, 'custom', '', '', lessonBlocks
+                );
+                
+                setSuccess("Đã tạo Bài học Tương tác thành công!");
+                setTextTitle(''); setLessonBlocks([]);
+            }
+
+            // CASE 4: TEXT / QUIZ
+            else {
+                if (!textTitle.trim()) throw new Error("Vui lòng nhập tiêu đề.");
+                const id = generateVideoId();
+                await addVideo(
+                    courseId, selectedSessionId, textTitle, '', '', adminUser.uid, id,
+                    contentType, 
+                    contentType === 'text' ? textContent : '', 
+                    contentType === 'quiz' ? textContent : '' 
+                );
+                setSuccess(`Đã thêm ${contentType} thành công!`);
+                setTextTitle(''); setTextContent('');
             }
             
             onVideoCreated(); 
-            setTimeout(onClose, 2500); 
+            setTimeout(onClose, 2000); 
             
         } catch (err: any) {
-            console.error("Lỗi khi tạo nội dung:", err);
-            setError(`Thất bại: ${err.message || "Lỗi không xác định"}`);
+            console.error("Lỗi tạo nội dung:", err);
+            setError(err.message || "Đã xảy ra lỗi không xác định.");
         } finally {
             setUploading(false);
             setUploadProgress(0); 
@@ -186,189 +224,177 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ courseId, courseTitle
     };
 
     return (
-        <div className="p-6 bg-white rounded-xl shadow-2xl border-t-8 border-indigo-600 w-full max-w-lg mx-auto">
-            {/* Modal Quản lý Session */}
-            {showSessionManager && (
-                <SessionManagerForm
-                    courseId={courseId}
-                    courseTitle={courseTitle}
-                    onClose={() => setShowSessionManager(false)}
-                    onSessionSelected={(id, title) => {
-                        handleSessionSelected(id, title);
-                        setShowSessionManager(false); 
-                    }}
-                    selectedSessionId={selectedSessionId}
-                />
-            )}
-
+        <div className="p-6 bg-white rounded-xl shadow-2xl border-t-8 border-indigo-600 w-full max-w-4xl mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar relative">
+            
+            {/* HEADER */}
             <div className="flex justify-between items-center mb-4 border-b pb-3">
                 <h3 className="text-xl font-bold text-indigo-700">Thêm Nội dung: "{courseTitle}"</h3>
                 <button 
                     onClick={onClose} 
-                    className="text-gray-500 hover:text-gray-800 transition p-1 rounded-full hover:bg-gray-100"
-                    disabled={uploading}
+                    disabled={uploading} 
+                    className="text-gray-500 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition"
                 >
                     <X size={24} />
                 </button>
             </div>
             
-            {/* TAB SELECTOR */}
-            <div className="flex mb-6 bg-gray-100 p-1 rounded-lg">
-                <button 
-                    type="button"
-                    onClick={() => setContentType('video')}
-                    disabled={uploading}
-                    className={`flex-1 py-2 text-sm font-bold rounded-md flex items-center justify-center space-x-2 transition ${contentType === 'video' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    <VideoIcon size={16}/> <span>Video</span>
-                </button>
-                <button 
-                    type="button"
-                    onClick={() => setContentType('text')}
-                    disabled={uploading}
-                    className={`flex-1 py-2 text-sm font-bold rounded-md flex items-center justify-center space-x-2 transition ${contentType === 'text' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    <FileText size={16}/> <span>Bài giảng</span>
-                </button>
-                <button 
-                    type="button"
-                    onClick={() => setContentType('quiz')}
-                    disabled={uploading}
-                    className={`flex-1 py-2 text-sm font-bold rounded-md flex items-center justify-center space-x-2 transition ${contentType === 'quiz' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    <FileQuestion size={16}/> <span>Quiz</span>
-                </button>
+            {/* TABS CHỌN TYPE */}
+            <div className="flex mb-6 bg-gray-100 p-1 rounded-lg overflow-x-auto">
+                {[
+                    { id: 'video', label: 'Video', icon: VideoIcon, color: 'text-indigo-600' },
+                    { id: 'audio', label: 'Audio', icon: Headphones, color: 'text-purple-600' },
+                    { id: 'custom', label: 'Tương tác', icon: LayoutTemplate, color: 'text-pink-600' },
+                    { id: 'text', label: 'Bài giảng', icon: FileText, color: 'text-green-600' },
+                    { id: 'quiz', label: 'Quiz', icon: FileQuestion, color: 'text-orange-600' },
+                ].map((tab) => (
+                    <button 
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setContentType(tab.id as LessonType)}
+                        disabled={uploading}
+                        className={`flex-1 min-w-[100px] py-2 text-sm font-bold rounded-md flex items-center justify-center space-x-2 transition ${
+                            contentType === tab.id 
+                            ? `bg-white ${tab.color} shadow-sm` 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        <tab.icon size={16}/> <span className="whitespace-nowrap">{tab.label}</span>
+                    </button>
+                ))}
             </div>
             
+            {/* MAIN FORM */}
             <form onSubmit={handleSubmit} className="space-y-5">
                 
-                {error && <p className="p-3 bg-red-100 text-red-700 rounded-lg text-sm font-medium border border-red-200">{error}</p>}
-                {success && <p className="p-3 bg-green-100 text-green-700 rounded-lg text-sm font-medium border border-green-200">{success}</p>}
+                {/* NOTIFICATIONS */}
+                {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm font-medium border border-red-200 flex items-center"><X size={16} className="mr-2"/>{error}</div>}
+                {success && <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm font-medium border border-green-200 flex items-center"><CheckCircle size={16} className="mr-2"/>{success}</div>}
 
-                {/* SESSION SELECTION */}
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner">
-                    <label className="block text-base font-semibold text-gray-700 mb-2 flex items-center">
+                {/* 1. SESSION SELECTOR (Gọi Modal của Cha) */}
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
                         <ListPlus size={18} className="mr-2 text-indigo-600"/> 1. Chọn Session <span className="text-red-500 ml-1">*</span>
                     </label>
-
                     {selectedSessionId ? (
-                        <div className="flex items-center justify-between p-2 bg-indigo-100 border border-indigo-400 rounded-lg text-indigo-800 font-medium text-sm">
-                            <span className="flex items-center">
-                                <CheckCircle size={18} className="mr-2 text-indigo-600"/>
-                                Đã chọn: **{selectedSessionTitle}**
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() => setShowSessionManager(true)}
-                                className="text-indigo-600 hover:text-indigo-800 transition text-xs font-semibold underline disabled:opacity-50"
-                                disabled={uploading}
-                            >
-                                Thay đổi
-                            </button>
+                        <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 font-medium text-sm">
+                            <span className="flex items-center"><CheckCircle size={18} className="mr-2 text-indigo-600"/> Đã chọn: <strong className="ml-1">{selectedSessionTitle}</strong></span>
+                            <button type="button" onClick={handleOpenSessionManager} disabled={uploading} className="text-indigo-600 underline text-xs hover:text-indigo-800">Thay đổi</button>
                         </div>
                     ) : (
-                        <button
-                            type="button"
-                            onClick={() => setShowSessionManager(true)}
-                            className={`w-full py-2 flex items-center justify-center font-medium rounded-lg shadow-sm transition ${
-                                uploading ? 'bg-gray-300 text-gray-500' : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                            }`}
-                            disabled={uploading}
-                        >
-                            <Zap size={20} className="mr-2" /> Chọn Session
+                        <button type="button" onClick={handleOpenSessionManager} disabled={uploading} className="w-full py-3 bg-white border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 flex justify-center items-center font-bold text-sm transition dashed">
+                            <Zap size={18} className="mr-2" /> Nhấn để chọn Session
                         </button>
                     )}
                 </div>
 
-                {/* FORM FIELDS */}
-                {contentType === 'video' ? (
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">2. Chọn Video (Files/Folder) <span className="text-red-500">*</span></label>
-                        
-                        {/* Hidden Input for Files */}
-                        <input id="fileInput" type="file" accept="video/*" multiple onChange={handleFileChange} className="hidden" disabled={uploading} />
-                        
-                        {/* ✅ FIX LỖI TS(2322):
-                            Sử dụng spread operator với casting as any để bypass kiểm tra type cho webkitdirectory 
-                        */}
-                        <input 
-                            id="folderInput" 
-                            type="file" 
-                            accept="video/*"
-                            {...({ webkitdirectory: "" } as any)}
-                            multiple 
-                            onChange={handleFileChange} 
-                            className="hidden" 
-                            disabled={uploading} 
-                        />
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <label htmlFor="fileInput" className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg cursor-pointer transition ${files.length > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'}`}>
-                                <UploadCloud size={28} className={`mb-1 ${files.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
-                                <span className="text-sm font-semibold">Chọn Files</span>
-                            </label>
-                            
-                            <label htmlFor="folderInput" className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg cursor-pointer transition ${files.length > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'}`}>
-                                <FolderPlus size={28} className={`mb-1 ${files.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
-                                <span className="text-sm font-semibold">Chọn Folder</span>
-                            </label>
-                        </div>
-                        
-                        {files.length > 0 && (
-                            <div className="mt-2 text-sm text-indigo-700 font-medium text-center">
-                                Đã chọn {files.length} video.
+                {/* 2. DYNAMIC FIELDS THEO TYPE */}
+                <div className="min-h-[200px]">
+                    {contentType === 'custom' ? (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">2. Tiêu đề Bài học <span className="text-red-500">*</span></label>
+                                <input 
+                                    type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition" 
+                                    value={textTitle} onChange={(e) => setTextTitle(e.target.value)} placeholder="VD: Luyện nghe Part 1 (Có đáp án chi tiết)..." required
+                                />
                             </div>
-                        )}
-
-                        {uploading && (
-                            <div className="space-y-2 pt-4">
-                                <p className="text-sm font-semibold text-indigo-600">
-                                    Đang tải lên ({currentFileIndex}/{files.length}): {uploadProgress}%
-                                </p>
-                                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                    <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                            <div className="border-t border-gray-200 pt-4">
+                                <label className="block text-sm font-bold text-gray-700 mb-4 flex items-center">
+                                    3. Xây dựng nội dung <span className="ml-2 text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Kéo xuống để thêm các phần</span>
+                                </label>
+                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                    <LessonBuilder 
+                                        courseId={courseId} 
+                                        lessonId={draftVideoId} 
+                                        initialBlocks={lessonBlocks}
+                                        onChange={setLessonBlocks}
+                                    />
                                 </div>
                             </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">2. Tiêu đề {contentType === 'quiz' ? 'Quiz' : 'Bài giảng'} <span className="text-red-500">*</span></label>
-                            <input 
-                                type="text" 
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" 
-                                value={textTitle}
-                                onChange={(e) => setTextTitle(e.target.value)}
-                                placeholder={`Nhập tên ${contentType === 'quiz' ? 'bài kiểm tra' : 'bài giảng'}...`}
-                                required
-                            />
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                {contentType === 'quiz' ? '3. Dữ liệu Quiz (JSON)' : '3. Nội dung Bài giảng'}
-                            </label>
-                            <textarea 
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition h-40 font-mono text-sm"
-                                value={textContent}
-                                onChange={(e) => setTextContent(e.target.value)}
-                                placeholder={contentType === 'quiz' ? '[{"question": "Câu hỏi 1?", "answers": ["A", "B"], "correct": 0}]' : 'Nội dung bài học (Hỗ trợ Markdown/HTML cơ bản)...'}
-                            />
-                            {contentType === 'quiz' && <p className="text-xs text-gray-500 mt-1">* Nhập JSON mảng câu hỏi (Tính năng Builder sẽ cập nhật sau).</p>}
-                        </div>
-                    </div>
-                )}
 
-                <button
-                    type="submit"
-                    disabled={uploading || !selectedSessionId || (contentType === 'video' && files.length === 0)}
-                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white transition duration-150 bg-indigo-600 hover:bg-indigo-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-                >
-                    {uploading ? (
-                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    ) : contentType === 'video' ? (
+                        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">2. Chọn Video (Có thể chọn nhiều file) <span className="text-red-500">*</span></label>
+                            <input id="fileInput" type="file" accept="video/*" multiple onChange={handleFileChange} className="hidden" disabled={uploading} />
+                            
+                            <label htmlFor="fileInput" className={`flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-xl cursor-pointer transition-all ${files.length > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'}`}>
+                                <UploadCloud size={40} className={`mb-3 ${files.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
+                                <span className="text-sm font-bold text-gray-600">{files.length > 0 ? `Đã chọn ${files.length} video` : 'Click để chọn Video từ máy tính'}</span>
+                                <span className="text-xs text-gray-400 mt-1">Hỗ trợ MP4, MOV, MKV...</span>
+                            </label>
+
+                            {files.length > 0 && (
+                                <div className="mt-4 space-y-2">
+                                    {files.map((f, idx) => (
+                                        <div key={idx} className="flex items-center text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
+                                            <VideoIcon size={14} className="mr-2 text-indigo-500"/> {f.name} <span className="ml-auto text-gray-400">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {uploading && (
+                                <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                                    <p className="text-xs font-bold text-indigo-700 mb-2 flex justify-between">
+                                        <span>Đang tải lên ({currentFileIndex}/{files.length})...</span>
+                                        <span>{uploadProgress}%</span>
+                                    </p>
+                                    <div className="w-full bg-indigo-200 rounded-full h-2 overflow-hidden">
+                                        <div className="bg-indigo-600 h-full transition-all duration-300 ease-out" style={{ width: `${uploadProgress}%` }}></div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                    ) : contentType === 'audio' ? (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">2. Tiêu đề Audio <span className="text-red-500">*</span></label>
+                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-purple-500 transition" value={textTitle} onChange={(e) => setTextTitle(e.target.value)} required placeholder="VD: Listening Test 1..." />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">3. File Audio (.mp3, .wav) <span className="text-red-500">*</span></label>
+                                <input type="file" accept="audio/*" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition"/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">4. Transcript / Mô tả (Tùy chọn)</label>
+                                <textarea className="w-full p-3 border border-gray-300 rounded-lg h-32 text-sm focus:border-purple-500 outline-none transition" value={textContent} onChange={(e) => setTextContent(e.target.value)} placeholder="Nội dung bài nghe hoặc lời thoại..."></textarea>
+                            </div>
+                        </div>
+
                     ) : (
-                        contentType === 'video' ? <VideoIcon size={20} className="mr-2"/> : <Save size={20} className="mr-2"/>
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">2. Tiêu đề <span className="text-red-500">*</span></label>
+                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-indigo-500 transition" value={textTitle} onChange={(e) => setTextTitle(e.target.value)} required placeholder={`Nhập tên ${contentType}...`}/>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">
+                                    {contentType === 'quiz' ? '3. Dữ liệu Quiz (JSON)' : '3. Nội dung Bài giảng (Markdown)'}
+                                </label>
+                                <textarea 
+                                    className="w-full p-3 border border-gray-300 rounded-lg h-48 font-mono text-sm focus:border-indigo-500 outline-none transition" 
+                                    value={textContent} 
+                                    onChange={(e) => setTextContent(e.target.value)} 
+                                    placeholder={contentType === 'quiz' ? '[{"question": "...", "answers": ["A", "B"], "correct": 0}]' : 'Nội dung bài học...'}
+                                />
+                            </div>
+                        </div>
                     )}
+                </div>
+
+                {/* SUBMIT BUTTON */}
+                <button 
+                    type="submit" 
+                    disabled={uploading || !selectedSessionId} 
+                    className={`w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-lg text-base font-bold text-white transition duration-200 mt-6 ${
+                        uploading || !selectedSessionId 
+                        ? 'bg-gray-300 cursor-not-allowed' 
+                        : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-xl transform hover:-translate-y-0.5'
+                    }`}
+                >
+                    {uploading ? <Loader2 className="animate-spin mr-2" /> : <Save size={20} className="mr-2"/>}
                     {uploading ? 'Đang xử lý...' : 'Lưu & Thêm mới'}
                 </button>
             </form>

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 // ✅ BỔ SUNG CÁC ICON MỚI
-import { PlayCircle, Edit2, Trash2, Save, X, Bookmark, FileText, HelpCircle } from 'lucide-react';
+import { PlayCircle, Edit2, Trash2, Save, X, Bookmark, FileText, HelpCircle, Headphones, LayoutTemplate } from 'lucide-react';
 import { type Video} from '../../services/firebase'; 
 
 interface VideoListItemProps {
@@ -65,12 +65,15 @@ const VideoListItem: React.FC<VideoListItemProps> = ({ video, index, onViewVideo
         onDeleteVideo(video); 
     }, [video, onDeleteVideo]);
 
-    // HÀM RENDER ICON THEO TYPE
+    // HÀM RENDER ICON THEO TYPE (Đã cập nhật đầy đủ)
     const renderTypeIcon = () => {
         if (video.type === 'quiz') return <HelpCircle className="flex-shrink-0 h-8 w-8 text-orange-500 ml-4 hover:text-orange-600 transition" />;
-        if (video.type === 'text') return <FileText className="flex-shrink-0 h-8 w-8 text-blue-500 ml-4 hover:text-blue-600 transition" />;
+        if (video.type === 'text') return <FileText className="flex-shrink-0 h-8 w-8 text-green-500 ml-4 hover:text-green-600 transition" />;
+        if (video.type === 'audio') return <Headphones className="flex-shrink-0 h-8 w-8 text-purple-500 ml-4 hover:text-purple-600 transition" />;
+        if (video.type === 'custom') return <LayoutTemplate className="flex-shrink-0 h-8 w-8 text-pink-500 ml-4 hover:text-pink-600 transition" />;
+        
         // Default video
-        return <PlayCircle className="flex-shrink-0 h-8 w-8 text-green-500 ml-4 hover:text-green-600 transition" />;
+        return <PlayCircle className="flex-shrink-0 h-8 w-8 text-indigo-500 ml-4 hover:text-indigo-600 transition" />;
     };
 
     if (isEditing) {
@@ -110,8 +113,13 @@ const VideoListItem: React.FC<VideoListItemProps> = ({ video, index, onViewVideo
                 <div className="flex items-center space-x-2">
                      {/* Hiển thị tag loại nội dung */}
                      {video.type && video.type !== 'video' && (
-                        <span className={`flex-shrink-0 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded text-white ${video.type === 'quiz' ? 'bg-orange-400' : 'bg-blue-400'}`}>
-                            {video.type}
+                        <span className={`flex-shrink-0 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded text-white ${
+                            video.type === 'quiz' ? 'bg-orange-400' : 
+                            video.type === 'text' ? 'bg-green-400' :
+                            video.type === 'audio' ? 'bg-purple-400' :
+                            'bg-pink-400' // Custom
+                        }`}>
+                            {video.type === 'custom' ? 'Interactive' : video.type}
                         </span>
                     )}
                     <p className="text-gray-800 font-semibold truncate hover:text-indigo-600">{video.title}</p>

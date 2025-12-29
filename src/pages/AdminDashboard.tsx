@@ -1,371 +1,297 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
-import CreateCourseForm from '../components/Admin/CreateCourseForm'; 
-import CreateVideoForm from '../components/Admin/CreateVideoForm'; 
-import CourseCard from '../components/Admin/CourseCard'; 
-import VideoList from '../components/Admin/VideoList';
-import UserManagementPage from '../components/Admin/UserManagementPage'; 
-import { Plus, X, BookOpen, Users } from 'lucide-react'; 
+import { getFirebaseAuth, handleSignOut } from '../services/firebase';
 import { 
-    type Course, 
-    type Session, 
-    type Video, // Thêm Video type
-    subscribeToCourses, 
-    deleteCourse,
-    subscribeToSessions, // Đã fix index trong firebase.ts
-    subscribeToVideos, // Lắng nghe videos cho khóa học đang chọn
-} from '../services/firebase'; 
+    LayoutDashboard, Users, LogOut, Plus, Search, 
+    PlusCircle
+} from 'lucide-react';
 
-type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail'; 
+import CourseCard from '../components/Admin/CourseCard';
+import CreateCourseForm from '../components/Admin/CreateCourseForm';
+import CreateVideoForm from '../components/Admin/CreateVideoForm';
+import CreateCourseFormWrapper from '../components/Admin/CreateCourseForm'; // Re-use for Edit
+import VideoList from '../components/Admin/VideoList';
+import UserManagementPage from '../components/Admin/UserManagementPage';
+import SessionManagerForm from '../components/Admin/SessionManagerForm'; 
+import { subscribeToCourses, type Course, deleteCourse } from '../services/firebase/courses';
+import ConfirmDeleteModal from '../components/Admin/ConfirmDeleteModal';
 
-// Cấu trúc Course mở rộng để chứa Sessions và Videos
-interface CourseWithSessions extends Course {
-    sessions?: Session[]; 
-    videos?: Video[]; // Thêm Videos để dễ dàng lọc
-}
+import useCourseSessions from '../hooks/useCourseSessions';
+import { subscribeToVideos, type Video as IVideo } from '../services/firebase';
 
-// Định nghĩa lại props cho CreateVideoForm
-interface CreateVideoFormProps {
-    courseId: string;
-    courseTitle: string;
-    adminUser: User;
-    onVideoCreated: () => void;
-    onClose: () => void;
-    sessions: Session[]; 
-}
-const TypedCreateVideoForm = CreateVideoForm as React.FC<CreateVideoFormProps>;
+// ✅ ĐỊNH NGHĨA LẠI PageType CHO KHỚP VỚI APP.TSX
+export type PageType = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail';
 
+// --- COMPONENT CON: VIDEO MANAGER CONTAINER ---
+const VideoManagerContainer: React.FC<{ 
+    courseId: string; 
+    onAddVideo: () => void; 
+}> = ({ courseId, onAddVideo }) => {
+    const [sessions] = useCourseSessions(courseId);
+    const [videos, setVideos] = useState<IVideo[]>([]);
 
+    useEffect(() => {
+        const unsubscribe = subscribeToVideos(courseId, null, (fetchedVideos) => {
+            setVideos(fetchedVideos);
+        });
+        return () => unsubscribe();
+    }, [courseId]);
+
+    return (
+        <div className="flex flex-col h-full">
+            <div className="p-4 bg-gray-100 border-b border-gray-200 flex justify-end">
+                <button 
+                    onClick={onAddVideo}
+                    className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition shadow-sm"
+                >
+                    <PlusCircle size={18} className="mr-2"/> Thêm Video / Bài học
+                </button>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto p-4 custom-scrollbar">
+                <VideoList 
+                    courseId={courseId} 
+                    sessions={sessions} 
+                    videos={videos} 
+                />
+            </div>
+        </div>
+    );
+};
+
+// --- ĐỊNH NGHĨA PROPS CHO ADMIN DASHBOARD ---
 interface AdminDashboardProps {
     user: User;
-    onLogout: () => Promise<void>;
-    onNavigate: (page: Page, courseId?: string | null) => void; 
+    onLogout: () => void;
+    // ✅ FIX: Sửa lại type của page để khớp với App.tsx
+    onNavigate: (page: PageType, courseId?: string | null) => void;
 }
 
+// --- COMPONENT CHÍNH ---
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavigate }) => {
-    const [courses, setCourses] = useState<Course[]>([]); 
+    const [activeTab, setActiveTab] = useState<'courses' | 'users'>('courses');
+    
+    const [courses, setCourses] = useState<Course[]>([]);
     const [loadingCourses, setLoadingCourses] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
     
-    const [courseToEdit, setCourseToEdit] = useState<Course | null>(null);
-    const [showCourseForm, setShowCourseForm] = useState(false); 
-    
-    const [selectedCourse, setSelectedCourse] = useState<CourseWithSessions | null>(null); 
-    
-    const [videoUpdateKey, setVideoUpdateKey] = useState(0); 
-    const [currentAdminView, setCurrentAdminView] = useState<'courses' | 'users'>('courses');
+    // Modals State
+    const [showCreateCourse, setShowCreateCourse] = useState(false);
+    const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+    const [deletingCourse, setDeletingCourse] = useState<Course | null>(null);
+    const [selectedCourseForVideos, setSelectedCourseForVideos] = useState<Course | null>(null);
+    const [courseForVideoCreation, setCourseForVideoCreation] = useState<{id: string, title: string} | null>(null);
 
+    // Session Manager State
+    const [sessionManagerData, setSessionManagerData] = useState<{
+        isOpen: boolean;
+        courseId: string;
+        courseTitle: string;
+        selectedSessionId: string | null;
+        onSelectCallback?: (id: string, title: string) => void;
+    }>({ isOpen: false, courseId: '', courseTitle: '', selectedSessionId: null });
 
-    // =================================================================
-    // 1. Lắng nghe Real-time danh sách Khóa học (Giữ nguyên)
-    // =================================================================
     useEffect(() => {
-        setLoadingCourses(true);
-        let unsubscribe = () => {};
-        
-        try {
-            unsubscribe = subscribeToCourses((fetchedCourses) => {
-                setCourses(fetchedCourses);
-                setLoadingCourses(false);
-
-                // Cập nhật selectedCourse an toàn
-                setSelectedCourse(prevSelectedCourse => {
-                    if (prevSelectedCourse) {
-                        const updatedCourse = fetchedCourses.find(c => c.id === prevSelectedCourse.id);
-                        if (updatedCourse) {
-                            // Giữ lại sessions/videos cũ
-                            return { ...updatedCourse, sessions: prevSelectedCourse.sessions || [], videos: prevSelectedCourse.videos || [] }; 
-                        }
-                        return null; 
-                    }
-                    return prevSelectedCourse; 
-                });
-                
-                setCourseToEdit(prevCourseToEdit => {
-                    if (prevCourseToEdit) {
-                        const updatedCourse = fetchedCourses.find(c => c.id === prevCourseToEdit.id);
-                        return updatedCourse || null;
-                    }
-                    return null;
-                });
-            });
-        } catch (e) {
-            console.error("Lỗi khi lắng nghe Khóa học:", e);
+        const unsubscribe = subscribeToCourses((fetchedCourses) => {
+            setCourses(fetchedCourses);
             setLoadingCourses(false);
-        }
+        });
         return () => unsubscribe();
-    }, []); 
+    }, []);
 
-    // =================================================================
-    // 2. Lắng nghe Sessions & Videos cho Khóa học đang chọn
-    // =================================================================
-    useEffect(() => {
-        if (!selectedCourse?.id || currentAdminView !== 'courses') return;
-        
-        const courseId = selectedCourse.id;
-        
-        // 2a. Lắng nghe Sessions
-        const unsubscribeSessions = subscribeToSessions(courseId, (fetchedSessions: Session[]) => {
-            console.log(`✅ Fetched ${fetchedSessions.length} Sessions`);
-            setSelectedCourse(prevCourse => {
-                if (!prevCourse || prevCourse.id !== courseId) return prevCourse;
-                return { ...prevCourse, sessions: fetchedSessions };
-            });
+    const handleDeleteCourse = async () => {
+        if (deletingCourse) {
+            await deleteCourse(deletingCourse.id);
+            setDeletingCourse(null);
+        }
+    };
+
+    const openSessionManager = (courseId: string, courseTitle: string, currentSessionId: string | null, onSelect: (id: string, title: string) => void) => {
+        setSessionManagerData({
+            isOpen: true,
+            courseId,
+            courseTitle,
+            selectedSessionId: currentSessionId,
+            onSelectCallback: onSelect
         });
+    };
 
-        // 2b. Lắng nghe Videos
-        // Lấy TẤT CẢ Videos cho khóa học này (sessionId = null)
-        const unsubscribeVideos = subscribeToVideos(courseId, null, (fetchedVideos: Video[]) => {
-            console.log(`✅ Fetched ${fetchedVideos.length} Videos`);
-            setSelectedCourse(prevCourse => {
-                if (!prevCourse || prevCourse.id !== courseId) return prevCourse;
-                return { ...prevCourse, videos: fetchedVideos };
-            });
-        });
-
-
-        // Cleanup Sessions and Videos
-        return () => {
-            unsubscribeSessions();
-            unsubscribeVideos();
-        };
-
-    }, [selectedCourse?.id, currentAdminView]);
-
-
-    // =================================================================
-    // Handlers (Giữ nguyên)
-    // =================================================================
-
-    const handleStartCreateCourse = useCallback(() => {
-        setCourseToEdit(null);
-        setSelectedCourse(null);
-        setCurrentAdminView('courses'); 
-        setShowCourseForm(true);
-    }, []);
-
-    const handleEditCourse = useCallback((course: Course) => {
-        setCourseToEdit(course);
-        setSelectedCourse(null); 
-        setCurrentAdminView('courses'); 
-        setShowCourseForm(true); 
-    }, []);
-
-    const handleCourseSaved = useCallback(() => {
-        setCourseToEdit(null); 
-        setShowCourseForm(false); 
-    }, []);
-    
-    const handleDeleteCourse = useCallback(async (course: Course) => {
-        if (window.confirm(`Bạn có chắc chắn muốn xóa khóa học "${course.title}" và tất cả video của nó không?`)) {
-            try {
-                await deleteCourse(course.id);
-                if (selectedCourse?.id === course.id) {
-                    setSelectedCourse(null);
-                }
-            } catch (error) {
-                console.error("Lỗi khi xóa khóa học:", error);
-                alert("Không thể xóa khóa học. Vui lòng thử lại.");
-            }
-        }
-    }, [selectedCourse]);
-
-
-    const handleManageVideos = useCallback((course: CourseWithSessions) => {
-        if (selectedCourse?.id === course.id && currentAdminView === 'courses') {
-            setSelectedCourse(null);
-        } else {
-            // Khi chọn, set Course. UseEffect sẽ tự fetch Sessions/Videos
-            setSelectedCourse(course); 
-            setCurrentAdminView('courses'); 
-        }
-        setShowCourseForm(false); 
-        setCourseToEdit(null); 
-    }, [selectedCourse, currentAdminView]);
-
-    const handleCloseVideoForm = useCallback(() => {
-        setSelectedCourse(null);
-    }, []);
-
-    const handleVideoChange = useCallback(() => {
-        setVideoUpdateKey(prev => prev + 1); 
-    }, []);
-
-    const handleSwitchView = useCallback((view: 'courses' | 'users') => {
-        setCurrentAdminView(view);
-        setSelectedCourse(null);
-        setCourseToEdit(null);
-        setShowCourseForm(false);
-    }, []);
-
-
-    const CourseList = () => {
-        if (loadingCourses) {
-            return <p className="text-center text-gray-500">Đang tải danh sách khóa học...</p>;
-        }
-
-        if (courses.length === 0) {
-            return <p className="text-center text-gray-500">Chưa có khóa học nào. Hãy tạo khóa học đầu tiên!</p>;
+    const renderContent = () => {
+        if (activeTab === 'users') {
+            return <UserManagementPage />;
         }
 
         return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {courses.map((course) => (
-                    <CourseCard 
-                        key={course.id}
-                        course={course}
-                        onManageVideos={handleManageVideos} 
-                        onEditCourse={handleEditCourse} 
-                        onDeleteCourse={handleDeleteCourse} 
-                        isSelected={selectedCourse?.id === course.id && currentAdminView === 'courses'} 
-                    />
-                ))}
+            <div className="space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="relative w-full md:w-96">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                        <input 
+                            type="text" 
+                            placeholder="Tìm kiếm khóa học..." 
+                            className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 outline-none transition"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <button 
+                        onClick={() => setShowCreateCourse(true)}
+                        className="w-full md:w-auto px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center"
+                    >
+                        <Plus className="mr-2" size={20} /> Tạo Khóa Học Mới
+                    </button>
+                </div>
+
+                {loadingCourses ? (
+                    <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {courses
+                            .filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()))
+                            .map(course => (
+                            <CourseCard 
+                                key={course.id} 
+                                course={course} 
+                                onEditCourse={() => setEditingCourse(course)}
+                                onDeleteCourse={() => setDeletingCourse(course)}
+                                onManageVideos={() => setSelectedCourseForVideos(course)}
+                                isSelected={false} 
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
         );
     };
 
-    const isEditingMode = !!courseToEdit;
-    
     return (
-        <div className="min-h-screen w-full bg-indigo-50 flex flex-col font-sans">
-            {/* Header (Giữ nguyên) */}
-            <header className="bg-indigo-700 shadow-lg p-4 flex justify-between items-center w-full">
-                <h1 className="text-2xl font-bold text-white">Quản trị Hệ thống (Admin)</h1>
-                <div className="flex items-center space-x-4">
-                    <span className="text-indigo-200 font-medium hidden sm:inline">Quản trị viên: {user.displayName || user.email}</span>
-                    <button
-                        onClick={() => onNavigate('home')} // ✅ FIX: Thêm nút chuyển về HOME
-                        className="py-1 px-3 bg-indigo-500 text-white text-sm font-semibold rounded-lg hover:bg-indigo-600 transition duration-200"
-                    >
-                        Trang chủ
+        <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex">
+            {/* SIDEBAR */}
+            <aside className="w-20 lg:w-64 bg-white border-r border-gray-100 flex-shrink-0 fixed h-full z-20 hidden md:flex flex-col">
+                <div className="p-6 flex items-center justify-center lg:justify-start border-b border-gray-50">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg text-white font-black text-xl">V</div>
+                    <span className="ml-3 font-black text-xl hidden lg:block text-gray-800 tracking-tight">VIDEO HUB</span>
+                </div>
+                
+                <nav className="flex-grow p-4 space-y-2">
+                    <button onClick={() => setActiveTab('courses')} className={`w-full flex items-center p-3 rounded-xl transition font-bold ${activeTab === 'courses' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
+                        <LayoutDashboard size={22} /><span className="ml-3 hidden lg:block">Quản lý Khóa học</span>
                     </button>
-                    <button
-                        onClick={onLogout}
-                        className="py-1 px-3 bg-red-500 text-white text-sm font-semibold rounded-lg hover:bg-red-600 transition duration-200"
-                    >
-                        Đăng xuất
+                    <button onClick={() => setActiveTab('users')} className={`w-full flex items-center p-3 rounded-xl transition font-bold ${activeTab === 'users' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
+                        <Users size={22} /><span className="ml-3 hidden lg:block">Học viên</span>
+                    </button>
+                </nav>
+
+                <div className="p-4 border-t border-gray-50">
+                    <button onClick={onLogout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition font-bold">
+                        <LogOut size={22} /><span className="ml-3 hidden lg:block">Đăng xuất</span>
                     </button>
                 </div>
-            </header>
+            </aside>
 
-            {/* Main Content */}
-            <main className="flex-grow p-4 sm:p-8">
-                <div className="max-w-6xl mx-auto space-y-8">
-                    
-                    {/* VIEW TABS */}
-                    <div className="flex space-x-4 border-b border-gray-300 pb-2">
-                        <button 
-                            onClick={() => handleSwitchView('courses')}
-                            className={`flex items-center px-4 py-2 text-lg font-semibold rounded-t-lg transition ${
-                                currentAdminView === 'courses' ? 'text-indigo-700 border-b-4 border-indigo-700 bg-white shadow-t' : 'text-gray-500 hover:text-indigo-500'
-                            }`}
-                        >
-                            <BookOpen className="w-5 h-5 mr-2"/> Quản lý Khóa học
-                        </button>
-                        <button 
-                            onClick={() => handleSwitchView('users')}
-                            className={`flex items-center px-4 py-2 text-lg font-semibold rounded-t-lg transition ${
-                                currentAdminView === 'users' ? 'text-indigo-700 border-b-4 border-indigo-700 bg-white shadow-t' : 'text-gray-500 hover:text-indigo-500'
-                            }`}
-                        >
-                            <Users className="w-5 h-5 mr-2"/> Quản lý User & Ghi danh
-                        </button>
+            {/* MAIN CONTENT */}
+            <main className="flex-grow md:ml-20 lg:ml-64 p-6 lg:p-10">
+                <header className="flex justify-between items-center mb-10">
+                    <div>
+                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">Dashboard</h1>
+                        <p className="text-gray-400 font-medium text-sm mt-1">Xin chào, {user.email}</p>
                     </div>
-
-                    {/* ======================================================= */}
-                    {/* KHU VỰC 1: QUẢN LÝ USER */}
-                    {/* ======================================================= */}
-                    {currentAdminView === 'users' && (
-                        <UserManagementPage />
-                    )}
-
-                    {/* ======================================================= */}
-                    {/* KHU VỰC 2: QUẢN LÝ KHÓA HỌC & VIDEO */}
-                    {/* ======================================================= */}
-                    {currentAdminView === 'courses' && (
-                        <>
-                            {/* KHU VỰC THAO TÁC (Tạo/Chỉnh sửa Khóa học) */}
-                            <div className="flex justify-end mb-4">
-                                <button 
-                                    onClick={showCourseForm ? () => setShowCourseForm(false) : handleStartCreateCourse}
-                                    className={`py-2 px-4 text-white rounded-lg shadow-md transition flex items-center ${
-                                        showCourseForm ? 'bg-red-500 hover:bg-red-600' : 'bg-indigo-500 hover:bg-indigo-600'
-                                    }`}
-                                >
-                                    {showCourseForm ? (
-                                        <><X size={20} className="mr-2"/> Đóng Form </>
-                                    ) : (
-                                        <><Plus size={20} className="mr-2"/> Tạo Khóa học mới</>
-                                    )}
-                                </button>
-                            </div>
-
-                            {/* HIỂN THỊ FORM TẠO/CHỈNH SỬA KHÓA HỌC */}
-                            {showCourseForm && (
-                                <div className="flex justify-center">
-                                    <div className="w-full max-w-lg bg-white p-6 rounded-xl shadow-2xl border-t-4 border-indigo-600">
-                                        <h2 className="text-xl font-semibold mb-4 text-indigo-700">
-                                            {isEditingMode ? 'Chỉnh sửa Khóa học' : 'Tạo Khóa học mới'}
-                                        </h2>
-                                        <CreateCourseForm 
-                                            user={user} 
-                                            initialCourse={courseToEdit} 
-                                            onCourseSaved={handleCourseSaved} 
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {/* HIỂN THỊ KHU VỰC QUẢN LÝ VIDEO */}
-                            {selectedCourse && (
-                                <div className="bg-white rounded-xl shadow-2xl border-t-4 border-purple-600 p-6 space-y-8">
-                                    <h2 className="text-2xl font-bold text-purple-700 border-b pb-3">Quản lý Video cho khóa học: "{selectedCourse.title}"</h2>
-                                    <p className="text-sm text-gray-500">
-                                        Tổng số Video: **{selectedCourse.videoCount}** | Tổng số Chương: **{selectedCourse.sessions?.length || 0}**
-                                    </p>
-                                    
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                        
-                                        {/* Cột 1: Quản lý Sessions (Sử dụng CreateVideoForm như một cổng) */}
-                                        <div className="lg:col-span-1 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                            <h3 className="text-lg font-semibold mb-3 border-b pb-2 text-indigo-700">Quản lý Session (Tạo/Sửa/Chọn)</h3>
-                                            <TypedCreateVideoForm
-                                                courseId={selectedCourse.id}
-                                                courseTitle={selectedCourse.title}
-                                                adminUser={user}
-                                                sessions={selectedCourse.sessions || []} 
-                                                onVideoCreated={handleVideoChange}
-                                                onClose={handleCloseVideoForm}
-                                            />
-                                        </div>
-
-                                        {/* Cột 2 & 3: Danh sách Video */}
-                                        <div className="lg:col-span-2 space-y-6">
-                                            {/* Danh sách Video */}
-                                            {/* TRUYỀN PROPS ĐẦY ĐỦ CHO VIDEOLIST */}
-                                            <VideoList 
-                                                key={selectedCourse.id + videoUpdateKey} 
-                                                courseId={selectedCourse.id} 
-                                                sessions={selectedCourse.sessions || []}
-                                                videos={selectedCourse.videos || []} // ✅ TRUYỀN VIDEOS
-                                                onVideoChanged={handleVideoChange} 
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Phần Danh sách Khóa học */}
-                            <div className="bg-white p-6 rounded-xl shadow-2xl border-t-4 border-green-600">
-                                <h2 className="text-2xl font-bold text-gray-800 mb-4">Danh sách Khóa học ({courses.length})</h2>
-                                <CourseList />
-                            </div>
-                        </>
-                    )}
-                </div>
+                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold border border-indigo-200">
+                        {user.email?.charAt(0).toUpperCase()}
+                    </div>
+                </header>
+                {renderContent()}
             </main>
-            <footer className="py-12 border-t border-gray-100 text-center text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                <p>© 2025 VideoHub. Học tập để vươn xa.</p>
-            </footer>
+
+            {/* --- MODALS --- */}
+
+            {/* 1. Create Course */}
+            {showCreateCourse && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <CreateCourseForm 
+                        user={user} 
+                        initialCourse={null}
+                        onCourseSaved={() => setShowCreateCourse(false)} 
+                    />
+                </div>
+            )}
+
+            {/* 2. Edit Course */}
+            {editingCourse && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <CreateCourseForm 
+                        user={user}
+                        initialCourse={editingCourse}
+                        onCourseSaved={() => setEditingCourse(null)} 
+                    />
+                </div>
+            )}
+
+            {/* 3. Delete Course Confirm */}
+            {deletingCourse && (
+                <ConfirmDeleteModal 
+                    isOpen={!!deletingCourse}
+                    onClose={() => setDeletingCourse(null)}
+                    onConfirm={handleDeleteCourse}
+                    title={`Xóa khóa học: ${deletingCourse.title}?`} 
+                    description="Hành động này không thể hoàn tác. Tất cả video và dữ liệu liên quan sẽ bị xóa."
+                    isProcessing={false}
+                />
+            )}
+
+            {/* 4. Video List Manager */}
+            {selectedCourseForVideos && (
+                <div className="fixed inset-0 z-50 bg-gray-50 overflow-hidden flex flex-col">
+                    <div className="bg-white px-6 py-4 border-b flex justify-between items-center shadow-sm z-10">
+                        <button onClick={() => setSelectedCourseForVideos(null)} className="flex items-center text-gray-500 hover:text-gray-900 font-bold">
+                            <span className="mr-2">←</span> Quay lại Dashboard
+                        </button>
+                        <h2 className="font-black text-xl uppercase text-indigo-600">{selectedCourseForVideos.title}</h2>
+                    </div>
+                    
+                    <div className="flex-grow overflow-hidden relative">
+                        <VideoManagerContainer 
+                            courseId={selectedCourseForVideos.id} 
+                            onAddVideo={() => setCourseForVideoCreation({ 
+                                id: selectedCourseForVideos.id, 
+                                title: selectedCourseForVideos.title 
+                            })}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* 5. CREATE VIDEO FORM */}
+            {courseForVideoCreation && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <CreateVideoForm 
+                        courseId={courseForVideoCreation.id} 
+                        courseTitle={courseForVideoCreation.title} 
+                        adminUser={user}
+                        onClose={() => setCourseForVideoCreation(null)}
+                        onVideoCreated={() => { /* Realtime update will handle list refresh */ }}
+                        onRequestSessionManager={(currentId, onSelect) => {
+                             openSessionManager(courseForVideoCreation.id, courseForVideoCreation.title, currentId, onSelect);
+                        }}
+                    />
+                </div>
+            )}
+
+            {/* 6. SESSION MANAGER FORM */}
+            {sessionManagerData.isOpen && (
+                <SessionManagerForm 
+                    courseId={sessionManagerData.courseId}
+                    courseTitle={sessionManagerData.courseTitle}
+                    selectedSessionId={sessionManagerData.selectedSessionId}
+                    onClose={() => setSessionManagerData(prev => ({ ...prev, isOpen: false }))}
+                    onSessionSelected={(id, title) => {
+                        if (sessionManagerData.onSelectCallback) {
+                            sessionManagerData.onSelectCallback(id, title);
+                        }
+                        setSessionManagerData(prev => ({ ...prev, isOpen: false }));
+                    }}
+                />
+            )}
         </div>
     );
 };
