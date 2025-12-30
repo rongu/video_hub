@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
+import { useTranslation } from 'react-i18next'; // [i18n] Import hook
 import { 
     BookOpen, 
     PlayCircle, 
@@ -16,7 +17,9 @@ import {
     subscribeToCourses,
     subscribeToAllUserProgress
 } from '../services/firebase';
+import LanguageSwitcher from '../components/common/LanguageSwitcher'; // [i18n] Import nút đổi ngôn ngữ
 
+// Import Page Type cho khớp với App.tsx
 import type { PageType } from '../App';
 
 interface HomePageProps {
@@ -27,6 +30,7 @@ interface HomePageProps {
 }
 
 const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role }) => {
+    const { t } = useTranslation(); // [i18n] Sử dụng hook
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
     const [progressMap, setProgressMap] = useState<{[courseId: string]: number}>({});
@@ -65,13 +69,17 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                 </div>
 
                 <div className="flex items-center space-x-2 md:space-x-4 shrink-0">
+                    {/* [i18n] Nút đổi ngôn ngữ */}
+                    <LanguageSwitcher />
+
+                    {/* --- NÚT DÀNH RIÊNG CHO ADMIN --- */}
                     {role === 'admin' && (
                         <button 
                             onClick={() => onNavigate('admin')}
                             className="flex items-center bg-gray-900 text-white font-bold text-xs md:text-sm px-3 md:px-4 py-2 rounded-xl hover:bg-black transition shadow-lg whitespace-nowrap"
                         >
                             <ShieldCheck size={16} className="mr-1 md:mr-2" /> 
-                            <span className="hidden sm:inline">Quản Trị</span>
+                            <span className="hidden sm:inline">{t('nav.admin')}</span>
                             <span className="sm:hidden">Admin</span>
                         </button>
                     )}
@@ -80,7 +88,7 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                         onClick={() => onNavigate('landing')}
                         className="hidden md:flex items-center text-indigo-600 font-bold text-sm hover:bg-indigo-50 px-4 py-2 rounded-xl transition whitespace-nowrap"
                     >
-                        <Compass size={18} className="mr-2" /> Khám phá
+                        <Compass size={18} className="mr-2" /> {t('nav.explore')}
                     </button>
                     
                     <div className="flex items-center space-x-3 border-l pl-4 border-gray-100 ml-2">
@@ -88,7 +96,7 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                             <p className="text-sm font-black text-gray-900 truncate max-w-[100px] md:max-w-none">{user.displayName || 'Học viên'}</p>
                             <p className="text-[10px] font-bold text-indigo-500 uppercase">{role}</p>
                         </div>
-                        <button onClick={onLogout} className="p-2 text-gray-400 hover:text-red-500 transition">
+                        <button onClick={onLogout} className="p-2 text-gray-400 hover:text-red-500 transition" title={t('nav.logout')}>
                             <LogOut size={20} />
                         </button>
                     </div>
@@ -99,8 +107,12 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
             <main className="max-w-7xl mx-auto w-full p-4 md:p-6 space-y-10 flex-grow">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-black text-gray-900 uppercase tracking-tighter">Khóa học của tôi</h1>
-                        <p className="text-gray-500 font-medium text-sm md:text-base">Bạn đã ghi danh {enrolledCourses.length} khóa học.</p>
+                        <h1 className="text-2xl md:text-3xl font-black text-gray-900 uppercase tracking-tighter">
+                            {t('home.welcome_title')}
+                        </h1>
+                        <p className="text-gray-500 font-medium text-sm md:text-base">
+                            {t('home.enrolled_msg', { count: enrolledCourses.length })}
+                        </p>
                     </div>
                 </div>
 
@@ -129,7 +141,7 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                                         <h3 className="text-lg md:text-xl font-black text-gray-900 uppercase line-clamp-1" title={course.title}>{course.title}</h3>
                                         <div className="space-y-2 flex-1">
                                             <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                                <span>Tiến độ</span>
+                                                <span>{t('home.progress')}</span>
                                                 <span className="text-indigo-600">{progress}%</span>
                                             </div>
                                             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -138,7 +150,7 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                                         </div>
                                         <div className="pt-4 flex items-center justify-between border-t border-gray-50 mt-auto">
                                             <span className="text-xs font-black text-indigo-600 uppercase flex items-center group-hover:translate-x-1 transition-transform">
-                                                Học tiếp <ChevronRight size={16} className="ml-1" />
+                                                {t('home.continue')} <ChevronRight size={16} className="ml-1" />
                                             </span>
                                         </div>
                                     </div>
@@ -152,20 +164,20 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                             <BookOpen className="text-indigo-300" size={40} />
                         </div>
                         <div>
-                            <h3 className="text-xl font-bold text-gray-900">Chưa có khóa học nào</h3>
+                            <h3 className="text-xl font-bold text-gray-900">{t('home.no_course')}</h3>
                             <p className="text-gray-500 max-w-sm mx-auto mt-2 text-sm">Hãy khám phá thư viện để bắt đầu hành trình học tập của bạn.</p>
                         </div>
                         <button 
                             onClick={() => onNavigate('landing')}
                             className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black uppercase text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition"
                         >
-                            Khám phá thư viện ngay
+                            {t('home.explore_btn')}
                         </button>
                     </div>
                 )}
             </main>
-            <footer className="py-8 md:py-12 border-t border-gray-100 text-center text-gray-400 text-[10px] font-black uppercase tracking-widest bg-white">
-                <p>© 2025 VideoHub. Học tập để vươn xa.</p>
+            <footer className="py-12 border-t border-gray-100 text-center text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                <p>© 2025 {t('footer.slogan')}</p>
             </footer>
         </div>
     );

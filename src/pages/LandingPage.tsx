@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
+import { useTranslation } from 'react-i18next'; // [i18n] Import hook
 import { PlayCircle, Loader2, ArrowRight, CheckCircle, MessageSquare, X, Phone, MessageCircle } from 'lucide-react';
 import { 
     type Course, 
     subscribeToCourses, 
     subscribeToUserEnrollments 
 } from '../services/firebase';
+import LanguageSwitcher from '../components/common/LanguageSwitcher'; // [i18n] Import nút đổi ngôn ngữ
 
 type Page = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail';
 
@@ -16,6 +18,7 @@ interface LandingPageProps {
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout }) => {
+    const { t } = useTranslation(); // [i18n] Sử dụng hook translation
     const [courses, setCourses] = useState<Course[]>([]);
     const [userEnrollments, setUserEnrollments] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -62,15 +65,26 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
                     </div>
 
                     <div className="flex items-center space-x-4">
+                        {/* [i18n] Thêm nút đổi ngôn ngữ */}
+                        <LanguageSwitcher />
+
                         {user ? (
                             <>
-                                <button onClick={() => onNavigate('home')} className="text-gray-600 font-bold text-sm hover:text-indigo-600 transition">Khóa học của tôi</button>
-                                <button onClick={onLogout} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-xl text-sm font-bold">Đăng xuất</button>
+                                <button onClick={() => onNavigate('home')} className="text-gray-600 font-bold text-sm hover:text-indigo-600 transition">
+                                    {t('nav.my_courses')}
+                                </button>
+                                <button onClick={onLogout} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-xl text-sm font-bold">
+                                    {t('nav.logout')}
+                                </button>
                             </>
                         ) : (
                             <>
-                                <button onClick={() => onNavigate('login')} className="text-gray-600 font-bold text-sm">Đăng nhập</button>
-                                <button onClick={() => onNavigate('register')} className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg">Tham gia</button>
+                                <button onClick={() => onNavigate('login')} className="text-gray-600 font-bold text-sm">
+                                    {t('nav.login')}
+                                </button>
+                                <button onClick={() => onNavigate('register')} className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg">
+                                    {t('nav.register')}
+                                </button>
                             </>
                         )}
                     </div>
@@ -79,8 +93,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
 
             {/* Hero */}
             <header className="py-16 px-6 text-center">
-                <h1 className="text-5xl font-black text-gray-900 tracking-tighter uppercase">Thư viện khóa học</h1>
-                <p className="text-gray-500 mt-4 max-w-xl mx-auto font-medium">Khám phá lộ trình học tập chuyên nghiệp và liên hệ để bắt đầu ngay hôm nay.</p>
+                <h1 className="text-5xl font-black text-gray-900 tracking-tighter uppercase">
+                    {t('landing.hero_title')}
+                </h1>
+                <p className="text-gray-500 mt-4 max-w-xl mx-auto font-medium">
+                    {t('landing.hero_subtitle')}
+                </p>
             </header>
 
             {/* Course Grid */}
@@ -101,7 +119,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
                                         <div className="aspect-video bg-gray-100 relative overflow-hidden">
                                             <img src={course.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={course.title} />
                                             <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 uppercase">
-                                                {course.videoCount} Bài học
+                                                {course.videoCount} {t('landing.lessons')}
                                             </div>
                                         </div>
                                         <div className="p-8 flex-grow flex flex-col">
@@ -111,18 +129,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
                                             <div className="pt-6 border-t border-gray-50 flex items-center justify-between">
                                                 {isEnrolled ? (
                                                     <span className="text-green-600 font-black text-xs uppercase flex items-center tracking-widest">
-                                                        <CheckCircle size={16} className="mr-1.5" /> Đã tham gia
+                                                        <CheckCircle size={16} className="mr-1.5" /> {t('landing.participated')}
                                                     </span>
                                                 ) : (
                                                     <button 
                                                         onClick={handleEnrollClick}
                                                         className="flex items-center text-indigo-600 font-black text-xs uppercase tracking-widest hover:text-indigo-800 transition"
                                                     >
-                                                        <MessageSquare size={16} className="mr-1.5" /> Ghi danh ngay
+                                                        <MessageSquare size={16} className="mr-1.5" /> {t('landing.enroll_now')}
                                                     </button>
                                                 )}
                                                 <span className="text-gray-400 font-black text-[10px] uppercase flex items-center">
-                                                    Chi tiết <ArrowRight size={14} className="ml-1" />
+                                                    {t('landing.detail')} <ArrowRight size={14} className="ml-1" />
                                                 </span>
                                             </div>
                                         </div>
@@ -180,7 +198,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
             )}
 
             <footer className="py-12 border-t border-gray-100 text-center text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                <p>© 2025 VideoHub. Học tập để vươn xa.</p>
+                <p>© 2025 {t('footer.slogan')}</p>
             </footer>
         </div>
     );

@@ -139,7 +139,12 @@ export async function addVideo(
 
 export const subscribeToVideos = (courseId: string, sessionId: string | null, callback: (videos: Video[]) => void): (() => void) => {
     const colRef = getVideosCollectionRef(courseId);
-    const q = sessionId ? query(colRef, where('sessionId', '==', sessionId), orderBy('createdAt', 'desc')) : query(colRef, orderBy('createdAt', 'desc'));
+    
+    // [UPDATE QUAN TRỌNG] Đổi 'desc' thành 'asc' để bài học sắp xếp theo thứ tự tạo (Cũ -> Mới)
+    const q = sessionId 
+        ? query(colRef, where('sessionId', '==', sessionId), orderBy('createdAt', 'asc')) 
+        : query(colRef, orderBy('createdAt', 'asc'));
+
     return onSnapshot(q, (snap) => {
         callback(snap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt?.toMillis() || Date.now() } as Video)));
     });
