@@ -4,7 +4,8 @@ import { getFirestore, Firestore, collection, doc } from 'firebase/firestore';
 import { getStorage } from "firebase/storage";
 
 // Cấu hình Firebase
-const firebaseConfig = {
+// UPDATE: Thêm export để file auth.ts có thể sử dụng lại config này
+export const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "API_KEY_NOT_SET",
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",

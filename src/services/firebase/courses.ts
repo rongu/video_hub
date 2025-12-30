@@ -2,7 +2,6 @@ import {
     query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, 
     updateDoc, getDocs, writeBatch, type Timestamp ,
 } from 'firebase/firestore';
-// BỔ SUNG: Import uploadBytes, getDownloadURL
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef } from './config';
 import { type Video } from './videos';
@@ -34,7 +33,6 @@ export const subscribeToCourses = (callback: (courses: Course[]) => void) => {
 export async function uploadCourseImage(file: File): Promise<string> {
     const storage = getFirebaseStorage();
     // Tạo đường dẫn file: course_images/timestamp_filename
-    // Sử dụng timestamp để tránh trùng tên
     const storagePath = `course_images/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, storagePath);
     
@@ -58,7 +56,7 @@ export async function updateCourse(courseId: string, data: { title?: string; des
 }
 
 /**
- * ✅ BỔ SUNG: Xóa Khóa học và toàn bộ Video liên quan
+ * ✅ BỔ SUNG: Xóa Khóa học và toàn bộ Video liên quan + Ảnh bìa
  */
 export const deleteCourse = async (courseId: string): Promise<void> => {
     const db = getFirestoreDb();
@@ -66,6 +64,14 @@ export const deleteCourse = async (courseId: string): Promise<void> => {
     const batch = writeBatch(db);
 
     const courseDocRef = getCourseDocRef(courseId);
+    
+    // [UPDATE 1]: Lấy thông tin Course trước để tìm ảnh bìa cần xóa
+    const courseSnap = await getDoc(courseDocRef);
+    if (!courseSnap.exists()) {
+        throw new Error("Khóa học không tồn tại!");
+    }
+    const courseData = courseSnap.data() as Course;
+    
     const videosRef = getVideosCollectionRef(courseId);
     
     // 1. Lấy tất cả Video Docs trong Sub-collection
@@ -73,9 +79,20 @@ export const deleteCourse = async (courseId: string): Promise<void> => {
     
     const storagePaths: string[] = [];
     
+    // [UPDATE 2]: Thêm ảnh bìa vào danh sách xóa (nếu là ảnh host trên Firebase)
+    if (courseData.imageUrl && courseData.imageUrl.includes('firebasestorage')) {
+        try {
+            // Tạo ref từ URL để lấy full path
+            const imageRef = ref(storage, courseData.imageUrl);
+            storagePaths.push(imageRef.fullPath);
+        } catch (e) {
+            console.warn("Không thể lấy path từ Image URL, bỏ qua xóa ảnh bìa.", e);
+        }
+    }
+
     videosSnapshot.docs.forEach(docSnap => {
         const data = docSnap.data() as Video;
-        // Thêm đường dẫn Storage vào danh sách xóa
+        // Thêm đường dẫn Storage của video vào danh sách xóa
         if (data.storagePath) {
             storagePaths.push(data.storagePath);
         }
@@ -84,13 +101,16 @@ export const deleteCourse = async (courseId: string): Promise<void> => {
     });
 
     // 2. Xóa tất cả file trong Storage (bước này không dùng batch)
+    // Dùng Promise.allSettled hoặc catch từng cái để đảm bảo không chết luồng
     const deletionPromises = storagePaths.map(path => {
         try {
             const fileRef = ref(storage, path);
-            return deleteObject(fileRef);
+            return deleteObject(fileRef).catch(err => {
+                console.warn(`File ${path} có thể không tồn tại hoặc lỗi xóa:`, err);
+            });
         } catch (e) {
-            console.warn(`Không thể xóa file Storage tại ${path}. Có thể file không tồn tại. Tiếp tục...`, e);
-            return Promise.resolve(); // Vẫn resolve để không làm crash toàn bộ quá trình
+            console.warn(`Lỗi tạo ref cho ${path}`, e);
+            return Promise.resolve();
         }
     });
     
@@ -103,19 +123,16 @@ export const deleteCourse = async (courseId: string): Promise<void> => {
     try {
         await batch.commit();
         
-        // 5. BƯỚC XÁC MINH (Mới): Đọc lại document ngay lập tức sau khi commit
+        // 5. BƯỚC XÁC MINH
         const docCheck = await getDoc(courseDocRef);
-
         if (docCheck.exists()) {
-            console.error(`🔴 XÓA KHÔNG THÀNH CÔNG: Document Khóa học ID ${courseId} VẪN TỒN TẠI sau khi batch.commit() thành công!`);
-            console.error("Vui lòng kiểm tra lại APP_ID_ROOT/Project ID và Security Rules.");
+            console.error(`🔴 XÓA KHÔNG THÀNH CÔNG: Document Khóa học ID ${courseId} VẪN TỒN TẠI.`);
         } else {
-            console.log(`✅ Đã xóa thành công Khóa học ID: ${courseId} và ${videosSnapshot.size} video liên quan (Đã xác minh).`);
+            console.log(`✅ Đã xóa thành công Khóa học ID: ${courseId}`);
         }
     } catch (error) {
-        // Cập nhật: Thêm log chi tiết nếu batch commit thất bại
-        console.error(`❌ LỖI XÓA KHÓA HỌC ID: ${courseId}. KHÔNG THỂ COMMIT BATCH (Kiểm tra Security Rules):`, error);
-        throw new Error("Xóa Khóa học thất bại. Vui lòng kiểm tra Firebase Security Rules hoặc kết nối.");
+        console.error(`❌ LỖI XÓA KHÓA HỌC ID: ${courseId}.`, error);
+        throw new Error("Xóa Khóa học thất bại.");
     }
 };
 

@@ -1,11 +1,35 @@
 @import "tailwindcss";
 
 /* QUAN TRỌNG: CÀI ĐẶT THẺ GỐC CHO PHÙ HỢP VỚI REACT VÀ TAILWIND */
-html, body, #root {
-  /* Loại bỏ mọi lề và padding mặc định */
+html {
+  /* Đảm bảo font size chuẩn */
+  -webkit-text-size-adjust: 100%;
+  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+html, body {
   margin: 0;
   padding: 0;
-  /* Đảm bảo chiếm toàn bộ không gian có sẵn */
-  width: 100%; 
-  height: 100%; 
+  width: 100%;
+  /* [FIX 1] Dùng min-height để content dài vẫn scroll được, không bị fix cứng */
+  min-height: 100%;
+  
+  /* [FIX 2] Ngăn chặn thanh cuộn ngang (horizontal scroll) do một số element bị tràn */
+  overflow-x: hidden;
+  
+  /* Màu nền mặc định tốt cho mắt */
+  background-color: #f9fafb; /* gray-50 */
+}
+
+#root {
+  /* [FIX 3] Root chiếm toàn bộ chiều cao màn hình tối thiểu */
+  min-height: 100vh;
+  width: 100%;
+  
+  /* Biến root thành flex container để dễ quản lý layout cha */
+  display: flex;
+  flex-direction: column;
+  
+  /* Cách ly context xếp chồng (stacking context) */
+  isolation: isolate;
 }

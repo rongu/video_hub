@@ -67,6 +67,7 @@ const App: React.FC = () => {
             
             if (!currentUser) {
                 const currentRoute = parseUrl(window.location.pathname);
+                // Nếu chưa login mà vào trang home/admin thì đá về landing
                 if (['home', 'admin'].includes(currentRoute.page)) {
                     onNavigate('landing'); 
                 }
@@ -98,18 +99,19 @@ const App: React.FC = () => {
                 
                 const currentRoute = parseUrl(window.location.pathname);
                 
-                // --- LOGIC ROUTING & BẢO VỆ MỚI ---
+                // --- [UPDATE] LOGIC ROUTING LINH HOẠT HƠN ---
                 if (data.role === 'admin') {
-                    // Admin không được ở các trang của User/Guest
-                    if (['login', 'register', 'home', 'landing'].includes(currentRoute.page)) {
+                    // Admin KHÔNG NÊN vào: login, register, home (dashboard của student)
+                    if (['login', 'register', 'home'].includes(currentRoute.page)) {
                         onNavigate('admin');
                     }
+                    // Admin CÓ THỂ vào: landing, admin, detail (để review nội dung)
                 } else {
-                    // Student không được vào trang Admin
+                    // Student: Cấm vào Admin
                     if (currentRoute.page === 'admin') {
                         onNavigate('home');
                     }
-                    // Student đã login không được vào Login/Register
+                    // Student đã login: Cấm vào Login/Register
                     if (['login', 'register'].includes(currentRoute.page)) {
                         onNavigate('home');
                     }
@@ -135,18 +137,29 @@ const App: React.FC = () => {
             );
         }
 
+        // Ưu tiên check route Detail trước
         if (currentPage === 'detail' && currentCourseId) {
             return <CourseDetailPage courseId={currentCourseId} onNavigate={onNavigate} />;
         }
+        
         if (currentPage === 'landing') {
             return <LandingPage onNavigate={onNavigate} user={user} onLogout={handleLogout} />;
         }
+        
         if (currentPage === 'login' && !user) return <LoginPage onNavigate={onNavigate} />;
         if (currentPage === 'register' && !user) return <RegisterPage onNavigate={onNavigate} />;
 
         if (user && role) {
-            if (role === 'admin' && currentPage === 'admin') {
-                return <AdminDashboard user={user} onLogout={handleLogout}/>;
+            if (role === 'admin') {
+                // Chỉ hiện Dashboard Admin khi ở đúng route admin
+                if (currentPage === 'admin') {
+                    return <AdminDashboard user={user} onLogout={handleLogout}/>;
+                }
+                // Nếu Admin lạc vào HomePage -> redirect về admin (xử lý ở render hoặc useEffect)
+                // Ở đây return AdminDashboard luôn cho an toàn
+                if (currentPage === 'home') {
+                    return <AdminDashboard user={user} onLogout={handleLogout}/>;
+                }
             }
             return <HomePage onLogout={handleLogout} user={user} onNavigate={onNavigate} role={role} />;
         }

@@ -75,7 +75,7 @@ const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, in
 };
 
 // ✅ COMPONENT MỚI: ExpandableImage (Thay thế SpoilerImage)
-// Cho phép user bấm +/- để ẩn hiện ảnh
+// [UPDATE] UI: Thay text "Hình ảnh minh họa" bằng Handle Bar
 const ExpandableImage: React.FC<{ url: string; caption?: string }> = ({ url, caption }) => {
     const [isExpanded, setIsExpanded] = useState(true); 
 
@@ -86,19 +86,38 @@ const ExpandableImage: React.FC<{ url: string; caption?: string }> = ({ url, cap
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition border-b border-gray-100 select-none"
             >
-                <div className="flex items-center space-x-2">
-                    <div className="bg-white p-1.5 rounded-md border border-gray-200 text-gray-500">
-                        <ImageIcon size={16} /> 
-                    </div>
-                    <span className="text-sm font-bold text-gray-700">
-                        {caption || "Hình ảnh minh họa"}
-                    </span>
-                    {!isExpanded && <span className="text-xs text-gray-400 font-normal italic ml-2">(Đang thu gọn)</span>}
+                {/* [UPDATE] Center Content: Caption hoặc Handle Bar */}
+                <div className="flex-grow flex justify-center">
+                    {caption ? (
+                        <span className="text-sm font-bold text-gray-700 text-center">
+                            {caption}
+                            {!isExpanded && <span className="text-xs text-gray-400 font-normal italic ml-2">(Đang thu gọn)</span>}
+                        </span>
+                    ) : (
+                        // UI Thanh Treo (Handle Bar) khi không có caption
+                        <div 
+                            className="group flex flex-col items-center gap-1 opacity-50 hover:opacity-100 transition-opacity py-1"
+                            title={isExpanded ? "Thu gọn" : "Mở rộng"}
+                        >
+                            {/* Thanh ngang */}
+                            <div className="w-12 h-1.5 bg-gray-300 rounded-full group-hover:bg-indigo-400 transition-colors"></div>
+                            {/* Mũi tên chỉ hướng */}
+                            <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="12" height="12" viewBox="0 0 24 24" 
+                                fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" 
+                                className={`text-gray-400 group-hover:text-indigo-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                            >
+                                <path d="m6 9 6 6 6-6"/>
+                            </svg>
+                        </div>
+                    )}
                 </div>
 
+                {/* Right Toggle Button */}
                 <button 
                     type="button"
-                    className={`p-1.5 rounded-full transition ${
+                    className={`ml-3 p-1.5 rounded-full transition ${
                         isExpanded 
                         ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' 
                         : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
@@ -302,12 +321,14 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                 <div key={block.id} className="animate-in fade-in duration-500">
                                     <div className="flex items-center space-x-2 mb-4"><div className="w-1.5 h-6 bg-purple-500 rounded-full"></div><h3 className="text-xl font-bold text-gray-900">{block.title}</h3></div>
                                     {block.description && <div className="prose prose-purple prose-lg max-w-none text-gray-700 mb-6"><ReactMarkdown>{block.description}</ReactMarkdown></div>}
-                                    {block.audios?.length && <div className="space-y-2 mb-6">{block.audios.map(audio => <AudioBlockItem key={audio.id} url={audio.url} name={audio.name} />)}</div>}
                                     
-                                    {/* ✅ ĐÃ SỬA: Dùng ExpandableImage thay vì SpoilerImage */}
-                                    {block.images?.length && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} />)}</div>}
+                                    {/* [UPDATE] Thêm check > 0 để tránh hiển thị số 0 */}
+                                    {block.audios && block.audios.length > 0 && <div className="space-y-2 mb-6">{block.audios.map(audio => <AudioBlockItem key={audio.id} url={audio.url} name={audio.name} />)}</div>}
                                     
-                                    {block.quizzes?.length && <div className="mt-6 border-t border-dashed pt-6">{block.quizzes.map((q, idx) => <InlineQuizItem key={q.id} quiz={q} index={idx} />)}</div>}
+                                    {/* ✅ ĐÃ SỬA: Dùng ExpandableImage với UI mới + check length > 0 */}
+                                    {block.images && block.images.length > 0 && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} />)}</div>}
+                                    
+                                    {block.quizzes && block.quizzes.length > 0 && <div className="mt-6 border-t border-dashed pt-6">{block.quizzes.map((q, idx) => <InlineQuizItem key={q.id} quiz={q} index={idx} />)}</div>}
                                 </div>
                             ))}
                         </div>
