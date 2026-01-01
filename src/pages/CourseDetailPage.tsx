@@ -14,7 +14,8 @@ import {
     subscribeToVideos,
     subscribeToUserEnrollments, 
     getFirebaseAuth,
-    toggleVideoProgress
+    toggleVideoProgress,
+    tr_h
 } from '../services/firebase';
 import { useUserProgress } from '../hooks/useUserProgress';
 import type { PageType } from '../App';
@@ -385,13 +386,13 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                         ) : renderContent()}
                     </div>
                     <div className="space-y-4">
-                        <div className="flex items-center space-x-2"><div className="h-8 w-1.5 bg-indigo-600 rounded-full"></div><h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter leading-tight">{selectedVideo?.title || course?.title}</h2></div>
+                        <div className="flex items-center space-x-2"><div className="h-8 w-1.5 bg-indigo-600 rounded-full"></div><h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter leading-tight">{tr_h(selectedVideo?.title) || tr_h(course?.title)}</h2></div>
                         <div className="flex items-center space-x-4">
                              {selectedVideo && completedVideoIds.includes(selectedVideo.id) && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center"><CheckCircle2 size={12} className="mr-1" /> {t('detail.completed')}</span>}
                              <span className="text-gray-400 text-xs font-bold uppercase tracking-widest">{t('detail.lesson_counter', { current: videos.findIndex(v => v.id === selectedVideo?.id) + 1, total: videos.length })}</span>
                              {selectedVideo?.type && selectedVideo.type !== 'video' && <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded text-white ${selectedVideo.type === 'quiz' ? 'bg-orange-400' : selectedVideo.type === 'text' ? 'bg-blue-400' : selectedVideo.type === 'audio' ? 'bg-purple-400' : 'bg-pink-400'}`}>{selectedVideo.type === 'custom' ? 'Interactive' : selectedVideo.type}</span>}
                         </div>
-                        <div className="prose prose-indigo prose-lg text-gray-500 font-medium pt-2 max-w-none"><ReactMarkdown>{course?.description || ""}</ReactMarkdown></div>
+                        <div className="prose prose-indigo prose-lg text-gray-500 font-medium pt-2 max-w-none"><ReactMarkdown>{tr_h(course?.description) || ""}</ReactMarkdown></div>
                     </div>
                 </div>
 

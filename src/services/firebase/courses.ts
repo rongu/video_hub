@@ -3,13 +3,13 @@ import {
     updateDoc, getDocs, writeBatch, type Timestamp ,
 } from 'firebase/firestore';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef } from './config';
+import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef, type MultilingualField } from './config';
 import { type Video } from './videos';
 
 export interface Course {
     id: string;
-    title: string;
-    description: string;
+    title: MultilingualField;
+    description: MultilingualField;
     createdAt: number;
     updatedAt: number;
     adminId: string;

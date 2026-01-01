@@ -15,7 +15,8 @@ import {
     type Course, 
     subscribeToUserEnrollments, 
     subscribeToCourses,
-    subscribeToAllUserProgress
+    subscribeToAllUserProgress,
+    tr_h
 } from '../services/firebase';
 import LanguageSwitcher from '../components/common/LanguageSwitcher'; // [i18n] Import nút đổi ngôn ngữ
 
@@ -132,13 +133,13 @@ const HomePage: React.FC<HomePageProps> = ({ user, onLogout, onNavigate, role })
                                     className="bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group flex flex-col h-full"
                                 >
                                     <div className="aspect-video bg-gray-100 relative shrink-0">
-                                        <img src={course.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={course.title} />
+                                        <img src={course.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={tr_h(course.title)} />
                                         <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-indigo-600">
                                             {course.videoCount} VIDEO
                                         </div>
                                     </div>
                                     <div className="p-6 md:p-8 space-y-4 flex flex-col flex-1">
-                                        <h3 className="text-lg md:text-xl font-black text-gray-900 uppercase line-clamp-1" title={course.title}>{course.title}</h3>
+                                        <h3 className="text-lg md:text-xl font-black text-gray-900 uppercase line-clamp-1" title={tr_h(course.title)}>{tr_h(course.title)}</h3>
                                         <div className="space-y-2 flex-1">
                                             <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
                                                 <span>{t('home.progress')}</span>

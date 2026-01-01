@@ -5,7 +5,8 @@ import { PlayCircle, Loader2, ArrowRight, CheckCircle, MessageSquare, X, Phone, 
 import { 
     type Course, 
     subscribeToCourses, 
-    subscribeToUserEnrollments 
+    subscribeToUserEnrollments ,
+    tr_h
 } from '../services/firebase';
 import LanguageSwitcher from '../components/common/LanguageSwitcher'; // [i18n] Import nút đổi ngôn ngữ
 
@@ -117,14 +118,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
                                         className="group bg-white rounded-[2.5rem] overflow-hidden border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 cursor-pointer flex flex-col"
                                     >
                                         <div className="aspect-video bg-gray-100 relative overflow-hidden">
-                                            <img src={course.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={course.title} />
+                                            <img src={course.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={tr_h(course.title)} />
                                             <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 uppercase">
                                                 {course.videoCount} {t('landing.lessons')}
                                             </div>
                                         </div>
                                         <div className="p-8 flex-grow flex flex-col">
-                                            <h3 className="text-xl font-black text-gray-900 mb-3 line-clamp-1 uppercase">{course.title}</h3>
-                                            <p className="text-gray-500 text-sm line-clamp-2 mb-8 leading-relaxed flex-grow">{course.description}</p>
+                                            <h3 className="text-xl font-black text-gray-900 mb-3 line-clamp-1 uppercase">{tr_h(course.title)}</h3>
+                                            <p className="text-gray-500 text-sm line-clamp-2 mb-8 leading-relaxed flex-grow">{tr_h(course.description)}</p>
                                             
                                             <div className="pt-6 border-t border-gray-50 flex items-center justify-between">
                                                 {isEnrolled ? (

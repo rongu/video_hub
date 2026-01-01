@@ -1,5 +1,5 @@
 import React from 'react';
-import { type Course } from '../../services/firebase';
+import { type Course, tr_h } from '../../services/firebase';
 import { BookOpen, Video } from 'lucide-react';
 
 interface CourseListItemProps {
@@ -15,14 +15,14 @@ const CourseListItem: React.FC<CourseListItemProps> = ({ course, onViewCourse })
         >
             <div className="p-6">
                 {/* Tiêu đề Khóa học */}
-                <h3 className="text-xl font-bold text-gray-800 mb-2 truncate" title={course.title}>
+                <h3 className="text-xl font-bold text-gray-800 mb-2 truncate" title={tr_h(course.title)}>
                     <BookOpen className="inline h-5 w-5 text-indigo-600 mr-2" />
-                    {course.title}
+                    {tr_h(course.title)}
                 </h3>
                 
                 {/* Mô tả ngắn */}
                 <p className="text-gray-600 mb-4 line-clamp-2">
-                    {course.description}
+                    {tr_h(course.description)}
                 </p>
 
                 <div className="flex items-center justify-between border-t pt-4">

@@ -21,6 +21,16 @@ let db: Firestore | null = null;
 let auth: Auth | null = null;
 let storage: any = null;
 
+// Định nghĩa cấu trúc đa ngôn ngữ
+export interface LocalizedText {
+    vi: string; // Tiếng Việt là bắt buộc (Gốc)
+    ja?: string; // Tiếng Nhật (Optional)
+    en?: string; // Tiếng Anh (Optional - Giữ lại để sau này enable nếu cần)
+}
+
+// Union Type: Chấp nhận cả string cũ và object mới
+export type MultilingualField = string | LocalizedText;
+
 try {
     if (!app) {
         try { app = getApp(); } catch (e) { app = initializeApp(firebaseConfig); }

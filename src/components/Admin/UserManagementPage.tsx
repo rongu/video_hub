@@ -11,7 +11,8 @@ import {
     subscribeToUserEnrollments,
     enrollUser,
     unenrollUser,
-    adminCreateUserAndProfile
+    adminCreateUserAndProfile,
+    tr_h
 } from '../../services/firebase';
 
 const UserManagementPage: React.FC = () => {
@@ -213,7 +214,7 @@ const UserManagementPage: React.FC = () => {
                                             
                                             <div>
                                                 <h4 className={`font-bold text-sm leading-tight mb-1 ${isEnrolled ? 'text-blue-900' : 'text-gray-700'}`}>
-                                                    {course.title}
+                                                    {tr_h(course.title)}
                                                 </h4>
                                                 <p className={`text-[10px] ${isEnrolled ? 'text-blue-600' : 'text-gray-400'}`}>
                                                     {course.videoCount} videos

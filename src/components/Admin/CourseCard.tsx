@@ -1,4 +1,4 @@
-import { type Course, } from '../../services/firebase'; 
+import { type Course, tr_h} from '../../services/firebase'; 
 import { Video, Edit, Trash2 } from 'lucide-react';
 
 interface CourseCardProps {
@@ -28,8 +28,8 @@ const CourseCard: React.FC<CourseCardProps> = ({
             ${isSelected ? 'border-4 border-purple-500 ring-4 ring-purple-200' : 'border border-gray-100'}`}
         >
             <div className="p-5 flex-grow space-y-2">
-                <h3 className="text-xl font-bold text-gray-800 line-clamp-2">{course.title}</h3>
-                <p className="text-sm text-gray-500 line-clamp-3">{course.description}</p>
+                <h3 className="text-xl font-bold text-gray-800 line-clamp-2">{tr_h(course.title)}</h3>
+                <p className="text-sm text-gray-500 line-clamp-3">{tr_h(course.description)}</p>
                 <div className="text-xs text-gray-400 pt-2 border-t mt-3">
                     Ngày tạo: {formatDate(course.createdAt)}
                 </div>

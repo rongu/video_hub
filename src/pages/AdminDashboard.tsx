@@ -15,7 +15,7 @@ import { subscribeToCourses, type Course, deleteCourse } from '../services/fireb
 import ConfirmDeleteModal from '../components/Admin/ConfirmDeleteModal';
 
 import useCourseSessions from '../hooks/useCourseSessions';
-import { subscribeToVideos, type Video as IVideo } from '../services/firebase';
+import { subscribeToVideos, type Video as IVideo, tr_h } from '../services/firebase';
 
 // ✅ ĐỊNH NGHĨA LẠI PageType CHO KHỚP VỚI APP.TSX
 export type PageType = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail';
@@ -143,7 +143,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {courses
-                            .filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()))
+                            .filter(c => tr_h(c.title).toLowerCase().includes(searchTerm.toLowerCase()))
                             .map(course => (
                             <CourseCard 
                                 key={course.id} 
@@ -242,7 +242,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
                         <button onClick={() => setSelectedCourseForVideos(null)} className="flex items-center text-gray-500 hover:text-gray-900 font-bold">
                             <span className="mr-2">←</span> Quay lại Dashboard
                         </button>
-                        <h2 className="font-black text-xl uppercase text-indigo-600">{selectedCourseForVideos.title}</h2>
+                        <h2 className="font-black text-xl uppercase text-indigo-600">{tr_h(selectedCourseForVideos.title)}</h2>
                     </div>
                     
                     <div className="flex-grow overflow-hidden relative">
@@ -250,7 +250,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
                             courseId={selectedCourseForVideos.id} 
                             onAddVideo={() => setCourseForVideoCreation({ 
                                 id: selectedCourseForVideos.id, 
-                                title: selectedCourseForVideos.title 
+                                title: tr_h(selectedCourseForVideos.title )
                             })}
                         />
                     </div>

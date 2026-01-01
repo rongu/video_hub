@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { type User } from 'firebase/auth';
 // Đảm bảo bạn đã export uploadCourseImage từ courses.ts
-import { type Course, addCourse, updateCourse, uploadCourseImage } from '../../services/firebase';
+import { type Course, addCourse, updateCourse, uploadCourseImage, tr_h, type MultilingualField } from '../../services/firebase';
 import { Loader2, Image as ImageIcon, X, Eye, Edit2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -12,8 +12,12 @@ interface CreateCourseFormProps {
 }
 
 const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse, onCourseSaved }) => {
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
+    //const [title, setTitle] = useState('');
+    //const [description, setDescription] = useState('');
+    const [title, setTitle] = useState('');     // Tiếng Việt
+    const [titleJa, setTitleJa] = useState(''); // Tiếng Nhật
+    const [desc, setDesc] = useState('');       // Tiếng Việt
+    const [descJa, setDescJa] = useState('');   // Tiếng Nhật
     
     // State cho Image Upload
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -29,13 +33,27 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
 
     useEffect(() => {
         if (initialCourse) {
-            setTitle(initialCourse.title);
-            setDescription(initialCourse.description);
+
+            // Hàm tr() lấy theo ngôn ngữ hiện tại, nhưng ở form Edit ta cần lấy cụ thể từng tiếng
+            // Helper nhỏ để lấy raw string (bạn có thể viết inline)
+            const getRaw = (field: MultilingualField | undefined, lang: 'vi'|'ja') => {
+                if (!field) return '';
+                if (typeof field === 'string') return lang === 'vi' ? field : ''; 
+                return field[lang] || '';
+            };
+
+            setTitle(getRaw(initialCourse.title, 'vi'));
+            setTitleJa(getRaw(initialCourse.title, 'ja'));
+            setDesc(getRaw(initialCourse.description, 'vi'));
+            setDescJa(getRaw(initialCourse.description, 'ja'));
+
             setPreviewUrl(initialCourse.imageUrl || null);
             setImageFile(null); // Reset file mới khi load course cũ
         } else {
             setTitle('');
-            setDescription('');
+            setTitleJa('');
+            setDesc('');
+            setDescJa('');
             setPreviewUrl(null);
             setImageFile(null);
         }
@@ -59,14 +77,15 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
     const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        
-        if (!title || !description) {
-            setError("Vui lòng điền đầy đủ Tiêu đề và Mô tả.");
+
+        // Kiểm tra các trường bắt buộc (Tiếng Việt là gốc nên bắt buộc phải có)
+        if (!title || !desc) {
+            setError("Vui lòng điền đầy đủ Tiêu đề và Mô tả (Tiếng Việt).");
             return;
         }
 
         setLoading(true);
-        
+
         try {
             let imageUrl = initialCourse?.imageUrl;
 
@@ -75,20 +94,33 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                 imageUrl = await uploadCourseImage(imageFile);
             }
 
-            const courseData: Partial<Course> = {
-                title,
-                description,
+            // [UPDATE] Chuẩn bị dữ liệu đa ngôn ngữ
+            // Ép kiểu as MultilingualField nếu cần thiết để TS không báo lỗi
+            const courseData: any = { // Dùng any tạm thời hoặc Partial<Course> nếu Interface đã update xong
+                title: {
+                    vi: title,
+                    ja: titleJa || title // Fallback: Nếu không nhập JA thì lấy VI
+                },
+                description: {
+                    vi: desc,
+                    ja: descJa || desc // Fallback
+                },
                 adminId: user.uid,
-                imageUrl: imageUrl, // Cập nhật URL ảnh mới (hoặc giữ cũ)
+                imageUrl: imageUrl, 
+                updatedAt: Date.now() // Nên update lại timestamp
             };
 
             if (isEditing && initialCourse?.id) {
+                // Update khóa học
                 await updateCourse(initialCourse.id, courseData);
                 console.log(`Khóa học ${initialCourse.id} đã được cập nhật.`);
             } else {
-                await addCourse(courseData); 
+                // Tạo mới khóa học
+                // Lưu ý: addCourse cần nhận đúng cấu trúc, bạn có thể cần spread ...courseData
+                await addCourse(courseData);
                 console.log('Khóa học mới đã được tạo.');
             }
+            
             onCourseSaved();
         } catch (err) {
             console.error("Lỗi lưu khóa học:", err);
@@ -96,7 +128,17 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
         } finally {
             setLoading(false);
         }
-    }, [title, description, imageFile, isEditing, initialCourse, user, onCourseSaved]);
+    }, [
+        title, 
+        desc, 
+        titleJa,        // [NEW] Thêm vào dep array
+        descJa,  // [NEW] Thêm vào dep array
+        imageFile, 
+        isEditing, 
+        initialCourse, 
+        user, 
+        onCourseSaved
+    ]);
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -195,8 +237,8 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                 {activeTab === 'write' ? (
                     <textarea
                         id="courseDescription"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
+                        value={desc}
+                        onChange={(e) => setDesc(e.target.value)}
                         rows={10}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition font-mono text-sm leading-relaxed"
                         placeholder="# Giới thiệu khóa học&#10;&#10;Nội dung bao gồm...&#10;- Bài 1: ...&#10;- Bài 2: ..."
@@ -204,8 +246,8 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                     />
                 ) : (
                     <div className="w-full h-[260px] p-4 border border-gray-200 rounded-lg bg-gray-50 overflow-y-auto custom-scrollbar prose prose-sm prose-indigo max-w-none">
-                        {description ? (
-                            <ReactMarkdown>{description}</ReactMarkdown>
+                        {desc ? (
+                            <ReactMarkdown>{desc}</ReactMarkdown>
                         ) : (
                             <p className="text-gray-400 italic text-center mt-20">Chưa có nội dung để hiển thị.</p>
                         )}

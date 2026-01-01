@@ -1,7 +1,7 @@
 import { doc, serverTimestamp, writeBatch, increment, query, where, orderBy, onSnapshot, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject,  } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
-import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef } from './config';
+import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef, type MultilingualField } from './config';
 
 // ✅ RE-EXPORT CÁC HÀM SDK CHO UI COMPONENTS
 export { ref, uploadBytesResumable, getDownloadURL };
@@ -87,14 +87,14 @@ const getVideoDocRef = (courseId: string, videoId: string) => {
 export async function addVideo(
     courseId: string, 
     sessionId: string, 
-    title: string, 
+    title: MultilingualField, 
     videoUrl: string, 
     storagePath: string, 
     adminId: string, 
     videoId: string,
     type: LessonType = 'video',
     // Các tham số optional cho từng loại
-    content: string = '',
+    content: MultilingualField = '',
     quizData: string = '',
     blockData: LessonBlock[] = [], // <--- Tham số mới cho Custom Template
     audioUrl: string = ''          // <--- Tham số mới cho Audio
