@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
 import { 
     LayoutDashboard, Users, LogOut, Plus, Search, 
-    PlusCircle, Globe // [UPDATED] Thêm icon Globe
+    PlusCircle, Globe // [ICON MỚI]
 } from 'lucide-react';
 
 import CourseCard from '../components/Admin/CourseCard';
@@ -21,10 +21,13 @@ import { subscribeToVideos, type Video as IVideo, tr_h } from '../services/fireb
 export type PageType = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail';
 
 // --- COMPONENT CON: VIDEO MANAGER CONTAINER ---
+// Container này chịu trách nhiệm fetch data cho VideoList và xử lý các hành động thêm/sửa
 const VideoManagerContainer: React.FC<{ 
     courseId: string; 
     onAddVideo: () => void; 
-}> = ({ courseId, onAddVideo }) => {
+    // [NEW] Callback khi user bấm nút Edit trên 1 video
+    onEditVideo: (video: IVideo) => void;
+}> = ({ courseId, onAddVideo, onEditVideo }) => {
     const [sessions] = useCourseSessions(courseId);
     const [videos, setVideos] = useState<IVideo[]>([]);
 
@@ -51,6 +54,8 @@ const VideoManagerContainer: React.FC<{
                     courseId={courseId} 
                     sessions={sessions} 
                     videos={videos} 
+                    // [NEW] Truyền callback edit xuống VideoList
+                    onEditVideoRequest={onEditVideo}
                 />
             </div>
         </div>
@@ -61,8 +66,8 @@ const VideoManagerContainer: React.FC<{
 interface AdminDashboardProps {
     user: User;
     onLogout: () => void;
-    // [UPDATED] Thêm prop điều hướng
-    onNavigate: (page: PageType) => void; 
+    // [NEW] Prop điều hướng về Landing Page
+    onNavigate: (page: PageType) => void;
 }
 
 // --- COMPONENT CHÍNH ---
@@ -73,12 +78,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
     const [loadingCourses, setLoadingCourses] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     
-    // Modals State
+    // Modals State: Course
     const [showCreateCourse, setShowCreateCourse] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
     const [deletingCourse, setDeletingCourse] = useState<Course | null>(null);
+    
+    // Modals State: Video Manager (Danh sách video)
     const [selectedCourseForVideos, setSelectedCourseForVideos] = useState<Course | null>(null);
-    const [courseForVideoCreation, setCourseForVideoCreation] = useState<{id: string, title: string} | null>(null);
+    
+    // Modals State: Create/Edit Video Form
+    // [UPDATED] Quản lý cả trạng thái Add (initialVideo=undefined) và Edit (initialVideo=video)
+    const [videoFormState, setVideoFormState] = useState<{
+        isOpen: boolean;
+        courseId: string;
+        courseTitle: string;
+        initialVideo?: IVideo; 
+    }>({ isOpen: false, courseId: '', courseTitle: '' });
 
     // Session Manager State
     const [sessionManagerData, setSessionManagerData] = useState<{
@@ -104,6 +119,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
         }
     };
 
+    // Hàm helper mở Session Manager
     const openSessionManager = (courseId: string, courseTitle: string, currentSessionId: string | null, onSelect: (id: string, title: string) => void) => {
         setSessionManagerData({
             isOpen: true,
@@ -179,7 +195,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                         <Users size={22} /><span className="ml-3 hidden lg:block">Học viên</span>
                     </button>
 
-                    {/* [UPDATED] Nút Xem Trang Chủ */}
+                    {/* [NEW] Nút Xem Trang Chủ */}
                     <div className="pt-2 mt-2 border-t border-gray-50">
                         <button 
                             onClick={() => onNavigate('landing')} 
@@ -261,26 +277,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                     <div className="flex-grow overflow-hidden relative">
                         <VideoManagerContainer 
                             courseId={selectedCourseForVideos.id} 
-                            onAddVideo={() => setCourseForVideoCreation({ 
-                                id: selectedCourseForVideos.id, 
-                                title: tr_h(selectedCourseForVideos.title )
+                            // [ACTION] Add Video -> Mở Form trống
+                            onAddVideo={() => setVideoFormState({ 
+                                isOpen: true,
+                                courseId: selectedCourseForVideos.id, 
+                                courseTitle: tr_h(selectedCourseForVideos.title)
+                            })}
+                            // [ACTION] Edit Video -> Mở Form có data
+                            onEditVideo={(video) => setVideoFormState({
+                                isOpen: true,
+                                courseId: selectedCourseForVideos.id,
+                                courseTitle: tr_h(selectedCourseForVideos.title),
+                                initialVideo: video
                             })}
                         />
                     </div>
                 </div>
             )}
 
-            {/* 5. CREATE VIDEO FORM */}
-            {courseForVideoCreation && (
+            {/* 5. CREATE/EDIT VIDEO FORM */}
+            {videoFormState.isOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <CreateVideoForm 
-                        courseId={courseForVideoCreation.id} 
-                        courseTitle={courseForVideoCreation.title} 
+                        courseId={videoFormState.courseId} 
+                        courseTitle={videoFormState.courseTitle} 
                         adminUser={user}
-                        onClose={() => setCourseForVideoCreation(null)}
-                        onVideoCreated={() => { /* Realtime update will handle list refresh */ }}
+                        initialVideo={videoFormState.initialVideo} // Truyền video cần sửa (nếu có)
+                        onClose={() => setVideoFormState(prev => ({ ...prev, isOpen: false, initialVideo: undefined }))}
+                        onVideoCreated={() => { /* Realtime update handled by subscriptions */ }}
                         onRequestSessionManager={(currentId, onSelect) => {
-                             openSessionManager(courseForVideoCreation.id, courseForVideoCreation.title, currentId, onSelect);
+                             openSessionManager(videoFormState.courseId, videoFormState.courseTitle, currentId, onSelect);
                         }}
                     />
                 </div>

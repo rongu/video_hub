@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     addVideo, 
+    updateVideo, // [NEW] Hàm update
     ref, 
     uploadBytesResumable, 
     getDownloadURL, 
     generateVideoId, 
     getFirebaseStorage,
     type LessonType,
-    type LessonBlock 
+    type LessonBlock,
+    type Video // [NEW] Import Video type
 } from '../../services/firebase'; 
 import { type User } from 'firebase/auth';
 import { 
@@ -23,21 +25,28 @@ interface CreateVideoFormProps {
     onVideoCreated: () => void;
     onClose: () => void;
     
-    // PROP MỚI: Hàm callback để yêu cầu cha (Dashboard) mở Modal chọn Session
+    // Callback để yêu cầu cha (Dashboard) mở Modal chọn Session
     onRequestSessionManager: (
         currentSessionId: string | null, 
         onSelect: (id: string, title: string) => void
     ) => void;
+
+    // [NEW] Prop nhận video cần sửa (Nếu null => Tạo mới)
+    initialVideo?: Video | null;
 }
 
 const CreateVideoForm: React.FC<CreateVideoFormProps> = ({ 
-    courseId, courseTitle, adminUser, onVideoCreated, onClose, onRequestSessionManager 
+    courseId, courseTitle, adminUser, onVideoCreated, onClose, onRequestSessionManager,
+    initialVideo // [NEW]
 }) => {
+    // Xác định chế độ Edit hay Create
+    const isEditing = !!initialVideo;
+
     // 1. STATE QUẢN LÝ LOẠI BÀI HỌC
     const [contentType, setContentType] = useState<LessonType>('video');
     
-    // Tạo ID nháp (Dùng để định danh folder chứa file cho bài Custom/Audio)
-    const [draftVideoId] = useState(generateVideoId());
+    // Tạo ID nháp hoặc dùng ID cũ nếu đang edit
+    const [draftVideoId] = useState(initialVideo?.id || generateVideoId());
 
     // State chung cho Text / Quiz / Audio Title
     const [textTitle, setTextTitle] = useState('');
@@ -49,7 +58,7 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
     // State cho File Upload (Video / Audio)
     const [files, setFiles] = useState<File[]>([]); 
     
-    // State chọn Session (Lưu kết quả chọn từ Modal cha)
+    // State chọn Session
     const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
     const [selectedSessionTitle, setSelectedSessionTitle] = useState<string | null>(null);
     
@@ -60,12 +69,31 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
+    // [NEW] EFFECT: Load dữ liệu cũ nếu đang Edit
+    useEffect(() => {
+        if (initialVideo) {
+            setContentType(initialVideo.type || 'video');
+            setTextTitle(initialVideo.title);
+            setSelectedSessionId(initialVideo.sessionId);
+            setSelectedSessionTitle("Session hiện tại (Click để thay đổi)"); 
+
+            // Load nội dung theo type
+            if (initialVideo.type === 'custom') {
+                setLessonBlocks(initialVideo.blockData || []);
+            } else if (initialVideo.type === 'text') {
+                setTextContent(initialVideo.content || '');
+            } else if (initialVideo.type === 'quiz') {
+                setTextContent(initialVideo.quizData || '');
+            } else if (initialVideo.type === 'audio') {
+                setTextContent(initialVideo.content || ''); // Transcript
+            }
+        }
+    }, [initialVideo]);
+
     // --- HANDLERS ---
 
-    // Hàm gọi lên cha để mở Modal Session
     const handleOpenSessionManager = () => {
         onRequestSessionManager(selectedSessionId, (id, title) => {
-            // Callback này sẽ chạy khi User chọn xong session ở Modal ngoài kia
             setSelectedSessionId(id);
             setSelectedSessionTitle(title);
         });
@@ -91,10 +119,11 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                     setError('Vui lòng chỉ chọn file Audio (.mp3, .wav...)');
                     return;
                 }
-                if (selectedFiles.length > 1) {
-                    setError('Mỗi bài học Audio chỉ được upload 1 file.');
-                    return;
-                }
+            }
+            // Nếu edit thì có thể thay thế file cũ
+            if (contentType === 'audio' && selectedFiles.length > 1) {
+                setError('Mỗi bài học Audio chỉ được upload 1 file.');
+                return;
             }
             
             setFiles(selectedFiles);
@@ -140,81 +169,131 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
         setUploadProgress(0);
 
         try {
-            // CASE 1: VIDEO (Upload nhiều file cùng lúc)
+            // [NEW] Logic Update chung cho các trường cơ bản
+            const commonUpdateData = {
+                title: textTitle,
+                sessionId: selectedSessionId,
+                type: contentType,
+            };
+
+            // CASE 1: VIDEO
             if (contentType === 'video') {
-                if (files.length === 0) throw new Error("Chưa chọn file Video nào.");
-                
-                let successCount = 0;
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    setCurrentFileIndex(i + 1); 
-                    setUploadProgress(0); 
-                    
-                    const videoId = generateVideoId(); 
-                    const { url, storagePath } = await uploadFile(file, videoId, 'videos');
-                    const title = file.name.replace(/\.[^/.]+$/, ""); 
-                    
-                    await addVideo(
-                        courseId, selectedSessionId, title, url, storagePath, adminUser.uid, 
-                        videoId, 'video'
-                    );
-                    successCount++;
+                if (isEditing) {
+                    // EDIT: Nếu có file mới thì upload, không thì chỉ update title/session
+                    if (files.length > 0) {
+                        // (Giả sử Edit Video chỉ hỗ trợ thay thế 1 video chính)
+                        const file = files[0];
+                        const { url, storagePath } = await uploadFile(file, draftVideoId, 'videos');
+                        await updateVideo(courseId, draftVideoId, {
+                            ...commonUpdateData,
+                            videoUrl: url,
+                            storagePath
+                        });
+                    } else {
+                        await updateVideo(courseId, draftVideoId, commonUpdateData);
+                    }
+                    setSuccess("Cập nhật Video thành công!");
+                } else {
+                    // CREATE
+                    if (files.length === 0) throw new Error("Chưa chọn file Video nào.");
+                    let successCount = 0;
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        setCurrentFileIndex(i + 1); 
+                        setUploadProgress(0); 
+                        
+                        const videoId = generateVideoId(); 
+                        const { url, storagePath } = await uploadFile(file, videoId, 'videos');
+                        const title = file.name.replace(/\.[^/.]+$/, ""); 
+                        
+                        await addVideo(
+                            courseId, selectedSessionId, title, url, storagePath, adminUser.uid, 
+                            videoId, 'video'
+                        );
+                        successCount++;
+                    }
+                    setSuccess(`Đã tải lên ${successCount} video thành công!`);
+                    setFiles([]); 
                 }
-                setSuccess(`Đã tải lên ${successCount} video thành công!`);
-                setFiles([]); 
             } 
             
-            // CASE 2: AUDIO (1 File + Transcript)
+            // CASE 2: AUDIO
             else if (contentType === 'audio') {
-                if (files.length === 0) throw new Error("Chưa chọn file Audio.");
                 if (!textTitle.trim()) throw new Error("Vui lòng nhập tiêu đề Audio.");
-
-                const { url, storagePath } = await uploadFile(files[0], draftVideoId, 'audios');
                 
-                await addVideo(
-                    courseId, selectedSessionId, textTitle, '', storagePath, adminUser.uid, 
-                    draftVideoId, 'audio', textContent, '', [], url
-                );
-                
-                setSuccess("Đã thêm bài Audio thành công!");
-                setTextTitle(''); setTextContent(''); setFiles([]);
+                if (isEditing) {
+                    const updateData: any = { ...commonUpdateData, content: textContent };
+                    if (files.length > 0) {
+                        const { url, storagePath } = await uploadFile(files[0], draftVideoId, 'audios');
+                        updateData.audioUrl = url;
+                        updateData.storagePath = storagePath;
+                    }
+                    await updateVideo(courseId, draftVideoId, updateData);
+                    setSuccess("Cập nhật Audio thành công!");
+                } else {
+                    if (files.length === 0) throw new Error("Chưa chọn file Audio.");
+                    const { url, storagePath } = await uploadFile(files[0], draftVideoId, 'audios');
+                    await addVideo(
+                        courseId, selectedSessionId, textTitle, '', storagePath, adminUser.uid, 
+                        draftVideoId, 'audio', textContent, '', [], url
+                    );
+                    setSuccess("Đã thêm bài Audio thành công!");
+                    setTextTitle(''); setTextContent(''); setFiles([]);
+                }
             }
 
-            // CASE 3: CUSTOM / INTERACTIVE (Dùng LessonBuilder)
+            // CASE 3: CUSTOM
             else if (contentType === 'custom') {
                 if (!textTitle.trim()) throw new Error("Vui lòng nhập tiêu đề bài học.");
-                if (lessonBlocks.length === 0) throw new Error("Bài học chưa có nội dung nào. Hãy thêm ít nhất 1 Block.");
+                if (lessonBlocks.length === 0) throw new Error("Bài học chưa có nội dung nào.");
 
                 const storageFolderPath = `artifacts/video-hub-prod-id/assets/${courseId}/${draftVideoId}`;
 
-                await addVideo(
-                    courseId, selectedSessionId, textTitle, '', storageFolderPath, adminUser.uid,
-                    draftVideoId, 'custom', '', '', lessonBlocks
-                );
-                
-                setSuccess("Đã tạo Bài học Tương tác thành công!");
-                setTextTitle(''); setLessonBlocks([]);
+                if (isEditing) {
+                    await updateVideo(courseId, draftVideoId, {
+                        ...commonUpdateData,
+                        blockData: lessonBlocks
+                    });
+                    setSuccess("Cập nhật Bài học Tương tác thành công!");
+                } else {
+                    await addVideo(
+                        courseId, selectedSessionId, textTitle, '', storageFolderPath, adminUser.uid,
+                        draftVideoId, 'custom', '', '', lessonBlocks
+                    );
+                    setSuccess("Đã tạo Bài học Tương tác thành công!");
+                    setTextTitle(''); setLessonBlocks([]);
+                }
             }
 
             // CASE 4: TEXT / QUIZ
             else {
                 if (!textTitle.trim()) throw new Error("Vui lòng nhập tiêu đề.");
-                const id = generateVideoId();
-                await addVideo(
-                    courseId, selectedSessionId, textTitle, '', '', adminUser.uid, id,
-                    contentType, 
-                    contentType === 'text' ? textContent : '', 
-                    contentType === 'quiz' ? textContent : '' 
-                );
-                setSuccess(`Đã thêm ${contentType} thành công!`);
-                setTextTitle(''); setTextContent('');
+                
+                if (isEditing) {
+                    const updateData: any = { ...commonUpdateData };
+                    if (contentType === 'text') updateData.content = textContent;
+                    if (contentType === 'quiz') updateData.quizData = textContent;
+                    
+                    await updateVideo(courseId, draftVideoId, updateData);
+                    setSuccess("Cập nhật thành công!");
+                } else {
+                    const id = generateVideoId();
+                    await addVideo(
+                        courseId, selectedSessionId, textTitle, '', '', adminUser.uid, id,
+                        contentType, 
+                        contentType === 'text' ? textContent : '', 
+                        contentType === 'quiz' ? textContent : '' 
+                    );
+                    setSuccess(`Đã thêm ${contentType} thành công!`);
+                    setTextTitle(''); setTextContent('');
+                }
             }
             
             onVideoCreated(); 
-            setTimeout(onClose, 2000); 
+            setTimeout(onClose, 1500); 
             
         } catch (err: any) {
-            console.error("Lỗi tạo nội dung:", err);
+            console.error("Lỗi xử lý:", err);
             setError(err.message || "Đã xảy ra lỗi không xác định.");
         } finally {
             setUploading(false);
@@ -228,7 +307,10 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
             
             {/* HEADER */}
             <div className="flex justify-between items-center mb-4 border-b pb-3">
-                <h3 className="text-xl font-bold text-indigo-700">Thêm Nội dung: "{courseTitle}"</h3>
+                <h3 className="text-xl font-bold text-indigo-700">
+                    {/* [UPDATED] Tiêu đề thay đổi theo chế độ */}
+                    {isEditing ? `Chỉnh sửa: "${initialVideo?.title}"` : `Thêm Nội dung: "${courseTitle}"`}
+                </h3>
                 <button 
                     onClick={onClose} 
                     disabled={uploading} 
@@ -250,13 +332,14 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                     <button 
                         key={tab.id}
                         type="button"
-                        onClick={() => setContentType(tab.id as LessonType)}
-                        disabled={uploading}
+                        // [UPDATED] Không cho đổi type khi đang edit
+                        onClick={() => !isEditing && setContentType(tab.id as LessonType)}
+                        disabled={uploading || isEditing}
                         className={`flex-1 min-w-[100px] py-2 text-sm font-bold rounded-md flex items-center justify-center space-x-2 transition ${
                             contentType === tab.id 
                             ? `bg-white ${tab.color} shadow-sm` 
                             : 'text-gray-500 hover:text-gray-700'
-                        }`}
+                        } ${isEditing && contentType !== tab.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         <tab.icon size={16}/> <span className="whitespace-nowrap">{tab.label}</span>
                     </button>
@@ -315,12 +398,29 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
 
                     ) : contentType === 'video' ? (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">2. Chọn Video (Có thể chọn nhiều file) <span className="text-red-500">*</span></label>
-                            <input id="fileInput" type="file" accept="video/*" multiple onChange={handleFileChange} className="hidden" disabled={uploading} />
+                            <label className="block text-sm font-bold text-gray-700 mb-2">
+                                {/* [UPDATED] Label thay đổi */}
+                                2. {isEditing ? 'Thay đổi Video (Để trống nếu giữ nguyên)' : 'Chọn Video (Có thể chọn nhiều file)'} 
+                                {isEditing ? '' : <span className="text-red-500 ml-1">*</span>}
+                            </label>
+
+                            {/* [UPDATED] Hiển thị video hiện tại khi Edit */}
+                            {isEditing && initialVideo?.videoUrl && (
+                                <p className="text-xs text-gray-500 mb-2 flex items-center">
+                                    <VideoIcon size={12} className="mr-1"/> Video hiện tại: 
+                                    <a href={initialVideo.videoUrl} target="_blank" rel="noreferrer" className="text-indigo-600 underline ml-1 font-medium">Xem</a>
+                                </p>
+                            )}
+
+                            <input id="fileInput" type="file" accept="video/*" multiple={!isEditing} onChange={handleFileChange} className="hidden" disabled={uploading} />
                             
                             <label htmlFor="fileInput" className={`flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-xl cursor-pointer transition-all ${files.length > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'}`}>
                                 <UploadCloud size={40} className={`mb-3 ${files.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
-                                <span className="text-sm font-bold text-gray-600">{files.length > 0 ? `Đã chọn ${files.length} video` : 'Click để chọn Video từ máy tính'}</span>
+                                <span className="text-sm font-bold text-gray-600">
+                                    {files.length > 0 
+                                        ? `Đã chọn ${files.length} video` 
+                                        : (isEditing ? 'Click để tải video mới thay thế' : 'Click để chọn Video từ máy tính')}
+                                </span>
                                 <span className="text-xs text-gray-400 mt-1">Hỗ trợ MP4, MOV, MKV...</span>
                             </label>
 
@@ -337,7 +437,7 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                             {uploading && (
                                 <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
                                     <p className="text-xs font-bold text-indigo-700 mb-2 flex justify-between">
-                                        <span>Đang tải lên ({currentFileIndex}/{files.length})...</span>
+                                        <span>Đang tải lên ({currentFileIndex}/{files.length || 1})...</span>
                                         <span>{uploadProgress}%</span>
                                     </p>
                                     <div className="w-full bg-indigo-200 rounded-full h-2 overflow-hidden">
@@ -354,7 +454,10 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                                 <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-purple-500 transition" value={textTitle} onChange={(e) => setTextTitle(e.target.value)} required placeholder="VD: Listening Test 1..." />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">3. File Audio (.mp3, .wav) <span className="text-red-500">*</span></label>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    {isEditing ? '3. File Audio (Chọn để thay thế)' : '3. File Audio (.mp3, .wav)'} 
+                                    {!isEditing && <span className="text-red-500 ml-1">*</span>}
+                                </label>
                                 <input type="file" accept="audio/*" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition"/>
                             </div>
                             <div>
@@ -395,7 +498,7 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                     }`}
                 >
                     {uploading ? <Loader2 className="animate-spin mr-2" /> : <Save size={20} className="mr-2"/>}
-                    {uploading ? 'Đang xử lý...' : 'Lưu & Thêm mới'}
+                    {uploading ? 'Đang xử lý...' : (isEditing ? 'Cập nhật Thay đổi' : 'Lưu & Thêm mới')}
                 </button>
             </form>
         </div>

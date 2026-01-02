@@ -7,13 +7,10 @@ import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDo
 export { ref, uploadBytesResumable, getDownloadURL };
 
 // =================================================================
-// 1. ĐỊNH NGHĨA TYPE CHO RICH LESSON (TEMPLATE BLOCK)
+// 1. ĐỊNH NGHĨA TYPE
 // =================================================================
 
-// Thêm 'audio' và 'custom' vào LessonType
 export type LessonType = 'video' | 'quiz' | 'text' | 'custom' | 'audio';
-
-// -- Sub-types cho các thành phần trong Block --
 
 export interface BlockAudio {
     id: string;
@@ -25,7 +22,7 @@ export interface BlockImage {
     id: string;
     url: string;
     caption?: string;
-    isSpoiler?: boolean; // True = bị che mờ, click mới hiện
+    isSpoiler?: boolean; 
 }
 
 export interface BlockQuiz {
@@ -33,12 +30,12 @@ export interface BlockQuiz {
     question: string;
     answers: string[];
     correctIndex: number;
-    explanation?: string; // Giải thích hiển thị sau khi chọn
+    explanation?: string;
 }
 
 export interface LessonBlock {
     id: string;
-    description?: string; // Hỗ trợ Markdown
+    description?: string; 
     audios?: BlockAudio[];
     images?: BlockImage[];
     quizzes?: BlockQuiz[];
@@ -54,21 +51,11 @@ export interface Video {
     type?: LessonType;
 
     // -- Data riêng cho từng loại --
-    
-    // 1. Video thường
     videoUrl?: string;       
     storagePath?: string;    
-    
-    // 2. Bài giảng Text (Markdown)
     content?: string;        
-    
-    // 3. Bài kiểm tra (Quiz lớn - tính điểm)
     quizData?: string; 
-    
-    // 4. Bài giảng Audio
     audioUrl?: string; 
-    
-    // 5. Custom Rich Lesson (Template mới)
     blockData?: LessonBlock[]; 
 }
 
@@ -80,7 +67,7 @@ const getVideoDocRef = (courseId: string, videoId: string) => {
 }
 
 // =================================================================
-// 2. CẬP NHẬT HÀM ADD VIDEO (HỖ TRỢ ĐẦY ĐỦ THAM SỐ)
+// 2. HÀM ADD VIDEO (GIỮ NGUYÊN)
 // =================================================================
 
 export async function addVideo(
@@ -92,28 +79,20 @@ export async function addVideo(
     adminId: string, 
     videoId: string,
     type: LessonType = 'video',
-    // Các tham số optional cho từng loại
     content: MultilingualField = '',
     quizData: string = '',
-    blockData: LessonBlock[] = [], // <--- Tham số mới cho Custom Template
-    audioUrl: string = ''          // <--- Tham số mới cho Audio
+    blockData: LessonBlock[] = [], 
+    audioUrl: string = ''          
 ): Promise<void> {
     const db = getFirestoreDb();
     const batch = writeBatch(db);
     const vRef = doc(getVideosCollectionRef(courseId), videoId);
     const sRef = doc(getCoursesCollectionRef(), courseId, 'sessions', sessionId);
 
-    // Data chung
     const docData: any = { 
-        courseId, 
-        sessionId, 
-        title, 
-        adminId, 
-        createdAt: serverTimestamp(),
-        type 
+        courseId, sessionId, title, adminId, createdAt: serverTimestamp(), type 
     };
 
-    // Mapping Data theo Type
     if (type === 'video') {
         docData.videoUrl = videoUrl;
         docData.storagePath = storagePath;
@@ -123,11 +102,11 @@ export async function addVideo(
         docData.quizData = quizData;
     } else if (type === 'audio') {
         docData.audioUrl = audioUrl;
-        docData.storagePath = storagePath; // Lưu path file để xóa
-        docData.content = content; // Transcript
+        docData.storagePath = storagePath; 
+        docData.content = content; 
     } else if (type === 'custom') {
-        docData.blockData = blockData;     // Lưu cấu trúc Blocks
-        docData.storagePath = storagePath; // Lưu path folder assets (nếu có)
+        docData.blockData = blockData;     
+        docData.storagePath = storagePath; 
     }
 
     batch.set(vRef, docData);
@@ -138,8 +117,6 @@ export async function addVideo(
 
 export const subscribeToVideos = (courseId: string, sessionId: string | null, callback: (videos: Video[]) => void): (() => void) => {
     const colRef = getVideosCollectionRef(courseId);
-    
-    // [UPDATE QUAN TRỌNG] Đổi 'desc' thành 'asc' để bài học sắp xếp theo thứ tự tạo (Cũ -> Mới)
     const q = sessionId 
         ? query(colRef, where('sessionId', '==', sessionId), orderBy('createdAt', 'asc')) 
         : query(colRef, orderBy('createdAt', 'asc'));
@@ -154,11 +131,7 @@ export const deleteVideo = async (courseId: string, sessionId: string, videoId: 
     const batch = writeBatch(db);
     const sRef = doc(getCoursesCollectionRef(), courseId, 'sessions', sessionId);
     
-    // Nếu có storagePath (Video file hoặc Folder assets của bài Custom)
     if (storagePath) {
-        // Lưu ý: deleteObject chỉ xóa được File. 
-        // Nếu storagePath là folder (Type Custom), logic xóa folder đệ quy cần xử lý ở Client (loop) hoặc Cloud Function.
-        // Tạm thời try-catch để tránh lỗi nếu path là folder.
         await deleteObject(ref(getFirebaseStorage(), storagePath)).catch((err) => {
             console.warn("Could not delete object at path (might be a folder):", storagePath, err);
         });
@@ -170,14 +143,24 @@ export const deleteVideo = async (courseId: string, sessionId: string, videoId: 
     await batch.commit();
 };
 
+// =================================================================
+// [UPDATED] HÀM UPDATE VIDEO TOÀN DIỆN
+// =================================================================
 export async function updateVideo(
     courseId: string, 
     videoId: string, 
-    updateData: { title: string }
+    updateData: Partial<Video> // [CHANGED] Nhận Partial<Video> thay vì chỉ {title}
 ): Promise<void> {
     const videoDocRef = getVideoDocRef(courseId, videoId);
     
-    await updateDoc(videoDocRef, {
-        title: updateData.title,
-    });
+    // Loại bỏ các trường undefined để tránh lỗi Firestore
+    const validData = Object.entries(updateData).reduce((acc, [key, value]) => {
+        if (value !== undefined) acc[key] = value;
+        return acc;
+    }, {} as any);
+
+    // Luôn cập nhật updatedAt (nếu bạn có field này)
+    // validData.updatedAt = serverTimestamp();
+
+    await updateDoc(videoDocRef, validData);
 }
