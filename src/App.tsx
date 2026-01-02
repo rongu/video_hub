@@ -139,7 +139,8 @@ const App: React.FC = () => {
 
         // Ưu tiên check route Detail trước
         if (currentPage === 'detail' && currentCourseId) {
-            return <CourseDetailPage courseId={currentCourseId} onNavigate={onNavigate} />;
+            // [MODIFIED] Truyền thêm prop role để Admin có thể xem được nội dung khóa học
+            return <CourseDetailPage courseId={currentCourseId} onNavigate={onNavigate} role={role} />;
         }
         
         if (currentPage === 'landing') {
@@ -151,14 +152,10 @@ const App: React.FC = () => {
 
         if (user && role) {
             if (role === 'admin') {
-                // Chỉ hiện Dashboard Admin khi ở đúng route admin
-                if (currentPage === 'admin') {
-                    return <AdminDashboard user={user} onLogout={handleLogout}/>;
-                }
-                // Nếu Admin lạc vào HomePage -> redirect về admin (xử lý ở render hoặc useEffect)
-                // Ở đây return AdminDashboard luôn cho an toàn
-                if (currentPage === 'home') {
-                    return <AdminDashboard user={user} onLogout={handleLogout}/>;
+                // Chỉ hiện Dashboard Admin khi ở đúng route admin hoặc home
+                if (currentPage === 'admin' || currentPage === 'home') {
+                    // [MODIFIED] Truyền thêm prop onNavigate vào AdminDashboard
+                    return <AdminDashboard user={user} onLogout={handleLogout} onNavigate={onNavigate}/>;
                 }
             }
             return <HomePage onLogout={handleLogout} user={user} onNavigate={onNavigate} role={role} />;

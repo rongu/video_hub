@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
 import { 
     LayoutDashboard, Users, LogOut, Plus, Search, 
-    PlusCircle
+    PlusCircle, Globe // [UPDATED] Thêm icon Globe
 } from 'lucide-react';
 
 import CourseCard from '../components/Admin/CourseCard';
@@ -61,10 +61,12 @@ const VideoManagerContainer: React.FC<{
 interface AdminDashboardProps {
     user: User;
     onLogout: () => void;
+    // [UPDATED] Thêm prop điều hướng
+    onNavigate: (page: PageType) => void; 
 }
 
 // --- COMPONENT CHÍNH ---
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavigate }) => {
     const [activeTab, setActiveTab] = useState<'courses' | 'users'>('courses');
     
     const [courses, setCourses] = useState<Course[]>([]);
@@ -176,6 +178,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }) => {
                     <button onClick={() => setActiveTab('users')} className={`w-full flex items-center p-3 rounded-xl transition font-bold ${activeTab === 'users' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
                         <Users size={22} /><span className="ml-3 hidden lg:block">Học viên</span>
                     </button>
+
+                    {/* [UPDATED] Nút Xem Trang Chủ */}
+                    <div className="pt-2 mt-2 border-t border-gray-50">
+                        <button 
+                            onClick={() => onNavigate('landing')} 
+                            className="w-full flex items-center p-3 rounded-xl transition font-bold text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                        >
+                            <Globe size={22} />
+                            <span className="ml-3 hidden lg:block">Xem Trang Chủ</span>
+                        </button>
+                    </div>
                 </nav>
 
                 <div className="p-4 border-t border-gray-50">

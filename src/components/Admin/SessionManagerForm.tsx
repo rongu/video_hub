@@ -1,6 +1,6 @@
 import React, { useState, useMemo, type FormEvent, useCallback } from 'react';
 import { X, Plus, Loader2, BookOpen, Layers } from 'lucide-react'; 
-import { type Session, addSession, deleteSession, updateSession } from '../../services/firebase'; 
+import { type Session, addSession, deleteSession, updateSession, swapSessionOrder } from '../../services/firebase'; 
 import useCourseSessions from '../../hooks/useCourseSessions';
 import SessionNode from './SessionNode';
 
@@ -8,12 +8,10 @@ interface SessionManagerFormProps {
     courseId: string;
     courseTitle: string;
     onClose: () => void;
-    // Callback này sẽ trả về Session ID và Title khi user chọn
     onSessionSelected: (sessionId: string, sessionTitle: string) => void;
     selectedSessionId: string | null; 
 }
 
-// ... (Giữ nguyên phần helper buildSessionTree ở đây) ...
 interface SessionNodeStructure extends Session { children: SessionNodeStructure[]; videos?: any[]; }
 const buildSessionTree = (sessions: Session[]): SessionNodeStructure[] => {
     const sessionMap: Map<string, SessionNodeStructure> = new Map();
@@ -23,6 +21,7 @@ const buildSessionTree = (sessions: Session[]): SessionNodeStructure[] => {
         if (node.parentId && sessionMap.has(node.parentId)) sessionMap.get(node.parentId)!.children.push(node);
         else tree.push(node);
     });
+    // [QUAN TRỌNG] Sort ngay khi build tree để đảm bảo thứ tự hiển thị đúng với orderIndex
     const sortNodes = (nodes: SessionNodeStructure[]) => {
         nodes.sort((a, b) => a.orderIndex - b.orderIndex);
         nodes.forEach(node => { if (node.children.length > 0) sortNodes(node.children); });
@@ -41,28 +40,62 @@ const SessionManagerForm: React.FC<SessionManagerFormProps> = ({
 
     const sessionTree = useMemo(() => buildSessionTree(sessions), [sessions]);
 
-    // ... (Giữ nguyên các hàm CRUD: handleAddRootSession, handleAddChildSession, handleDeleteSession, handleUpdateSession) ...
     const handleAddRootSession = async (e: FormEvent) => {
         e.preventDefault(); if (!newSessionTitle.trim()) return;
         setLoading(true); setError(null);
         try {
+            // Tính orderIndex mới = số lượng root hiện tại
             const currentRootCount = sessions.filter(s => s.parentId === null).length;
             await addSession(courseId, newSessionTitle.trim(), currentRootCount, null);
             setNewSessionTitle('');
         } catch (err) { setError("Lỗi tạo Session gốc."); } finally { setLoading(false); }
     };
+
     const handleAddChildSession = useCallback(async (parentId: string, title: string, orderIndex: number) => {
         setLoading(true); try { await addSession(courseId, title.trim(), orderIndex, parentId); } catch (err) { setError("Lỗi tạo Session con."); } finally { setLoading(false); }
     }, [courseId]);
+
     const handleDeleteSession = useCallback(async (sessionId: string) => {
         setLoading(true); try { await deleteSession(courseId, sessionId); if (sessionId === selectedSessionId) onSessionSelected('', ''); } catch (err) { setError("Lỗi xóa Session."); } finally { setLoading(false); }
     }, [courseId, selectedSessionId, onSessionSelected]);
+
     const handleUpdateSession = useCallback(async (sessionId: string, newTitle: string) => {
         if (!newTitle.trim()) return;
         setLoading(true); try { await updateSession(courseId, sessionId, newTitle.trim()); if (sessionId === selectedSessionId) onSessionSelected(sessionId, newTitle.trim()); } catch (err) { setError("Lỗi cập nhật Session."); } finally { setLoading(false); }
     }, [courseId, selectedSessionId, onSessionSelected]);
 
-    // RENDER THUẦN TÚY (Không Portal nữa, vì AdminDashboard sẽ bọc nó)
+    // [NEW] Logic di chuyển vị trí Session
+    const handleMoveSession = useCallback(async (session: Session, direction: 'up' | 'down') => {
+        setLoading(true);
+        try {
+            // 1. Lấy danh sách anh em cùng cấp (cùng parentId)
+            const siblings = sessions
+                .filter(s => s.parentId === session.parentId)
+                .sort((a, b) => a.orderIndex - b.orderIndex);
+            
+            const currentIndex = siblings.findIndex(s => s.id === session.id);
+            if (currentIndex === -1) return;
+
+            // 2. Xác định session đích để swap
+            const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+            
+            if (targetIndex >= 0 && targetIndex < siblings.length) {
+                const targetSession = siblings[targetIndex];
+                
+                // 3. Gọi hàm swap (đổi orderIndex của 2 thằng cho nhau)
+                await swapSessionOrder(courseId, 
+                    { id: session.id, orderIndex: session.orderIndex },
+                    { id: targetSession.id, orderIndex: targetSession.orderIndex }
+                );
+            }
+        } catch (err) {
+            console.error(err);
+            setError("Lỗi di chuyển vị trí.");
+        } finally {
+            setLoading(false);
+        }
+    }, [courseId, sessions]);
+
     return (
         <div className="fixed inset-0 z-[100] bg-gray-900/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] h-[90vh] flex flex-col border border-gray-200 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -97,8 +130,23 @@ const SessionManagerForm: React.FC<SessionManagerFormProps> = ({
                         <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60"><BookOpen size={64} className="mb-4"/><p>Chưa có Session nào.</p></div>
                     ) : (
                         <div className="w-full space-y-4 pb-20">
-                            {sessionTree.map((session) => (
-                                <SessionNode key={session.id} courseId={courseId} session={session} level={0} loading={loading} selectedSessionId={selectedSessionId} onSessionSelected={onSessionSelected} onDelete={handleDeleteSession} onUpdate={handleUpdateSession} onAddChild={handleAddChildSession} />
+                            {sessionTree.map((session, index) => (
+                                <SessionNode 
+                                    key={session.id} 
+                                    courseId={courseId} 
+                                    session={session} 
+                                    level={0} 
+                                    loading={loading} 
+                                    selectedSessionId={selectedSessionId} 
+                                    onSessionSelected={onSessionSelected} 
+                                    onDelete={handleDeleteSession} 
+                                    onUpdate={handleUpdateSession} 
+                                    onAddChild={handleAddChildSession}
+                                    // [NEW] Props cho tính năng Move
+                                    onMove={handleMoveSession}
+                                    isFirst={index === 0}
+                                    isLast={index === sessionTree.length - 1}
+                                />
                             ))}
                         </div>
                     )}

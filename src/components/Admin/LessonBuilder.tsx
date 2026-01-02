@@ -28,7 +28,6 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
     const addBlock = () => {
         const newBlock: LessonBlock = {
             id: uuidv4(),
-            title: `Phần ${blocks.length + 1}`,
             description: '',
             audios: [],
             images: [],
@@ -46,6 +45,17 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
     const updateBlockField = (blockId: string, field: keyof LessonBlock, value: any) => {
         const newBlocks = blocks.map(b => b.id === blockId ? { ...b, [field]: value } : b);
         updateBlocks(newBlocks);
+    };
+
+    // [NEW] Hàm toggle checkbox Spoiler
+    const toggleImageSpoiler = (blockId: string, imageId: string, currentStatus: boolean) => {
+        const targetBlock = blocks.find(b => b.id === blockId);
+        if (!targetBlock) return;
+        
+        const newImages = targetBlock.images?.map(img => 
+            img.id === imageId ? { ...img, isSpoiler: !currentStatus } : img
+        );
+        updateBlockField(blockId, 'images', newImages);
     };
 
     const handleUpload = async (file: File, type: 'audio' | 'image', blockId: string) => {
@@ -68,7 +78,6 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                 const newAudio: BlockAudio = { id: uuidv4(), name: file.name, url: downloadURL };
                 updateBlockField(blockId, 'audios', [...(targetBlock.audios || []), newAudio]);
             } else {
-                // Vẫn giữ isSpoiler: false để khớp Type DB, nhưng không dùng UI để chỉnh nó nữa
                 const newImage: BlockImage = { id: uuidv4(), url: downloadURL, caption: '', isSpoiler: false };
                 updateBlockField(blockId, 'images', [...(targetBlock.images || []), newImage]);
             }
@@ -119,17 +128,10 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                 </button>
             </div>
 
-            {blocks.map((block, index) => (
+            {blocks.map((block) => (
                 <div key={block.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 relative group">
                     <div className="flex justify-between items-start mb-4">
                         <div className="flex-grow mr-4">
-                            <input 
-                                type="text" 
-                                value={block.title}
-                                onChange={(e) => updateBlockField(block.id, 'title', e.target.value)}
-                                className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-indigo-500 font-bold text-lg text-gray-800 outline-none px-1"
-                                placeholder={`Tiêu đề phần ${index + 1}...`}
-                            />
                             <textarea 
                                 value={block.description || ''}
                                 onChange={(e) => updateBlockField(block.id, 'description', e.target.value)}
@@ -162,29 +164,34 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                             </label>
                         </div>
 
-                        {/* 2. IMAGE COLUMN (ĐÃ CLEAN UP: CHỈ CÒN HIỆN VÀ XÓA) */}
+                        {/* 2. IMAGE COLUMN - [MODIFIED] Thêm Checkbox Spoiler */}
                         <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
                             <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center"><ImageIcon size={12} className="mr-1"/> Hình ảnh</h4>
                             
                             <div className="space-y-3 mb-3">
                                 {block.images?.map(img => (
                                     <div key={img.id} className="bg-gray-50 p-2 rounded border border-gray-100 relative group/img">
-                                        {/* Hiển thị ảnh rõ ràng */}
-                                        <div className="rounded overflow-hidden">
-                                            <img 
-                                                src={img.url} 
-                                                className="w-full h-24 object-contain bg-white" 
-                                                alt="thumb"
-                                            />
+                                        {/* Hiển thị ảnh */}
+                                        <div className="rounded overflow-hidden mb-2">
+                                            <img src={img.url} className="w-full h-24 object-contain bg-white" alt="thumb" />
                                         </div>
 
-                                        {/* Nút Xóa (Góc trên phải) */}
-                                        <button 
-                                            type="button" 
-                                            onClick={() => removeSubItem(block.id, 'images', img.id)} 
-                                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-md hover:bg-red-600 transition"
-                                            title="Xóa ảnh này"
-                                        >
+                                        <div className="flex items-center mt-2 p-1 bg-gray-100 rounded border border-gray-200">
+                                            <input 
+                                                id={`spoiler-${img.id}`}
+                                                type="checkbox"
+                                                // Nếu img.isSpoiler là true -> Checkbox checked
+                                                checked={img.isSpoiler || false}
+                                                onChange={() => toggleImageSpoiler(block.id, img.id, img.isSpoiler || false)}
+                                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                            />
+                                            <label htmlFor={`spoiler-${img.id}`} className="ml-2 text-xs font-bold text-gray-700 cursor-pointer select-none">
+                                                Che ảnh này (Spoiler)
+                                            </label>
+                                        </div>
+
+                                        {/* Nút Xóa */}
+                                        <button type="button" onClick={() => removeSubItem(block.id, 'images', img.id)} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-md hover:bg-red-600 transition" title="Xóa ảnh này">
                                             <X size={12}/>
                                         </button>
                                     </div>

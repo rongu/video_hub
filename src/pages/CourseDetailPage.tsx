@@ -18,15 +18,17 @@ import {
     tr_h
 } from '../services/firebase';
 import { useUserProgress } from '../hooks/useUserProgress';
+import { useCourseSessions } from '../hooks/useCourseSessions'; // [MODIFIED] Import hook
 import type { PageType } from '../App';
 
 interface CourseDetailPageProps {
     courseId: string;
     onNavigate: (page: PageType, courseId?: string | null) => void;
+    role: 'admin' | 'student' | null; // [MODIFIED] Thêm prop role
 }
 
-// --- SUB COMPONENTS ---
-
+// --- SUB COMPONENTS (Giữ nguyên InlineQuizItem, ExpandableImage, AudioBlockItem, QuizView như cũ) ---
+// ... (Tôi rút gọn phần này để tập trung vào logic chính, bạn giữ nguyên code cũ của các sub components này)
 const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, index }) => {
     const { t } = useTranslation();
     const [selected, setSelected] = useState<number | null>(null);
@@ -75,9 +77,12 @@ const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, in
     );
 };
 
-const ExpandableImage: React.FC<{ url: string; caption?: string }> = ({ url, caption }) => {
+const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden?: boolean }> = ({ url, caption, isDefaultHidden }) => {
     const { t } = useTranslation();
-    const [isExpanded, setIsExpanded] = useState(true); 
+    
+    // Nếu isDefaultHidden = true -> isExpanded = false (đóng mặc định)
+    // Nếu isDefaultHidden = false/undefined -> isExpanded = true (mở mặc định)
+    const [isExpanded, setIsExpanded] = useState(!isDefaultHidden); 
 
     return (
         <div className="mb-6 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm transition-all">
@@ -232,7 +237,7 @@ const QuizView: React.FC<{ data: string; title: string; onComplete?: () => void 
 
 // --- MAIN COMPONENT ---
 
-const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigate }) => {
+const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigate, role }) => {
     const { t } = useTranslation();
     const auth = getFirebaseAuth();
     const user = auth.currentUser;
@@ -243,6 +248,9 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
     const [loading, setLoading] = useState(true);
     const [showContactModal, setShowContactModal] = useState(false);
     
+    // [MODIFIED] Lấy danh sách sessions
+    const [sessions] = useCourseSessions(courseId);
+
     const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
     const hasAutoResumed = useRef(false);
     const { completedVideoIds } = useUserProgress(user?.uid, courseId);
@@ -253,10 +261,12 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         return () => unsub();
     }, [user?.uid]);
 
+    // [MODIFIED] Check isEnrolled có tính đến role admin
     const isEnrolled = useMemo(() => {
         if (!user) return false;
+        if (role === 'admin') return true; // Admin được phép access
         return enrolledCourseIds.includes(courseId);
-    }, [user, enrolledCourseIds, courseId]);
+    }, [user, enrolledCourseIds, courseId, role]);
 
     const progressPercentage = useMemo(() => {
         if (!course || course.videoCount === 0) return 0;
@@ -296,6 +306,16 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         }
     }, [loading, videos, completedVideoIds, isEnrolled]);
 
+    // [MODIFIED] Gom nhóm video theo session
+    const videosBySession = useMemo(() => {
+        const grouped: Record<string, Video[]> = {};
+        videos.forEach(v => {
+            if (!grouped[v.sessionId]) grouped[v.sessionId] = [];
+            grouped[v.sessionId].push(v);
+        });
+        return grouped;
+    }, [videos]);
+
     const renderContent = () => {
         if (!selectedVideo) return <div className="w-full h-full flex flex-col items-center justify-center text-white/50 p-8 text-center bg-gray-900"><PlayCircle size={48} className="mb-4 opacity-20" /><p className="font-bold uppercase text-xs tracking-widest">{t('detail.select_lesson_msg')}</p></div>;
 
@@ -313,10 +333,9 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                             {blocks.length === 0 && <p className="text-gray-400 italic text-center">{t('detail.content_updating')}</p>}
                             {blocks.map((block) => (
                                 <div key={block.id} className="animate-in fade-in duration-500">
-                                    <div className="flex items-center space-x-2 mb-4"><div className="w-1.5 h-6 bg-purple-500 rounded-full"></div><h3 className="text-xl font-bold text-gray-900">{block.title}</h3></div>
                                     {block.description && <div className="prose prose-purple prose-lg max-w-none text-gray-700 mb-6"><ReactMarkdown>{block.description}</ReactMarkdown></div>}
                                     {block.audios && block.audios.length > 0 && <div className="space-y-2 mb-6">{block.audios.map(audio => <AudioBlockItem key={audio.id} url={audio.url} name={audio.name} />)}</div>}
-                                    {block.images && block.images.length > 0 && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} />)}</div>}
+                                    {block.images && block.images.length > 0 && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} isDefaultHidden={img.isSpoiler}/>)}</div>}
                                     {block.quizzes && block.quizzes.length > 0 && <div className="mt-6 border-t border-dashed pt-6">{block.quizzes.map((q, idx) => <InlineQuizItem key={q.id} quiz={q} index={idx} />)}</div>}
                                 </div>
                             ))}
@@ -398,30 +417,70 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                         <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between flex-shrink-0"><h3 className="font-black text-gray-800 text-[10px] uppercase tracking-widest flex items-center"><List size={16} className="mr-2 text-indigo-600"/> {t('detail.roadmap')}</h3><span className="text-[10px] font-black text-gray-400 uppercase">{videos.length} {t('landing.lessons')}</span></div>
                         
                         <div className="overflow-y-auto flex-grow p-4 space-y-2 custom-scrollbar">
-                            {videos.map((video) => {
-                                const isDone = completedVideoIds.includes(video.id);
-                                const isActive = selectedVideo?.id === video.id;
-                                const isLocked = !isEnrolled;
-
-                                return (
-                                    <div 
-                                        key={video.id}
-                                        onClick={() => !isLocked && setSelectedVideo(video)}
-                                        className={`group p-3 rounded-lg flex items-center justify-between transition-all border-l-4 ${
-                                            isActive ? 'bg-indigo-50 border-indigo-600' : 
-                                            isLocked ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' : 'hover:bg-gray-50 border-transparent cursor-pointer'
-                                        }`}
-                                    >
-                                        <div className="flex items-center space-x-3 overflow-hidden">
-                                            <div onClick={(e) => { if (isLocked) return; handleToggleIcon(video.id, e); }} className={isLocked ? "pointer-events-none" : "cursor-pointer"}>
-                                                {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-indigo-400 flex-shrink-0" />}
+                            {/* [MODIFIED] Render theo danh sách Session */}
+                            {sessions.length > 0 ? (
+                                sessions.map(session => {
+                                    const sessionVideos = videosBySession[session.id] || [];
+                                    if (sessionVideos.length === 0) return null;
+                                    return (
+                                        <div key={session.id} className="mb-4">
+                                            <div className="px-3 py-2 text-xs font-black uppercase text-gray-400 tracking-widest border-b border-gray-100 mb-2">
+                                                {session.title}
                                             </div>
-                                            <span className={`text-sm truncate ${isActive ? 'font-bold text-indigo-900' : 'text-gray-700'}`}>{video.title}</span>
+                                            {sessionVideos.map(video => {
+                                                const isDone = completedVideoIds.includes(video.id);
+                                                const isActive = selectedVideo?.id === video.id;
+                                                const isLocked = !isEnrolled;
+
+                                                return (
+                                                    <div 
+                                                        key={video.id}
+                                                        onClick={() => !isLocked && setSelectedVideo(video)}
+                                                        className={`group p-3 rounded-lg flex items-center justify-between transition-all border-l-4 mb-2 ${
+                                                            isActive ? 'bg-indigo-50 border-indigo-600' : 
+                                                            isLocked ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' : 'hover:bg-gray-50 border-transparent cursor-pointer'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center space-x-3 overflow-hidden">
+                                                            <div onClick={(e) => { if (isLocked) return; handleToggleIcon(video.id, e); }} className={isLocked ? "pointer-events-none" : "cursor-pointer"}>
+                                                                {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-indigo-400 flex-shrink-0" />}
+                                                            </div>
+                                                            <span className={`text-sm truncate ${isActive ? 'font-bold text-indigo-900' : 'text-gray-700'}`}>{video.title}</span>
+                                                        </div>
+                                                        {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-indigo-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                        {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-indigo-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
-                                    </div>
-                                );
-                            })}
+                                    )
+                                })
+                            ) : (
+                                // Fallback nếu chưa load được session hoặc không có session (backward compatibility)
+                                videos.map((video) => {
+                                    const isDone = completedVideoIds.includes(video.id);
+                                    const isActive = selectedVideo?.id === video.id;
+                                    const isLocked = !isEnrolled;
+
+                                    return (
+                                        <div 
+                                            key={video.id}
+                                            onClick={() => !isLocked && setSelectedVideo(video)}
+                                            className={`group p-3 rounded-lg flex items-center justify-between transition-all border-l-4 ${
+                                                isActive ? 'bg-indigo-50 border-indigo-600' : 
+                                                isLocked ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' : 'hover:bg-gray-50 border-transparent cursor-pointer'
+                                            }`}
+                                        >
+                                            <div className="flex items-center space-x-3 overflow-hidden">
+                                                <div onClick={(e) => { if (isLocked) return; handleToggleIcon(video.id, e); }} className={isLocked ? "pointer-events-none" : "cursor-pointer"}>
+                                                    {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-indigo-400 flex-shrink-0" />}
+                                                </div>
+                                                <span className={`text-sm truncate ${isActive ? 'font-bold text-indigo-900' : 'text-gray-700'}`}>{video.title}</span>
+                                            </div>
+                                            {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-indigo-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
                 </div>

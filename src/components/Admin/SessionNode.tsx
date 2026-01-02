@@ -3,7 +3,7 @@ import { type Session } from '../../services/firebase';
 import { 
     Plus, Edit, Trash2, ChevronDown, ChevronRight, 
     BookOpen, Folder, X, CheckCircle, Save, 
-    Loader2
+    Loader2, ArrowUp, ArrowDown // [NEW] Icons
 } from 'lucide-react'; 
 import ConfirmDeleteModal from './ConfirmDeleteModal'; 
 
@@ -17,6 +17,11 @@ interface SessionNodeProps {
     onDelete: (sessionId: string) => Promise<void>;
     onUpdate: (sessionId: string, newTitle: string) => Promise<void>;
     onAddChild: (parentId: string, title: string, orderIndex: number) => Promise<void>; 
+    
+    // [NEW] Props Move
+    onMove: (session: Session, direction: 'up' | 'down') => Promise<void>;
+    isFirst: boolean;
+    isLast: boolean;
 }
 
 const SessionNode: React.FC<SessionNodeProps> = ({ 
@@ -29,6 +34,9 @@ const SessionNode: React.FC<SessionNodeProps> = ({
     onDelete,
     onUpdate,
     onAddChild,
+    onMove,
+    isFirst,
+    isLast
 }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [isAddingChild, setIsAddingChild] = useState(false);
@@ -37,24 +45,11 @@ const SessionNode: React.FC<SessionNodeProps> = ({
     const [editTitle, setEditTitle] = useState(session.title);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-    // =================================================================
-    // LOGIC NGHIỆP VỤ TỪ BẢN BASE
-    // =================================================================
-    
-    // Quy tắc: Chỉ Session LÁ (không có con) mới được chọn để upload.
-    // Hoặc session đã có videos cũng được coi là node lá cuối cùng.
+    // Logic nghiệp vụ cũ
     const isSelectable = session.videoCount > 0 || session.children.length === 0;
-
-    // Quy tắc: Session đã có videos không được phép có session con.
     const canAddChild = session.videoCount === 0;
-
-    // Icon dựa trên cấp độ
     const IconComponent = level === 0 ? BookOpen : Folder;
     const isSelected = session.id === selectedSessionId;
-
-    // ------------------------------------
-    // Handlers
-    // ------------------------------------
 
     const handleUpdateSubmit = async () => {
         if (!editTitle.trim() || editTitle === session.title || loading) {
@@ -95,7 +90,6 @@ const SessionNode: React.FC<SessionNodeProps> = ({
 
     return (
         <div className="space-y-1">
-            {/* THANH TIÊU ĐỀ SESSION */}
             <div 
                 className={`flex items-center justify-between p-2.5 rounded-lg transition border ${
                     isSelected 
@@ -105,7 +99,6 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                 style={{ paddingLeft }}
             >
                 <div className="flex items-center flex-grow overflow-hidden">
-                    {/* Nút Toggle mở rộng */}
                     <div 
                         className="cursor-pointer p-1 text-gray-400 hover:text-indigo-600 transition" 
                         onClick={() => setIsExpanded(!isExpanded)}
@@ -117,7 +110,6 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                         )}
                     </div>
 
-                    {/* HIỂN THỊ CHẾ ĐỘ SỬA HOẶC XEM */}
                     {isEditing ? (
                         <div className="flex items-center space-x-2 flex-grow">
                             <input 
@@ -156,10 +148,29 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                     )}
                 </div>
 
-                {/* KHU VỰC CÁC NÚT HÀNH ĐỘNG */}
                 {!isEditing && (
                     <div className="flex items-center space-x-1 ml-2 opacity-60 hover:opacity-100 transition">
-                        {/* Nút thêm con (Chỉ hiện nếu thỏa mãn canAddChild) */}
+                        
+                        {/* [NEW] Nút Move Up/Down */}
+                        <div className="flex flex-col mr-2 border-r pr-2 border-gray-200">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onMove(session, 'up'); }} 
+                                disabled={isFirst || loading}
+                                className="text-gray-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-gray-400"
+                                title="Lên trên"
+                            >
+                                <ArrowUp size={14}/>
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onMove(session, 'down'); }} 
+                                disabled={isLast || loading}
+                                className="text-gray-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-gray-400"
+                                title="Xuống dưới"
+                            >
+                                <ArrowDown size={14}/>
+                            </button>
+                        </div>
+
                         {canAddChild && (
                             <button 
                                 onClick={() => setIsAddingChild(!isAddingChild)} 
@@ -170,7 +181,6 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                             </button>
                         )}
                         
-                        {/* Nút sửa tên */}
                         <button 
                             onClick={() => setIsEditing(true)} 
                             className="text-blue-600 p-1 hover:bg-blue-50 rounded" 
@@ -179,7 +189,6 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                             <Edit size={18}/>
                         </button>
                         
-                        {/* Nút xóa */}
                         <button 
                             onClick={() => setShowDeleteModal(true)} 
                             className="text-red-600 p-1 hover:bg-red-50 rounded" 
@@ -191,7 +200,6 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                 )}
             </div>
 
-            {/* FORM NHẬP LIỆU THÊM CHƯƠNG CON */}
             {isAddingChild && (
                 <form onSubmit={handleAddChildSubmit} className="flex items-center space-x-2 p-2 bg-indigo-50 rounded-lg" style={{ marginLeft: `calc(${paddingLeft} + 24px)` }}>
                     <input 
@@ -211,10 +219,9 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                 </form>
             )}
 
-            {/* HIỂN THỊ CÁC CHƯƠNG CON (ĐỆ QUY) */}
             {isExpanded && session.children.length > 0 && (
                 <div className="space-y-1">
-                    {session.children.map(child => (
+                    {session.children.map((child, index) => (
                         <SessionNode 
                             key={child.id}
                             {...{ 
@@ -226,14 +233,16 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                                 onSessionSelected, 
                                 onDelete, 
                                 onUpdate, 
-                                onAddChild 
+                                onAddChild,
+                                onMove, // Pass down
+                                isFirst: index === 0, // Pass index check
+                                isLast: index === session.children.length - 1 // Pass index check
                             }}
                         />
                     ))}
                 </div>
             )}
 
-            {/* MODAL XÁC NHẬN XÓA (Không dùng children để tránh lỗi TS) */}
             {showDeleteModal && (
                 <ConfirmDeleteModal
                     isOpen={showDeleteModal}

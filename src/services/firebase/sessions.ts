@@ -44,6 +44,20 @@ export async function updateSession(courseId: string, sessionId: string, newTitl
     await updateDoc(sRef, { title: newTitle, updatedAt: serverTimestamp() });
 }
 
+// [NEW] Hàm đổi chỗ 2 session (dùng cho tính năng Reorder)
+export async function swapSessionOrder(courseId: string, session1: { id: string, orderIndex: number }, session2: { id: string, orderIndex: number }): Promise<void> {
+    const db = getFirestoreDb();
+    const batch = writeBatch(db);
+    
+    const s1Ref = doc(getSessionsCollectionRef(courseId), session1.id);
+    const s2Ref = doc(getSessionsCollectionRef(courseId), session2.id);
+
+    batch.update(s1Ref, { orderIndex: session2.orderIndex, updatedAt: serverTimestamp() });
+    batch.update(s2Ref, { orderIndex: session1.orderIndex, updatedAt: serverTimestamp() });
+
+    await batch.commit();
+}
+
 export const deleteSession = async (courseId: string, sessionId: string): Promise<void> => {
     const db = getFirestoreDb();
     const storage = getFirebaseStorage();

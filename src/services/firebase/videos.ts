@@ -38,7 +38,6 @@ export interface BlockQuiz {
 
 export interface LessonBlock {
     id: string;
-    title: string;
     description?: string; // Hỗ trợ Markdown
     audios?: BlockAudio[];
     images?: BlockImage[];
