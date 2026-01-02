@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
     ChevronLeft, List, Loader2, CheckCircle2, Circle, Lock, X, Phone, MessageCircle, ArrowRight, 
     PlayCircle, FileText, HelpCircle, AlertCircle, RefreshCcw, Check, ChevronRight, 
-    Volume2, LayoutTemplate, Headphones, Plus, Minus, Image as ImageIcon 
+    Volume2, LayoutTemplate, Headphones, Plus, Minus
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'; 
 import { useTranslation } from 'react-i18next'; // [i18n]
@@ -85,9 +85,6 @@ const ExpandableImage: React.FC<{ url: string; caption?: string }> = ({ url, cap
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition border-b border-gray-100 select-none"
             >
-                <div className="bg-white p-1.5 rounded-md border border-gray-200 text-gray-500 mr-3 shadow-sm">
-                    <ImageIcon size={16} /> 
-                </div>
                 <div className="flex-grow flex justify-center">
                     {caption ? (
                         <span className="text-sm font-bold text-gray-700 text-center">

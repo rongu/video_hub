@@ -1,15 +1,16 @@
 import { 
     query, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, 
-    updateDoc, getDocs, writeBatch, type Timestamp ,
+    updateDoc, getDocs, writeBatch, type Timestamp 
 } from 'firebase/firestore';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef, type MultilingualField } from './config';
 import { type Video } from './videos';
 
+// [UPDATE] Cập nhật Interface Course để dùng MultilingualField
 export interface Course {
     id: string;
-    title: MultilingualField;
-    description: MultilingualField;
+    title: MultilingualField;        // Sửa từ string -> MultilingualField
+    description: MultilingualField;  // Sửa từ string -> MultilingualField
     createdAt: number;
     updatedAt: number;
     adminId: string;
@@ -29,10 +30,8 @@ export const subscribeToCourses = (callback: (courses: Course[]) => void) => {
     });
 };
 
-// BỔ SUNG: Hàm upload ảnh khóa học
 export async function uploadCourseImage(file: File): Promise<string> {
     const storage = getFirebaseStorage();
-    // Tạo đường dẫn file: course_images/timestamp_filename
     const storagePath = `course_images/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, storagePath);
     
@@ -40,10 +39,10 @@ export async function uploadCourseImage(file: File): Promise<string> {
     return getDownloadURL(snapshot.ref);
 }
 
-export async function addCourse(data: any) {
+// [UPDATE] Cập nhật type cho hàm addCourse
+export async function addCourse(data: Omit<Course, 'id' | 'createdAt' | 'updatedAt' | 'videoCount'>) {
     await addDoc(getCoursesCollectionRef(), {
         ...data,
-        // Nếu không có imageUrl thì mới dùng ảnh mặc định
         imageUrl: data.imageUrl || 'https://placehold.co/600x400/818CF8/FFFFFF?text=Course',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -51,13 +50,18 @@ export async function addCourse(data: any) {
     });
 }
 
-export async function updateCourse(courseId: string, data: { title?: string; description?: string; imageUrl?: string }): Promise<void> {
+// [UPDATE] Cập nhật type cho hàm updateCourse để nhận MultilingualField
+export async function updateCourse(
+    courseId: string, 
+    data: { 
+        title?: MultilingualField; 
+        description?: MultilingualField; 
+        imageUrl?: string 
+    }
+): Promise<void> {
     await updateDoc(getCourseDocRef(courseId), { ...data, updatedAt: serverTimestamp() });
 }
 
-/**
- * ✅ BỔ SUNG: Xóa Khóa học và toàn bộ Video liên quan + Ảnh bìa
- */
 export const deleteCourse = async (courseId: string): Promise<void> => {
     const db = getFirestoreDb();
     const storage = getFirebaseStorage();
@@ -65,7 +69,6 @@ export const deleteCourse = async (courseId: string): Promise<void> => {
 
     const courseDocRef = getCourseDocRef(courseId);
     
-    // [UPDATE 1]: Lấy thông tin Course trước để tìm ảnh bìa cần xóa
     const courseSnap = await getDoc(courseDocRef);
     if (!courseSnap.exists()) {
         throw new Error("Khóa học không tồn tại!");
@@ -73,16 +76,12 @@ export const deleteCourse = async (courseId: string): Promise<void> => {
     const courseData = courseSnap.data() as Course;
     
     const videosRef = getVideosCollectionRef(courseId);
-    
-    // 1. Lấy tất cả Video Docs trong Sub-collection
     const videosSnapshot = await getDocs(videosRef);
     
     const storagePaths: string[] = [];
     
-    // [UPDATE 2]: Thêm ảnh bìa vào danh sách xóa (nếu là ảnh host trên Firebase)
     if (courseData.imageUrl && courseData.imageUrl.includes('firebasestorage')) {
         try {
-            // Tạo ref từ URL để lấy full path
             const imageRef = ref(storage, courseData.imageUrl);
             storagePaths.push(imageRef.fullPath);
         } catch (e) {
@@ -92,16 +91,12 @@ export const deleteCourse = async (courseId: string): Promise<void> => {
 
     videosSnapshot.docs.forEach(docSnap => {
         const data = docSnap.data() as Video;
-        // Thêm đường dẫn Storage của video vào danh sách xóa
         if (data.storagePath) {
             storagePaths.push(data.storagePath);
         }
-        // Thêm document video vào batch để xóa
         batch.delete(docSnap.ref); 
     });
 
-    // 2. Xóa tất cả file trong Storage (bước này không dùng batch)
-    // Dùng Promise.allSettled hoặc catch từng cái để đảm bảo không chết luồng
     const deletionPromises = storagePaths.map(path => {
         try {
             const fileRef = ref(storage, path);
@@ -115,15 +110,10 @@ export const deleteCourse = async (courseId: string): Promise<void> => {
     });
     
     await Promise.all(deletionPromises);
-    
-    // 3. Xóa document Khóa học chính
     batch.delete(courseDocRef);
 
-    // 4. Commit batch: Xóa tất cả document (video + course)
     try {
         await batch.commit();
-        
-        // 5. BƯỚC XÁC MINH
         const docCheck = await getDoc(courseDocRef);
         if (docCheck.exists()) {
             console.error(`🔴 XÓA KHÔNG THÀNH CÔNG: Document Khóa học ID ${courseId} VẪN TỒN TẠI.`);
