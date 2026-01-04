@@ -33,12 +33,31 @@ export interface BlockQuiz {
     explanation?: string;
 }
 
+// 1. Thêm interface cho BlockVideo
+export interface BlockVideo {
+    id: string;
+    name: string;
+    url: string;
+}
+
+// 2. Thêm interface cho BlockVocabulary
+export interface BlockVocabulary {
+    id: string;
+    word: string;
+    ipa: string; // Phiên âm
+    meaningVi: string;
+    meaningJa: string;
+}
+
+// 3. Cập nhật LessonBlock
 export interface LessonBlock {
     id: string;
-    description?: string; 
+    description?: string;
     audios?: BlockAudio[];
     images?: BlockImage[];
     quizzes?: BlockQuiz[];
+    videos?: BlockVideo[]; 
+    vocabularies?: BlockVocabulary[];
 }
 
 export interface Video {

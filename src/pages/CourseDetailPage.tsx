@@ -2,14 +2,15 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
     ChevronLeft, List, Loader2, CheckCircle2, Circle, Lock, X, Phone, MessageCircle, ArrowRight, 
     PlayCircle, FileText, HelpCircle, AlertCircle, RefreshCcw, Check, ChevronRight, 
-    Volume2, LayoutTemplate, Headphones, Plus, Minus
+    Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronDown, ChevronUp
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'; 
-import { useTranslation } from 'react-i18next'; // [i18n]
+import { useTranslation } from 'react-i18next';
 import { 
     type Course, 
     type Video,
     type BlockQuiz,
+    type BlockVocabulary,
     subscribeToCourseDetail, 
     subscribeToVideos,
     subscribeToUserEnrollments, 
@@ -18,17 +19,18 @@ import {
     tr_h
 } from '../services/firebase';
 import { useUserProgress } from '../hooks/useUserProgress';
-import { useCourseSessions } from '../hooks/useCourseSessions'; // [MODIFIED] Import hook
+import { useCourseSessions } from '../hooks/useCourseSessions';
+import LanguageSwitcher from '../components/common/LanguageSwitcher'; // [NEW] Import LanguageSwitcher
 import type { PageType } from '../App';
 
 interface CourseDetailPageProps {
     courseId: string;
     onNavigate: (page: PageType, courseId?: string | null) => void;
-    role: 'admin' | 'student' | null; // [MODIFIED] Thêm prop role
+    role: 'admin' | 'student' | null;
 }
 
-// --- SUB COMPONENTS (Giữ nguyên InlineQuizItem, ExpandableImage, AudioBlockItem, QuizView như cũ) ---
-// ... (Tôi rút gọn phần này để tập trung vào logic chính, bạn giữ nguyên code cũ của các sub components này)
+// --- SUB COMPONENTS ---
+
 const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, index }) => {
     const { t } = useTranslation();
     const [selected, setSelected] = useState<number | null>(null);
@@ -79,9 +81,6 @@ const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, in
 
 const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden?: boolean }> = ({ url, caption, isDefaultHidden }) => {
     const { t } = useTranslation();
-    
-    // Nếu isDefaultHidden = true -> isExpanded = false (đóng mặc định)
-    // Nếu isDefaultHidden = false/undefined -> isExpanded = true (mở mặc định)
     const [isExpanded, setIsExpanded] = useState(!isDefaultHidden); 
 
     return (
@@ -102,14 +101,6 @@ const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden
                             title={isExpanded ? t('detail.image.collapse_tooltip') : t('detail.image.expand_tooltip')}
                         >
                             <div className="w-12 h-1.5 bg-gray-300 rounded-full group-hover:bg-indigo-400 transition-colors"></div>
-                            <svg 
-                                xmlns="http://www.w3.org/2000/svg" 
-                                width="12" height="12" viewBox="0 0 24 24" 
-                                fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" 
-                                className={`text-gray-400 group-hover:text-indigo-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-                            >
-                                <path d="m6 9 6 6 6-6"/>
-                            </svg>
                         </div>
                     )}
                 </div>
@@ -146,6 +137,97 @@ const AudioBlockItem: React.FC<{ url: string; name: string }> = ({ url, name }) 
         </div>
     );
 };
+
+// Vocabulary Section: Darker Background & TTS Support
+const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[] }> = ({ vocabularies }) => {
+    const { i18n } = useTranslation();
+    const [isExpanded, setIsExpanded] = useState(true);
+
+    const showVi = i18n.language === 'vi' || i18n.language === 'en';
+    const showJa = i18n.language === 'ja';
+
+    if (!vocabularies || vocabularies.length === 0) return null;
+
+    const handleSpeak = (text: string, e: React.MouseEvent) => {
+        e.stopPropagation(); 
+        if (!window.speechSynthesis) {
+            alert("Trình duyệt của bạn không hỗ trợ phát âm.");
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        const isJapanese = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(text);
+        utterance.lang = isJapanese ? 'ja-JP' : 'en-US';
+        utterance.rate = 0.9; 
+        window.speechSynthesis.speak(utterance);
+    };
+
+    return (
+        <div className="mb-8 border border-slate-200 rounded-xl overflow-hidden bg-slate-100 shadow-sm transition-all">
+            <div 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center justify-between p-3 bg-slate-200/80 cursor-pointer hover:bg-slate-200 transition border-b border-slate-300 select-none"
+            >
+                <div className="flex items-center">
+                    <div className="bg-white p-1.5 rounded-lg border border-slate-300 mr-3 shadow-sm text-indigo-600">
+                        <Languages size={18} />
+                    </div>
+                    <span className="text-xs font-black text-slate-700 uppercase tracking-widest">
+                        Vocabulary <span className="text-indigo-600 ml-1">({vocabularies.length})</span>
+                    </span>
+                    {!isExpanded && <span className="text-[10px] text-slate-500 font-normal italic ml-2 hidden sm:inline-block"></span>}
+                </div>
+                <button 
+                    type="button"
+                    className={`ml-3 p-1.5 rounded-full transition ${
+                        isExpanded 
+                        ? 'bg-slate-300 text-slate-700 hover:bg-slate-400' 
+                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                    }`}
+                >
+                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+            </div>
+
+            {isExpanded && (
+                <div className="p-4 bg-slate-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                        {vocabularies.map((vocab) => (
+                            <div key={vocab.id} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all group relative">
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-base font-black text-slate-800 tracking-tight">{vocab.word}</span>
+                                    <button 
+                                        onClick={(e) => handleSpeak(vocab.word, e)}
+                                        className="p-1.5 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-colors flex-shrink-0 ml-2"
+                                        title="Phát âm"
+                                    >
+                                        <Volume2 size={14} />
+                                    </button>
+                                </div>
+                                <div className="mb-2">
+                                     {vocab.ipa && <span className="text-[11px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 inline-block">/{vocab.ipa}/</span>}
+                                </div>
+                                <div className="space-y-1 border-t border-slate-100 pt-2 mt-2">
+                                    {(showVi || !vocab.meaningJa) && vocab.meaningVi && (
+                                        <p className="text-xs text-slate-700 font-medium flex items-start">
+                                            <span className="mr-1.5 text-[10px] opacity-60 mt-0.5 select-none">🇻🇳</span> {vocab.meaningVi}
+                                        </p>
+                                    )}
+                                    {(showJa || !vocab.meaningVi) && vocab.meaningJa && (
+                                        <p className="text-xs text-slate-700 font-medium flex items-start">
+                                            <span className="mr-1.5 text-[10px] opacity-60 mt-0.5 select-none">🇯🇵</span> {vocab.meaningJa}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 // --- QUIZ VIEW ---
 interface QuizQuestion { question: string; answers: string[]; correct: number; }
@@ -248,9 +330,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
     const [loading, setLoading] = useState(true);
     const [showContactModal, setShowContactModal] = useState(false);
     
-    // [MODIFIED] Lấy danh sách sessions
     const [sessions] = useCourseSessions(courseId);
-
     const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
     const hasAutoResumed = useRef(false);
     const { completedVideoIds } = useUserProgress(user?.uid, courseId);
@@ -261,10 +341,9 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         return () => unsub();
     }, [user?.uid]);
 
-    // [MODIFIED] Check isEnrolled có tính đến role admin
     const isEnrolled = useMemo(() => {
         if (!user) return false;
-        if (role === 'admin') return true; // Admin được phép access
+        if (role === 'admin') return true; 
         return enrolledCourseIds.includes(courseId);
     }, [user, enrolledCourseIds, courseId, role]);
 
@@ -306,7 +385,6 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         }
     }, [loading, videos, completedVideoIds, isEnrolled]);
 
-    // [MODIFIED] Gom nhóm video theo session
     const videosBySession = useMemo(() => {
         const grouped: Record<string, Video[]> = {};
         videos.forEach(v => {
@@ -328,12 +406,38 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             return (
                 <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
                     <div className="max-w-3xl mx-auto pb-16">
-                        <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-black text-gray-900 mb-2 flex items-center"><LayoutTemplate className="mr-3 text-purple-600" size={32}/> {selectedVideo.title}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.interactive_lesson')}</p></div>
+                        <div className="border-b border-gray-100 pb-6 mb-8">
+                            <h2 className="text-3xl font-black text-gray-900 mb-2 flex items-center">
+                                <LayoutTemplate className="mr-3 text-purple-600" size={32}/> {selectedVideo.title}
+                            </h2>
+                            <p className="text-gray-500 font-medium text-sm">{t('detail.interactive_lesson')}</p>
+                        </div>
                         <div className="space-y-12">
                             {blocks.length === 0 && <p className="text-gray-400 italic text-center">{t('detail.content_updating')}</p>}
                             {blocks.map((block) => (
                                 <div key={block.id} className="animate-in fade-in duration-500">
                                     {block.description && <div className="prose prose-purple prose-lg max-w-none text-gray-700 mb-6"><ReactMarkdown>{block.description}</ReactMarkdown></div>}
+                                    
+                                    {/* Render Videos */}
+                                    {block.videos && block.videos.length > 0 && (
+                                        <div className="space-y-4 mb-8">
+                                            {block.videos.map(video => (
+                                                <div key={video.id} className="rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-black">
+                                                    <video controls className="w-full aspect-video">
+                                                        <source src={video.url} type="video/mp4" />
+                                                        Your browser does not support the video tag.
+                                                    </video>
+                                                    <div className="p-3 bg-gray-50 border-t border-gray-100">
+                                                        <p className="text-sm font-bold text-gray-700 flex items-center"><VideoIcon size={16} className="mr-2 text-pink-600"/> {video.name}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Vocabulary Section (Darker & TTS) */}
+                                    <VocabularySection vocabularies={block.vocabularies || []} />
+
                                     {block.audios && block.audios.length > 0 && <div className="space-y-2 mb-6">{block.audios.map(audio => <AudioBlockItem key={audio.id} url={audio.url} name={audio.name} />)}</div>}
                                     {block.images && block.images.length > 0 && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} isDefaultHidden={img.isSpoiler}/>)}</div>}
                                     {block.quizzes && block.quizzes.length > 0 && <div className="mt-6 border-t border-dashed pt-6">{block.quizzes.map((q, idx) => <InlineQuizItem key={q.id} quiz={q} index={idx} />)}</div>}
@@ -384,7 +488,13 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
                     <button onClick={() => onNavigate(user && isEnrolled ? 'home' : 'landing')} className="flex items-center text-gray-500 font-bold hover:text-indigo-600 transition text-sm uppercase tracking-tighter"><ChevronLeft size={18} className="mr-1"/> {t('detail.back')}</button>
-                    {isEnrolled && <div className="flex items-center space-x-3 bg-indigo-50 p-2 px-4 rounded-full border border-indigo-100"><div className="bg-gray-200 rounded-full h-1.5 w-24 overflow-hidden"><div className="bg-green-500 h-full transition-all duration-700" style={{ width: `${progressPercentage}%` }} /></div><span className="text-[10px] font-black text-indigo-700 uppercase">{t('detail.completed_percent', { percent: progressPercentage })}</span></div>}
+                    
+                    <div className="flex items-center gap-3">
+                        {/* [NEW] Language Switcher */}
+                        <LanguageSwitcher />
+
+                        {isEnrolled && <div className="flex items-center space-x-3 bg-indigo-50 p-2 px-4 rounded-full border border-indigo-100"><div className="bg-gray-200 rounded-full h-1.5 w-24 overflow-hidden"><div className="bg-green-500 h-full transition-all duration-700" style={{ width: `${progressPercentage}%` }} /></div><span className="text-[10px] font-black text-indigo-700 uppercase">{t('detail.completed_percent', { percent: progressPercentage })}</span></div>}
+                    </div>
                 </div>
             </header>
 
@@ -417,7 +527,6 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                         <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between flex-shrink-0"><h3 className="font-black text-gray-800 text-[10px] uppercase tracking-widest flex items-center"><List size={16} className="mr-2 text-indigo-600"/> {t('detail.roadmap')}</h3><span className="text-[10px] font-black text-gray-400 uppercase">{videos.length} {t('landing.lessons')}</span></div>
                         
                         <div className="overflow-y-auto flex-grow p-4 space-y-2 custom-scrollbar">
-                            {/* [MODIFIED] Render theo danh sách Session */}
                             {sessions.length > 0 ? (
                                 sessions.map(session => {
                                     const sessionVideos = videosBySession[session.id] || [];
@@ -455,7 +564,6 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                     )
                                 })
                             ) : (
-                                // Fallback nếu chưa load được session hoặc không có session (backward compatibility)
                                 videos.map((video) => {
                                     const isDone = completedVideoIds.includes(video.id);
                                     const isActive = selectedVideo?.id === video.id;
