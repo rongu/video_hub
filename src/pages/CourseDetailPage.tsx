@@ -20,7 +20,7 @@ import {
 } from '../services/firebase';
 import { useUserProgress } from '../hooks/useUserProgress';
 import { useCourseSessions } from '../hooks/useCourseSessions';
-import LanguageSwitcher from '../components/common/LanguageSwitcher'; // [NEW] Import LanguageSwitcher
+import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import type { PageType } from '../App';
 
 interface CourseDetailPageProps {
@@ -138,8 +138,8 @@ const AudioBlockItem: React.FC<{ url: string; name: string }> = ({ url, name }) 
     );
 };
 
-// Vocabulary Section: Darker Background & TTS Support
-const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[] }> = ({ vocabularies }) => {
+// [UPDATED] Vocabulary Section: Table Layout
+const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: string }> = ({ vocabularies, title }) => {
     const { i18n } = useTranslation();
     const [isExpanded, setIsExpanded] = useState(true);
 
@@ -163,25 +163,24 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[] }> = ({ voca
     };
 
     return (
-        <div className="mb-8 border border-slate-200 rounded-xl overflow-hidden bg-slate-100 shadow-sm transition-all">
+        <div className="mb-8 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm transition-all">
             <div 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="flex items-center justify-between p-3 bg-slate-200/80 cursor-pointer hover:bg-slate-200 transition border-b border-slate-300 select-none"
+                className="flex items-center justify-between p-3 bg-slate-50 cursor-pointer hover:bg-slate-100 transition border-b border-slate-200 select-none"
             >
                 <div className="flex items-center">
-                    <div className="bg-white p-1.5 rounded-lg border border-slate-300 mr-3 shadow-sm text-indigo-600">
+                    <div className="bg-white p-1.5 rounded-lg border border-slate-200 mr-3 shadow-sm text-indigo-600">
                         <Languages size={18} />
                     </div>
                     <span className="text-xs font-black text-slate-700 uppercase tracking-widest">
-                        Vocabulary <span className="text-indigo-600 ml-1">({vocabularies.length})</span>
+                        {title || `Vocabulary (${vocabularies.length})`}
                     </span>
-                    {!isExpanded && <span className="text-[10px] text-slate-500 font-normal italic ml-2 hidden sm:inline-block"></span>}
                 </div>
                 <button 
                     type="button"
                     className={`ml-3 p-1.5 rounded-full transition ${
                         isExpanded 
-                        ? 'bg-slate-300 text-slate-700 hover:bg-slate-400' 
+                        ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' 
                         : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
                     }`}
                 >
@@ -190,38 +189,54 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[] }> = ({ voca
             </div>
 
             {isExpanded && (
-                <div className="p-4 bg-slate-100">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
-                        {vocabularies.map((vocab) => (
-                            <div key={vocab.id} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all group relative">
-                                <div className="flex justify-between items-start mb-2">
-                                    <span className="text-base font-black text-slate-800 tracking-tight">{vocab.word}</span>
-                                    <button 
-                                        onClick={(e) => handleSpeak(vocab.word, e)}
-                                        className="p-1.5 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-colors flex-shrink-0 ml-2"
-                                        title="Phát âm"
-                                    >
-                                        <Volume2 size={14} />
-                                    </button>
-                                </div>
-                                <div className="mb-2">
-                                     {vocab.ipa && <span className="text-[11px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 inline-block">/{vocab.ipa}/</span>}
-                                </div>
-                                <div className="space-y-1 border-t border-slate-100 pt-2 mt-2">
-                                    {(showVi || !vocab.meaningJa) && vocab.meaningVi && (
-                                        <p className="text-xs text-slate-700 font-medium flex items-start">
-                                            <span className="mr-1.5 text-[10px] opacity-60 mt-0.5 select-none">🇻🇳</span> {vocab.meaningVi}
-                                        </p>
-                                    )}
-                                    {(showJa || !vocab.meaningVi) && vocab.meaningJa && (
-                                        <p className="text-xs text-slate-700 font-medium flex items-start">
-                                            <span className="mr-1.5 text-[10px] opacity-60 mt-0.5 select-none">🇯🇵</span> {vocab.meaningJa}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                <div className="bg-white overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-50 border-b border-gray-100">
+                            <tr>
+                                <th className="p-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Word / IPA</th>
+                                <th className="p-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Meaning</th>
+                                <th className="p-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Note</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {vocabularies.map((vocab) => (
+                                <tr key={vocab.id} className="hover:bg-gray-50 transition-colors group">
+                                    <td className="p-3 align-top min-w-[150px]">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-sm font-bold text-indigo-700">{vocab.word}</span>
+                                            <button 
+                                                onClick={(e) => handleSpeak(vocab.word, e)}
+                                                className="p-1 rounded-full text-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                                                title="Phát âm"
+                                            >
+                                                <Volume2 size={14} />
+                                            </button>
+                                        </div>
+                                        {vocab.ipa && (
+                                            <div className="text-[11px] text-gray-400 font-mono">/{vocab.ipa}/</div>
+                                        )}
+                                    </td>
+                                    <td className="p-3 align-top min-w-[200px]">
+                                        <div className="space-y-1">
+                                            {(showVi || !vocab.meaningJa) && vocab.meaningVi && (
+                                                <div className="text-sm text-gray-800">
+                                                    <span className="mr-1 text-xs opacity-50">🇻🇳</span> {vocab.meaningVi}
+                                                </div>
+                                            )}
+                                            {(showJa || !vocab.meaningVi) && vocab.meaningJa && (
+                                                <div className="text-sm text-gray-600">
+                                                    <span className="mr-1 text-xs opacity-50">🇯🇵</span> {vocab.meaningJa}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="p-3 align-top text-sm text-gray-500 italic min-w-[100px]">
+                                        {vocab.note || '-'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
         </div>
@@ -435,8 +450,23 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                         </div>
                                     )}
 
-                                    {/* Vocabulary Section (Darker & TTS) */}
-                                    <VocabularySection vocabularies={block.vocabularies || []} />
+                                    {/* [UPDATED] Vocabulary Section: Render All Groups */}
+                                    {/* Ưu tiên hiển thị Groups mới */}
+                                    {block.vocabularyGroups && block.vocabularyGroups.length > 0 ? (
+                                        block.vocabularyGroups.map(group => (
+                                            <VocabularySection 
+                                                key={group.id} 
+                                                vocabularies={group.vocabularies || []} 
+                                                title={group.title} 
+                                            />
+                                        ))
+                                    ) : (
+                                        /* Fallback cho data cũ nếu chưa migrate */
+                                        <VocabularySection 
+                                            vocabularies={block.vocabularies || []} 
+                                            title={block.vocabularyListTitle} 
+                                        />
+                                    )}
 
                                     {block.audios && block.audios.length > 0 && <div className="space-y-2 mb-6">{block.audios.map(audio => <AudioBlockItem key={audio.id} url={audio.url} name={audio.name} />)}</div>}
                                     {block.images && block.images.length > 0 && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} isDefaultHidden={img.isSpoiler}/>)}</div>}

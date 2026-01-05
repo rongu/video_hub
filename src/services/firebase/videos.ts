@@ -1,5 +1,5 @@
 import { doc, serverTimestamp, writeBatch, increment, query, where, orderBy, onSnapshot, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject,  } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef, type MultilingualField } from './config';
 
@@ -33,31 +33,42 @@ export interface BlockQuiz {
     explanation?: string;
 }
 
-// 1. Thêm interface cho BlockVideo
 export interface BlockVideo {
     id: string;
     name: string;
     url: string;
 }
 
-// 2. Thêm interface cho BlockVocabulary
 export interface BlockVocabulary {
     id: string;
     word: string;
-    ipa: string; // Phiên âm
+    ipa: string;
     meaningVi: string;
     meaningJa: string;
+    note?: string;
 }
 
-// 3. Cập nhật LessonBlock
+// [NEW] Interface cho Nhóm từ vựng (Table)
+export interface BlockVocabularyGroup {
+    id: string;
+    title?: string;
+    vocabularies: BlockVocabulary[];
+}
+
 export interface LessonBlock {
     id: string;
     description?: string;
     audios?: BlockAudio[];
     images?: BlockImage[];
     quizzes?: BlockQuiz[];
-    videos?: BlockVideo[]; 
-    vocabularies?: BlockVocabulary[];
+    videos?: BlockVideo[];
+    
+    // [NEW] Thay thế danh sách phẳng bằng danh sách nhóm
+    vocabularyGroups?: BlockVocabularyGroup[];
+    
+    // [DEPRECATED] Giữ lại để tương thích data cũ (sẽ migrate runtime)
+    vocabularies?: BlockVocabulary[]; 
+    vocabularyListTitle?: string;
 }
 
 export interface Video {
@@ -68,8 +79,6 @@ export interface Video {
     adminId: string;
     createdAt: number;
     type?: LessonType;
-
-    // -- Data riêng cho từng loại --
     videoUrl?: string;       
     storagePath?: string;    
     content?: string;        
@@ -86,7 +95,7 @@ const getVideoDocRef = (courseId: string, videoId: string) => {
 }
 
 // =================================================================
-// 2. HÀM ADD VIDEO (GIỮ NGUYÊN)
+// 2. CÁC HÀM XỬ LÝ (ADD, UPDATE, DELETE...)
 // =================================================================
 
 export async function addVideo(
@@ -162,24 +171,15 @@ export const deleteVideo = async (courseId: string, sessionId: string, videoId: 
     await batch.commit();
 };
 
-// =================================================================
-// [UPDATED] HÀM UPDATE VIDEO TOÀN DIỆN
-// =================================================================
 export async function updateVideo(
     courseId: string, 
     videoId: string, 
-    updateData: Partial<Video> // [CHANGED] Nhận Partial<Video> thay vì chỉ {title}
+    updateData: Partial<Video> 
 ): Promise<void> {
     const videoDocRef = getVideoDocRef(courseId, videoId);
-    
-    // Loại bỏ các trường undefined để tránh lỗi Firestore
     const validData = Object.entries(updateData).reduce((acc, [key, value]) => {
         if (value !== undefined) acc[key] = value;
         return acc;
     }, {} as any);
-
-    // Luôn cập nhật updatedAt (nếu bạn có field này)
-    // validData.updatedAt = serverTimestamp();
-
     await updateDoc(videoDocRef, validData);
 }
