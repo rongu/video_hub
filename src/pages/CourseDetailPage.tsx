@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
     ChevronLeft, List, Loader2, CheckCircle2, Circle, Lock, X, Phone, MessageCircle, ArrowRight, 
     PlayCircle, FileText, HelpCircle, AlertCircle, RefreshCcw, Check, ChevronRight, 
-    Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronDown, ChevronUp, BookOpen
+    Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronDown, ChevronUp, BookOpen, Menu
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'; 
 import { useTranslation } from 'react-i18next';
@@ -88,11 +88,12 @@ const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden
         <div className="mb-6 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm transition-all">
             <div 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition border-b border-gray-100 select-none"
+                className="flex items-center justify-between p-3 bg-slate-800 cursor-pointer hover:bg-slate-500 transition border-b border-gray-100 select-none"
             >
                 <div className="flex-grow flex justify-center">
                     {caption ? (
-                        <span className="text-sm font-bold text-gray-700 text-center">
+                        // [CHANGED] Màu đậm hơn (text-gray-900), font đậm hơn (font-extrabold)
+                        <span className="text-base font-extrabold text-gray-900 text-center">
                             {caption}
                             {!isExpanded && <span className="text-xs text-gray-400 font-normal italic ml-2">({t('detail.image.collapsed')})</span>}
                         </span>
@@ -139,10 +140,10 @@ const AudioBlockItem: React.FC<{ url: string; name: string }> = ({ url, name }) 
     );
 };
 
-// [UPDATED] Vocabulary Section: Table Layout + Default Collapsed
+// Vocabulary Section
 const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: string }> = ({ vocabularies, title }) => {
     const { i18n } = useTranslation();
-    const [isExpanded, setIsExpanded] = useState(false); // [CHANGED] Default false
+    const [isExpanded, setIsExpanded] = useState(false); // Default Collapsed
 
     const showVi = i18n.language === 'vi' || i18n.language === 'en';
     const showJa = i18n.language === 'ja';
@@ -167,7 +168,7 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
         <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm transition-all">
             <div 
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="flex items-center justify-between p-3 bg-slate-50 cursor-pointer hover:bg-slate-100 transition border-b border-slate-200 select-none"
+                className="flex items-center justify-between p-3 bg-blue-500 cursor-pointer hover:bg-blue-300 transition border-b border-slate-200 select-none"
             >
                 <div className="flex items-center">
                     <div className="bg-white p-1.5 rounded-lg border border-slate-200 mr-3 shadow-sm text-indigo-600">
@@ -245,12 +246,11 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
     );
 };
 
-// [UPDATED] Grammar Section: Default Collapsed + Language Logic
+// Grammar Section
 const GrammarSection: React.FC<{ grammars: BlockGrammar[]; title?: string }> = ({ grammars, title }) => {
     const { i18n } = useTranslation();
-    const [isExpanded, setIsExpanded] = useState(false); // [CHANGED] Default false
+    const [isExpanded, setIsExpanded] = useState(false); // Default Collapsed
 
-    // Logic ngôn ngữ (Giống Vocabulary)
     const showVi = i18n.language === 'vi' || i18n.language === 'en';
     const showJa = i18n.language === 'ja';
 
@@ -427,6 +427,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
     const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
     const [loading, setLoading] = useState(true);
     const [showContactModal, setShowContactModal] = useState(false);
+    const [showRoadmap, setShowRoadmap] = useState(false);
     
     const [sessions] = useCourseSessions(courseId);
     const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
@@ -503,7 +504,8 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             const blocks = selectedVideo.blockData || [];
             return (
                 <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
-                    <div className="max-w-3xl mx-auto pb-16">
+                    {/* [CHANGED] max-w-4xl -> max-w-5xl để rộng hơn */}
+                    <div className="max-w-5xl mx-auto pb-16">
                         <div className="border-b border-gray-100 pb-6 mb-8">
                             <h2 className="text-3xl font-black text-gray-900 mb-2 flex items-center">
                                 <LayoutTemplate className="mr-3 text-purple-600" size={32}/> {selectedVideo.title}
@@ -533,8 +535,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                         </div>
                                     )}
 
-                                    {/* [UPDATED] Vocabulary Section: Render All Groups */}
-                                    {/* Ưu tiên hiển thị Groups mới */}
+                                    {/* Vocabulary Table */}
                                     {block.vocabularyGroups && block.vocabularyGroups.length > 0 ? (
                                         block.vocabularyGroups.map(group => (
                                             <VocabularySection 
@@ -544,14 +545,13 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                             />
                                         ))
                                     ) : (
-                                        /* Fallback cho data cũ nếu chưa migrate */
                                         <VocabularySection 
                                             vocabularies={block.vocabularies || []} 
                                             title={block.vocabularyListTitle} 
                                         />
                                     )}
 
-                                    {/* [NEW] Grammar Section */}
+                                    {/* Grammar Table */}
                                     <GrammarSection 
                                         grammars={block.grammars || []} 
                                         title={block.grammarTitle}
@@ -609,16 +609,26 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                     <button onClick={() => onNavigate(user && isEnrolled ? 'home' : 'landing')} className="flex items-center text-gray-500 font-bold hover:text-indigo-600 transition text-sm uppercase tracking-tighter"><ChevronLeft size={18} className="mr-1"/> {t('detail.back')}</button>
                     
                     <div className="flex items-center gap-3">
-                        {/* [NEW] Language Switcher */}
                         <LanguageSwitcher />
 
                         {isEnrolled && <div className="flex items-center space-x-3 bg-indigo-50 p-2 px-4 rounded-full border border-indigo-100"><div className="bg-gray-200 rounded-full h-1.5 w-24 overflow-hidden"><div className="bg-green-500 h-full transition-all duration-700" style={{ width: `${progressPercentage}%` }} /></div><span className="text-[10px] font-black text-indigo-700 uppercase">{t('detail.completed_percent', { percent: progressPercentage })}</span></div>}
+                        
+                        {/* Button Menu (Roadmap Toggle) */}
+                        <button 
+                            onClick={() => setShowRoadmap(true)}
+                            className="p-2 rounded-lg bg-gray-100 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 transition border border-gray-200"
+                            title="Danh sách bài học"
+                        >
+                            <Menu size={20} />
+                        </button>
                     </div>
                 </div>
             </header>
 
-            <main className="flex-grow p-6 md:p-10 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-10">
-                <div className="lg:col-span-2 space-y-8">
+            {/* [UPDATED] Layout chính: Grid 1 cột rộng rãi (max-w-7xl) */}
+            <main className="flex-grow p-6 md:p-10 max-w-7xl mx-auto w-full flex flex-col gap-10">
+                <div className="w-full space-y-8">
+                    {/* Media Container */}
                     <div className={`rounded-[2.5rem] overflow-hidden shadow-2xl relative border border-gray-100 w-full ${contentContainerClass}`}>
                         {!isEnrolled ? (
                             <div className="w-full h-full relative bg-gray-900">
@@ -630,7 +640,9 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                             </div>
                         ) : renderContent()}
                     </div>
-                    <div className="space-y-4">
+
+                    {/* Meta Info Below Video */}
+                    <div className="space-y-4 max-w-5xl mx-auto">
                         <div className="flex items-center space-x-2"><div className="h-8 w-1.5 bg-indigo-600 rounded-full"></div><h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter leading-tight">{tr_h(selectedVideo?.title) || tr_h(course?.title)}</h2></div>
                         <div className="flex items-center space-x-4">
                              {selectedVideo && completedVideoIds.includes(selectedVideo.id) && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center"><CheckCircle2 size={12} className="mr-1" /> {t('detail.completed')}</span>}
@@ -640,12 +652,26 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                         <div className="prose prose-indigo prose-lg text-gray-500 font-medium pt-2 max-w-none"><ReactMarkdown>{tr_h(course?.description) || ""}</ReactMarkdown></div>
                     </div>
                 </div>
+            </main>
 
-                <div className="lg:col-span-1">
-                    <div className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden flex flex-col shadow-sm max-h-[calc(100vh-160px)] sticky top-24">
-                        <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between flex-shrink-0"><h3 className="font-black text-gray-800 text-[10px] uppercase tracking-widest flex items-center"><List size={16} className="mr-2 text-indigo-600"/> {t('detail.roadmap')}</h3><span className="text-[10px] font-black text-gray-400 uppercase">{videos.length} {t('landing.lessons')}</span></div>
+            {/* Roadmap Slide-over */}
+            {showRoadmap && (
+                <div className="fixed inset-0 z-50 flex justify-end">
+                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-in fade-in" onClick={() => setShowRoadmap(false)}></div>
+                    <div className="relative w-full max-w-md bg-white shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300">
+                        <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between flex-shrink-0">
+                            <h3 className="font-black text-gray-800 text-[10px] uppercase tracking-widest flex items-center">
+                                <List size={16} className="mr-2 text-indigo-600"/> {t('detail.roadmap')}
+                            </h3>
+                            <button onClick={() => setShowRoadmap(false)} className="p-1 hover:bg-gray-200 rounded-full text-gray-500">
+                                <X size={20} />
+                            </button>
+                        </div>
                         
-                        <div className="overflow-y-auto flex-grow p-4 space-y-2 custom-scrollbar">
+                        <div className="overflow-y-auto flex-grow p-4 space-y-2 custom-scrollbar bg-white">
+                            <div className="mb-4 text-center">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">{videos.length} {t('landing.lessons')}</span>
+                            </div>
                             {sessions.length > 0 ? (
                                 sessions.map(session => {
                                     const sessionVideos = videosBySession[session.id] || [];
@@ -663,7 +689,12 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                                 return (
                                                     <div 
                                                         key={video.id}
-                                                        onClick={() => !isLocked && setSelectedVideo(video)}
+                                                        onClick={() => {
+                                                            if (!isLocked) {
+                                                                setSelectedVideo(video);
+                                                                setShowRoadmap(false);
+                                                            }
+                                                        }}
                                                         className={`group p-3 rounded-lg flex items-center justify-between transition-all border-l-4 mb-2 ${
                                                             isActive ? 'bg-indigo-50 border-indigo-600' : 
                                                             isLocked ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' : 'hover:bg-gray-50 border-transparent cursor-pointer'
@@ -691,7 +722,12 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                     return (
                                         <div 
                                             key={video.id}
-                                            onClick={() => !isLocked && setSelectedVideo(video)}
+                                            onClick={() => {
+                                                if (!isLocked) {
+                                                    setSelectedVideo(video);
+                                                    setShowRoadmap(false);
+                                                }
+                                            }}
                                             className={`group p-3 rounded-lg flex items-center justify-between transition-all border-l-4 ${
                                                 isActive ? 'bg-indigo-50 border-indigo-600' : 
                                                 isLocked ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' : 'hover:bg-gray-50 border-transparent cursor-pointer'
@@ -711,7 +747,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                         </div>
                     </div>
                 </div>
-            </main>
+            )}
 
             {showContactModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
