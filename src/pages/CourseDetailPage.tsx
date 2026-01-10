@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
     ChevronLeft, List, Loader2, CheckCircle2, Circle, Lock, X, Phone, MessageCircle, ArrowRight, 
     PlayCircle, FileText, HelpCircle, AlertCircle, RefreshCcw, Check, ChevronRight, 
-    Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronDown, ChevronUp
+    Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronDown, ChevronUp, BookOpen
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'; 
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,7 @@ import {
     type Video,
     type BlockQuiz,
     type BlockVocabulary,
+    type BlockGrammar,
     subscribeToCourseDetail, 
     subscribeToVideos,
     subscribeToUserEnrollments, 
@@ -138,10 +139,10 @@ const AudioBlockItem: React.FC<{ url: string; name: string }> = ({ url, name }) 
     );
 };
 
-// [UPDATED] Vocabulary Section: Table Layout
+// [UPDATED] Vocabulary Section: Table Layout + Default Collapsed
 const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: string }> = ({ vocabularies, title }) => {
     const { i18n } = useTranslation();
-    const [isExpanded, setIsExpanded] = useState(true);
+    const [isExpanded, setIsExpanded] = useState(false); // [CHANGED] Default false
 
     const showVi = i18n.language === 'vi' || i18n.language === 'en';
     const showJa = i18n.language === 'ja';
@@ -163,7 +164,7 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
     };
 
     return (
-        <div className="mb-8 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm transition-all">
+        <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm transition-all">
             <div 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="flex items-center justify-between p-3 bg-slate-50 cursor-pointer hover:bg-slate-100 transition border-b border-slate-200 select-none"
@@ -175,6 +176,7 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
                     <span className="text-xs font-black text-slate-700 uppercase tracking-widest">
                         {title || `Vocabulary (${vocabularies.length})`}
                     </span>
+                    {!isExpanded && <span className="ml-2 text-[10px] text-gray-400 italic">({vocabularies.length} words)</span>}
                 </div>
                 <button 
                     type="button"
@@ -184,12 +186,12 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
                         : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
                     }`}
                 >
-                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    {isExpanded ? <ChevronUp size={16} /> : <Plus size={16} />}
                 </button>
             </div>
 
             {isExpanded && (
-                <div className="bg-white overflow-x-auto">
+                <div className="bg-white overflow-x-auto animate-in fade-in slide-in-from-top-2">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-gray-50 border-b border-gray-100">
                             <tr>
@@ -232,6 +234,87 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
                                     </td>
                                     <td className="p-3 align-top text-sm text-gray-500 italic min-w-[100px]">
                                         {vocab.note || '-'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// [UPDATED] Grammar Section: Default Collapsed + Language Logic
+const GrammarSection: React.FC<{ grammars: BlockGrammar[]; title?: string }> = ({ grammars, title }) => {
+    const { i18n } = useTranslation();
+    const [isExpanded, setIsExpanded] = useState(false); // [CHANGED] Default false
+
+    // Logic ngôn ngữ (Giống Vocabulary)
+    const showVi = i18n.language === 'vi' || i18n.language === 'en';
+    const showJa = i18n.language === 'ja';
+
+    if (!grammars || grammars.length === 0) return null;
+
+    return (
+        <div className="mb-4 border border-orange-200 rounded-xl overflow-hidden bg-white shadow-sm transition-all">
+            <div 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center justify-between p-3 bg-orange-50 cursor-pointer hover:bg-orange-100 transition border-b border-orange-200 select-none"
+            >
+                <div className="flex items-center">
+                    <div className="bg-white p-1.5 rounded-lg border border-orange-200 mr-3 shadow-sm text-orange-600">
+                        <BookOpen size={18} />
+                    </div>
+                    <span className="text-xs font-black text-slate-700 uppercase tracking-widest">
+                        {title || 'Grammar'}
+                    </span>
+                    {!isExpanded && <span className="ml-2 text-[10px] text-gray-400 italic">({grammars.length} explain)</span>}
+                </div>
+                <button 
+                    type="button"
+                    className={`ml-3 p-1.5 rounded-full transition ${
+                        isExpanded 
+                        ? 'bg-orange-200 text-orange-800 hover:bg-orange-300' 
+                        : 'bg-white text-orange-600 hover:bg-orange-50'
+                    }`}
+                >
+                    {isExpanded ? <ChevronUp size={16} /> : <Plus size={16} />}
+                </button>
+            </div>
+
+            {isExpanded && (
+                <div className="overflow-x-auto animate-in fade-in slide-in-from-top-2">
+                    <table className="w-full text-left border-collapse min-w-[600px]">
+                        <thead className="bg-orange-50/50 text-orange-800/70 text-[10px] uppercase font-bold tracking-wider">
+                            <tr>
+                                <th className="p-3 border-b border-orange-100 w-[25%]">Usage</th>
+                                <th className="p-3 border-b border-orange-100 w-[30%]">Explanation</th>
+                                <th className="p-3 border-b border-orange-100 w-[45%]">Example</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-sm text-slate-700 divide-y divide-orange-50">
+                            {grammars.map((grammar) => (
+                                <tr key={grammar.id} className="hover:bg-orange-50/30 transition-colors">
+                                    <td className="p-3 align-top font-bold text-indigo-900">
+                                        {grammar.usage}
+                                    </td>
+                                    <td className="p-3 align-top">
+                                        {(showVi || !grammar.explanationJa) && grammar.explanationVi && (
+                                            <div className="mb-1 text-slate-800">
+                                                <span className="mr-1 text-[10px] opacity-50">🇻🇳</span> {grammar.explanationVi}
+                                            </div>
+                                        )}
+                                        {(showJa || !grammar.explanationVi) && grammar.explanationJa && (
+                                            <div className="text-xs text-slate-500">
+                                                <span className="mr-1 text-[10px] opacity-50">🇯🇵</span> {grammar.explanationJa}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="p-3 align-top">
+                                        <div className="bg-gray-50 p-2 rounded border border-gray-100 font-mono text-xs text-slate-600 whitespace-pre-line">
+                                            {grammar.example}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -467,6 +550,12 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                             title={block.vocabularyListTitle} 
                                         />
                                     )}
+
+                                    {/* [NEW] Grammar Section */}
+                                    <GrammarSection 
+                                        grammars={block.grammars || []} 
+                                        title={block.grammarTitle}
+                                    />
 
                                     {block.audios && block.audios.length > 0 && <div className="space-y-2 mb-6">{block.audios.map(audio => <AudioBlockItem key={audio.id} url={audio.url} name={audio.name} />)}</div>}
                                     {block.images && block.images.length > 0 && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} isDefaultHidden={img.isSpoiler}/>)}</div>}

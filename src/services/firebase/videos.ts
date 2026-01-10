@@ -48,11 +48,19 @@ export interface BlockVocabulary {
     note?: string;
 }
 
-// [NEW] Interface cho Nhóm từ vựng (Table)
 export interface BlockVocabularyGroup {
     id: string;
     title?: string;
     vocabularies: BlockVocabulary[];
+}
+
+// [NEW] Interface cho Ngữ pháp
+export interface BlockGrammar {
+    id: string;
+    usage: string;       // Cách dùng
+    explanationVi: string;
+    explanationJa: string;
+    example: string;     // Ví dụ
 }
 
 export interface LessonBlock {
@@ -63,12 +71,16 @@ export interface LessonBlock {
     quizzes?: BlockQuiz[];
     videos?: BlockVideo[];
     
-    // [NEW] Thay thế danh sách phẳng bằng danh sách nhóm
+    // Vocabulary Groups (Giữ nguyên của bạn)
     vocabularyGroups?: BlockVocabularyGroup[];
     
-    // [DEPRECATED] Giữ lại để tương thích data cũ (sẽ migrate runtime)
+    // [DEPRECATED] Support legacy data
     vocabularies?: BlockVocabulary[]; 
     vocabularyListTitle?: string;
+
+    // [NEW] Grammar
+    grammars?: BlockGrammar[];
+    grammarTitle?: string;
 }
 
 export interface Video {

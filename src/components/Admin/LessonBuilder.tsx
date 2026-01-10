@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { 
     Plus, Trash2, Image as ImageIcon, Headphones, HelpCircle, 
-    UploadCloud, X, Loader2, Video, Languages, FileText, Table as TableIcon
+    UploadCloud, X, Loader2, Video, Languages, FileText, Table as TableIcon,
+    BookOpen // [NEW] Icon Grammar
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
     ref, uploadBytesResumable, getDownloadURL, getFirebaseStorage,
     type LessonBlock, type BlockAudio, type BlockImage, type BlockQuiz,
-    type BlockVideo, type BlockVocabulary, type BlockVocabularyGroup
+    type BlockVideo, type BlockVocabulary, type BlockVocabularyGroup,
+    type BlockGrammar // [NEW] Type Grammar
 } from '../../services/firebase';
 
 interface LessonBuilderProps {
@@ -48,8 +50,9 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
     const [blocks, setBlocks] = useState<LessonBlock[]>(migrateBlocks(initialBlocks));
     const [uploading, setUploading] = useState(false);
     
-    // [NEW] State Bulk Import: Lưu { blockId, groupId }
-    const [activeBulk, setActiveBulk] = useState<{ blockId: string, groupId: string } | null>(null);
+    // [NEW] State Bulk Import: Lưu { blockId, groupId } hoặc { blockId, type: 'grammar' }
+    // Update activeBulk để support cả grammar
+    const [activeBulk, setActiveBulk] = useState<{ blockId: string, groupId?: string, type?: 'grammar' } | null>(null);
     const [bulkText, setBulkText] = useState('');
 
     const updateBlocks = (newBlocks: LessonBlock[]) => {
@@ -65,7 +68,8 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
             videos: [],
             images: [],
             vocabularyGroups: [], // Init empty groups
-            quizzes: []
+            quizzes: [],
+            grammars: [] // [NEW] Init Grammar
         };
         updateBlocks([...blocks, newBlock]);
     };
@@ -82,8 +86,8 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
     };
 
     // --- SUB ITEM HANDLERS ---
-
-    const removeSubItem = (blockId: string, type: 'audios' | 'images' | 'quizzes' | 'videos', itemId: string) => {
+    // [UPDATE] Thêm 'grammars' vào type
+    const removeSubItem = (blockId: string, type: 'audios' | 'images' | 'quizzes' | 'videos' | 'grammars', itemId: string) => {
         const targetBlock = blocks.find(b => b.id === blockId);
         if (!targetBlock) return;
         const list = targetBlock[type] as any[];
@@ -159,48 +163,98 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
         updateBlockField(blockId, 'vocabularyGroups', newGroups);
     };
 
+    // --- GRAMMAR HANDLERS [NEW] ---
+
+    const addGrammar = (blockId: string) => {
+        const usage = prompt("Mục đích sử dụng (Usage):");
+        if (!usage) return;
+        const explanationVi = prompt("Giải thích Tiếng Việt:", "") || "";
+        const explanationJa = prompt("Giải thích Tiếng Nhật:", "") || "";
+        const example = prompt("Ví dụ (Example):", "") || "";
+
+        const newGrammar: BlockGrammar = {
+            id: uuidv4(),
+            usage,
+            explanationVi,
+            explanationJa,
+            example
+        };
+
+        const targetBlock = blocks.find(b => b.id === blockId);
+        if (targetBlock) {
+            updateBlockField(blockId, 'grammars', [...(targetBlock.grammars || []), newGrammar]);
+        }
+    };
+
+
     // --- BULK IMPORT HANDLERS ---
 
-    const openBulkModal = (blockId: string, groupId: string) => {
-        setActiveBulk({ blockId, groupId });
+    const openBulkModal = (blockId: string, groupId?: string, type?: 'grammar') => {
+        setActiveBulk({ blockId, groupId, type });
         setBulkText('');
     };
 
     const handleBulkImport = () => {
         if (!activeBulk || !bulkText.trim()) return;
-        const { blockId, groupId } = activeBulk;
-        
-        const newVocabs: BlockVocabulary[] = [];
+        const { blockId, groupId, type } = activeBulk;
         const lines = bulkText.split('\n');
-        
-        lines.forEach(line => {
-            const cleanLine = line.trim().replace(/^\||\|$/g, '');
-            if (!cleanLine) return;
-            const parts = cleanLine.split('|').map(p => p.trim());
-            
-            if (parts.length >= 1 && parts[0]) {
-                 newVocabs.push({
-                    id: uuidv4(),
-                    word: parts[0] || '',
-                    ipa: parts[1] || '',
-                    meaningVi: parts[2] || '',
-                    meaningJa: parts[3] || '',
-                    note: parts[4] || ''
-                 });
-            }
-        });
 
-        if (newVocabs.length > 0) {
-             const targetBlock = blocks.find(b => b.id === blockId);
-             if (targetBlock) {
-                 const newGroups = (targetBlock.vocabularyGroups || []).map(g => {
-                    if (g.id === groupId) {
-                        return { ...g, vocabularies: [...g.vocabularies, ...newVocabs] };
-                    }
-                    return g;
-                 });
-                 updateBlockField(blockId, 'vocabularyGroups', newGroups);
-             }
+        // CASE 1: IMPORT GRAMMAR
+        if (type === 'grammar') {
+            const newItems: BlockGrammar[] = [];
+            lines.forEach(line => {
+                const cleanLine = line.trim().replace(/^\||\|$/g, '');
+                if (!cleanLine) return;
+                const parts = cleanLine.split('|').map(p => p.trim());
+                if (parts.length >= 1 && parts[0]) {
+                     newItems.push({
+                        id: uuidv4(),
+                        usage: parts[0] || '',
+                        explanationVi: parts[1] || '',
+                        explanationJa: parts[2] || '',
+                        example: parts[3] || ''
+                     });
+                }
+            });
+
+            if (newItems.length > 0) {
+                 const targetBlock = blocks.find(b => b.id === blockId);
+                 if (targetBlock) {
+                     updateBlockField(blockId, 'grammars', [...(targetBlock.grammars || []), ...newItems]);
+                 }
+            }
+        } 
+        // CASE 2: IMPORT VOCABULARY (GROUP)
+        else if (groupId) {
+            const newVocabs: BlockVocabulary[] = [];
+            lines.forEach(line => {
+                const cleanLine = line.trim().replace(/^\||\|$/g, '');
+                if (!cleanLine) return;
+                const parts = cleanLine.split('|').map(p => p.trim());
+                if (parts.length >= 1 && parts[0]) {
+                     newVocabs.push({
+                        id: uuidv4(),
+                        word: parts[0] || '',
+                        ipa: parts[1] || '',
+                        meaningVi: parts[2] || '',
+                        meaningJa: parts[3] || '',
+                        note: parts[4] || ''
+                     });
+                }
+            });
+
+            if (newVocabs.length > 0) {
+                 const targetBlock = blocks.find(b => b.id === blockId);
+                 if (targetBlock) {
+                     const newGroups = (targetBlock.vocabularyGroups || []).map(g => {
+                        if (g.id === groupId) {
+                            return { ...g, vocabularies: [...g.vocabularies, ...newVocabs] };
+                        }
+                        return g;
+                     });
+                     updateBlockField(blockId, 'vocabularyGroups', newGroups);
+                 }
+            }
         }
         
         setActiveBulk(null);
@@ -369,7 +423,6 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                             <div className="space-y-4">
                                 {block.vocabularyGroups?.map((group) => (
                                     <div key={group.id} className="border border-indigo-100 rounded-lg p-3 bg-indigo-50/20 relative">
-                                        {/* Header của Group: Title + Delete */}
                                         <div className="flex gap-2 mb-3">
                                             <input 
                                                 type="text" 
@@ -378,17 +431,11 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                                 value={group.title || ''}
                                                 onChange={(e) => updateGroupTitle(block.id, group.id, e.target.value)}
                                             />
-                                            <button 
-                                                type="button" /* [FIX] Thêm type button */
-                                                onClick={() => removeVocabularyGroup(block.id, group.id)}
-                                                className="text-gray-400 hover:text-red-500"
-                                                title="Xóa bảng này"
-                                            >
+                                            <button type="button" onClick={() => removeVocabularyGroup(block.id, group.id)} className="text-gray-400 hover:text-red-500" title="Xóa bảng này">
                                                 <Trash2 size={14}/>
                                             </button>
                                         </div>
 
-                                        {/* Table Data */}
                                         <div className="mb-3 max-h-48 overflow-y-auto custom-scrollbar border border-white bg-white rounded shadow-sm">
                                             <table className="w-full text-left border-collapse">
                                                 <thead className="bg-gray-50 sticky top-0 z-10">
@@ -459,7 +506,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
 
                             {/* Button Add New Group */}
                             <button 
-                                type="button" /* [FIX] Thêm type button */
+                                type="button" 
                                 onClick={() => addVocabularyGroup(block.id)} 
                                 className="w-full mt-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-xs font-bold hover:border-indigo-400 hover:text-indigo-600 transition flex items-center justify-center"
                             >
@@ -467,7 +514,87 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                             </button>
                         </div>
 
-                         {/* 5. QUIZ */}
+                        {/* 5. GRAMMAR COLUMN [NEW] */}
+                        <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm col-span-1 md:col-span-2 xl:col-span-3"> 
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase flex items-center">
+                                    <BookOpen size={12} className="mr-1"/> Cấu trúc Ngữ Pháp
+                                </h4>
+                            </div>
+
+                            <input 
+                                type="text" 
+                                placeholder="Tiêu đề ngữ pháp (VD: Thì hiện tại đơn)..."
+                                className="w-full text-sm font-bold border-b border-gray-200 focus:border-indigo-500 outline-none mb-3 py-1 text-indigo-700 placeholder-gray-300"
+                                value={block.grammarTitle || ''}
+                                onChange={(e) => updateBlockField(block.id, 'grammarTitle', e.target.value)}
+                            />
+                            
+                            <div className="mb-3 overflow-x-auto custom-scrollbar border border-gray-100 rounded">
+                                <table className="w-full text-left border-collapse min-w-[600px]">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="p-2 text-[10px] font-bold text-gray-500 uppercase border-b w-1/4">Cách dùng (Usage)</th>
+                                            <th className="p-2 text-[10px] font-bold text-gray-500 uppercase border-b w-1/4">Giải thích</th>
+                                            <th className="p-2 text-[10px] font-bold text-gray-500 uppercase border-b w-1/3">Ví dụ (Example)</th>
+                                            <th className="p-2 text-[10px] font-bold text-gray-500 uppercase border-b w-8">#</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-xs">
+                                        {block.grammars?.map((item) => (
+                                            <tr key={item.id} className="border-b last:border-0 hover:bg-gray-50 group/row">
+                                                <td className="p-2 align-top font-bold text-indigo-700">{item.usage}</td>
+                                                <td className="p-2 align-top">
+                                                    <div className="text-gray-700 mb-1">🇻🇳 {item.explanationVi}</div>
+                                                    <div className="text-gray-500">🇯🇵 {item.explanationJa}</div>
+                                                </td>
+                                                <td className="p-2 align-top text-gray-600 font-mono bg-gray-50/50 rounded">
+                                                    {item.example ? <div dangerouslySetInnerHTML={{ __html: item.example.replace(/\n/g, '<br/>') }} /> : '-'}
+                                                </td>
+                                                <td className="p-2 align-top text-center">
+                                                    <button type="button" onClick={() => removeSubItem(block.id, 'grammars', item.id)} className="text-gray-300 hover:text-red-500 transition"><X size={14}/></button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {(!block.grammars || block.grammars.length === 0) && (
+                                            <tr><td colSpan={4} className="p-4 text-center text-gray-400 italic text-xs">Chưa có cấu trúc ngữ pháp.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {activeBulk?.blockId === block.id && activeBulk.type === 'grammar' ? (
+                                <div className="bg-gray-50 p-2 rounded border border-gray-200 animate-in slide-in-from-top-2">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="text-[10px] font-bold text-gray-500 uppercase">Nhập Markdown (Grammar)</span>
+                                        <span className="text-[10px] text-gray-400 italic">Usage | VN | JP | Example</span>
+                                    </div>
+                                    <textarea 
+                                        className="w-full text-xs p-2 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 outline-none font-mono"
+                                        rows={5}
+                                        placeholder={`Thói quen | Diễn tả hành động lặp lại | 習慣 | I usually get up at 6AM.`}
+                                        value={bulkText}
+                                        onChange={(e) => setBulkText(e.target.value)}
+                                        autoFocus
+                                    />
+                                    <div className="flex gap-2 mt-2">
+                                        <button onClick={() => setActiveBulk(null)} className="flex-1 py-1 bg-gray-200 text-gray-600 rounded text-xs font-bold hover:bg-gray-300">Hủy</button>
+                                        <button onClick={handleBulkImport} className="flex-1 py-1 bg-orange-600 text-white rounded text-xs font-bold hover:bg-orange-700">Lưu Grammar</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => addGrammar(block.id)} className="flex-1 flex items-center justify-center p-2 border border-dashed border-indigo-200 rounded text-indigo-600 text-xs font-bold hover:bg-indigo-50 transition">
+                                        <Plus size={14} className="mr-1"/> Thêm Ngữ pháp
+                                    </button>
+                                    <button type="button" onClick={() => openBulkModal(block.id, undefined, 'grammar')} className="flex-1 flex items-center justify-center p-2 border border-dashed border-orange-300 rounded text-orange-700 text-xs font-bold hover:bg-orange-50 transition bg-orange-50/30">
+                                        <FileText size={14} className="mr-1"/> Nhập nhiều
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                         {/* 6. QUIZ */}
                          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
                             <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center"><HelpCircle size={12} className="mr-1"/> Quiz Nhanh</h4>
                             <div className="space-y-2 mb-3">
