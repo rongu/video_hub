@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { 
     Plus, Trash2, Image as ImageIcon, Headphones, HelpCircle, 
     UploadCloud, X, Loader2, Video, Languages, FileText, Table as TableIcon,
-    BookOpen // [NEW] Icon Grammar
+    BookOpen, Copy, ClipboardPaste // [NEW] Import icon Copy/Paste
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
     ref, uploadBytesResumable, getDownloadURL, getFirebaseStorage,
     type LessonBlock, type BlockAudio, type BlockImage, type BlockQuiz,
     type BlockVideo, type BlockVocabulary, type BlockVocabularyGroup,
-    type BlockGrammar // [NEW] Type Grammar
+    type BlockGrammar
 } from '../../services/firebase';
 
 interface LessonBuilderProps {
@@ -19,18 +19,23 @@ interface LessonBuilderProps {
     onChange: (blocks: LessonBlock[]) => void;
 }
 
+// Định nghĩa chữ ký dữ liệu để đảm bảo paste đúng format
+const CLIPBOARD_TYPES = {
+    VOCAB_GROUP: 'VIDEO_HUB_VOCAB_GROUP',
+    GRAMMAR_LIST: 'VIDEO_HUB_GRAMMAR_LIST'
+};
+
 const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initialBlocks = [], onChange }) => {
-    // [MIGRATION] Tự động chuyển data cũ (vocabularies phẳng) sang data mới (groups) ngay khi load
+    // [MIGRATION] Tự động chuyển data cũ sang data mới
     const migrateBlocks = (blocks: LessonBlock[]) => {
         return blocks.map(b => {
             const hasLegacyVocab = b.vocabularies && b.vocabularies.length > 0;
             const hasGroups = b.vocabularyGroups && b.vocabularyGroups.length > 0;
             
             if (hasLegacyVocab && !hasGroups) {
-                // Tạo group mặc định từ data cũ
                 return {
                     ...b,
-                    vocabularies: [], // Clear legacy
+                    vocabularies: [], 
                     vocabularyListTitle: '',
                     vocabularyGroups: [{
                         id: uuidv4(),
@@ -39,7 +44,6 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                     }]
                 };
             }
-            // Đảm bảo luôn có mảng groups
             if (!b.vocabularyGroups) {
                 return { ...b, vocabularyGroups: [] };
             }
@@ -50,8 +54,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
     const [blocks, setBlocks] = useState<LessonBlock[]>(migrateBlocks(initialBlocks));
     const [uploading, setUploading] = useState(false);
     
-    // [NEW] State Bulk Import: Lưu { blockId, groupId } hoặc { blockId, type: 'grammar' }
-    // Update activeBulk để support cả grammar
+    // State Bulk Import
     const [activeBulk, setActiveBulk] = useState<{ blockId: string, groupId?: string, type?: 'grammar' } | null>(null);
     const [bulkText, setBulkText] = useState('');
 
@@ -67,9 +70,9 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
             audios: [],
             videos: [],
             images: [],
-            vocabularyGroups: [], // Init empty groups
+            vocabularyGroups: [],
             quizzes: [],
-            grammars: [] // [NEW] Init Grammar
+            grammars: []
         };
         updateBlocks([...blocks, newBlock]);
     };
@@ -85,14 +88,105 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
         updateBlocks(newBlocks);
     };
 
-    // --- SUB ITEM HANDLERS ---
-    // [UPDATE] Thêm 'grammars' vào type
     const removeSubItem = (blockId: string, type: 'audios' | 'images' | 'quizzes' | 'videos' | 'grammars', itemId: string) => {
         const targetBlock = blocks.find(b => b.id === blockId);
         if (!targetBlock) return;
         const list = targetBlock[type] as any[];
         updateBlockField(blockId, type, list.filter(i => i.id !== itemId));
     };
+
+    // =================================================================
+    // [NEW] COPY & PASTE LOGIC
+    // =================================================================
+
+    const copyToClipboard = async (data: any, type: string) => {
+        try {
+            const payload = JSON.stringify({ type, data });
+            await navigator.clipboard.writeText(payload);
+            alert(`Đã copy ${type === CLIPBOARD_TYPES.VOCAB_GROUP ? 'bảng từ vựng' : 'danh sách ngữ pháp'}!`);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+            alert('Lỗi khi copy!');
+        }
+    };
+
+    const pasteVocabGroup = async (blockId: string) => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (!text) return;
+
+            let parsed;
+            try {
+                parsed = JSON.parse(text);
+            } catch (e) {
+                alert("Clipboard không chứa dữ liệu hợp lệ! Hãy nhấn nút Copy ở bảng từ vựng trước.");
+                return;
+            }
+
+            if (parsed.type !== CLIPBOARD_TYPES.VOCAB_GROUP) {
+                alert('Dữ liệu trong clipboard không phải là Bảng từ vựng (Có thể bạn đang copy Ngữ pháp?).');
+                return;
+            }
+
+            const sourceGroup = parsed.data as BlockVocabularyGroup;
+            
+            const newGroup: BlockVocabularyGroup = {
+                id: uuidv4(),
+                title: `${sourceGroup.title} (Copy)`,
+                vocabularies: sourceGroup.vocabularies.map(v => ({
+                    ...v,
+                    id: uuidv4()
+                }))
+            };
+
+            const targetBlock = blocks.find(b => b.id === blockId);
+            if (targetBlock) {
+                updateBlockField(blockId, 'vocabularyGroups', [...(targetBlock.vocabularyGroups || []), newGroup]);
+            }
+
+        } catch (err) {
+            console.error('Paste error:', err);
+            alert('Lỗi khi đọc Clipboard. Hãy thử lại.');
+        }
+    };
+
+    const pasteGrammarList = async (blockId: string) => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (!text) return;
+
+            let parsed;
+            try {
+                parsed = JSON.parse(text);
+            } catch (e) {
+                alert("Clipboard không chứa dữ liệu hợp lệ! Hãy nhấn nút Copy ở phần Ngữ pháp trước.");
+                return;
+            }
+
+            if (parsed.type !== CLIPBOARD_TYPES.GRAMMAR_LIST) {
+                alert('Dữ liệu trong clipboard không phải là Danh sách ngữ pháp.');
+                return;
+            }
+
+            const sourceGrammars = parsed.data as BlockGrammar[];
+            
+            const newGrammars = sourceGrammars.map(g => ({
+                ...g,
+                id: uuidv4()
+            }));
+
+            const targetBlock = blocks.find(b => b.id === blockId);
+            if (targetBlock) {
+                updateBlockField(blockId, 'grammars', [...(targetBlock.grammars || []), ...newGrammars]);
+            }
+
+        } catch (err) {
+            console.error('Paste error:', err);
+            alert('Lỗi khi đọc Clipboard. Hãy thử lại.');
+        }
+    };
+
+    // =================================================================
 
     // --- VOCABULARY GROUP HANDLERS ---
 
@@ -102,7 +196,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
 
         const newGroup: BlockVocabularyGroup = {
             id: uuidv4(),
-            title: '', // Để trống cho user nhập
+            title: '', 
             vocabularies: []
         };
         
@@ -163,7 +257,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
         updateBlockField(blockId, 'vocabularyGroups', newGroups);
     };
 
-    // --- GRAMMAR HANDLERS [NEW] ---
+    // --- GRAMMAR HANDLERS ---
 
     const addGrammar = (blockId: string) => {
         const usage = prompt("Mục đích sử dụng (Usage):");
@@ -423,7 +517,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                             <div className="space-y-4">
                                 {block.vocabularyGroups?.map((group) => (
                                     <div key={group.id} className="border border-indigo-100 rounded-lg p-3 bg-indigo-50/20 relative">
-                                        <div className="flex gap-2 mb-3">
+                                        <div className="flex gap-2 mb-3 items-center">
                                             <input 
                                                 type="text" 
                                                 placeholder="Tiêu đề bảng này (VD: Động từ)..."
@@ -431,6 +525,16 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                                 value={group.title || ''}
                                                 onChange={(e) => updateGroupTitle(block.id, group.id, e.target.value)}
                                             />
+                                            {/* [NEW] COPY BUTTON */}
+                                            <button 
+                                                type="button" 
+                                                onClick={() => copyToClipboard(group, CLIPBOARD_TYPES.VOCAB_GROUP)} 
+                                                className="text-gray-400 hover:text-indigo-600" 
+                                                title="Copy bảng này"
+                                            >
+                                                <Copy size={14}/>
+                                            </button>
+                                            
                                             <button type="button" onClick={() => removeVocabularyGroup(block.id, group.id)} className="text-gray-400 hover:text-red-500" title="Xóa bảng này">
                                                 <Trash2 size={14}/>
                                             </button>
@@ -504,14 +608,26 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                 ))}
                             </div>
 
-                            {/* Button Add New Group */}
-                            <button 
-                                type="button" 
-                                onClick={() => addVocabularyGroup(block.id)} 
-                                className="w-full mt-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-xs font-bold hover:border-indigo-400 hover:text-indigo-600 transition flex items-center justify-center"
-                            >
-                                <TableIcon size={14} className="mr-1"/> Tạo bảng từ vựng mới
-                            </button>
+                            {/* Button Add New Group & Paste Group */}
+                            <div className="flex gap-2 mt-3">
+                                <button 
+                                    type="button" 
+                                    onClick={() => addVocabularyGroup(block.id)} 
+                                    className="flex-grow py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-xs font-bold hover:border-indigo-400 hover:text-indigo-600 transition flex items-center justify-center"
+                                >
+                                    <TableIcon size={14} className="mr-1"/> Tạo bảng từ vựng mới
+                                </button>
+                                
+                                {/* [NEW] PASTE GROUP BUTTON */}
+                                <button 
+                                    type="button" 
+                                    onClick={() => pasteVocabGroup(block.id)} 
+                                    className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-xs font-bold hover:border-indigo-400 hover:text-indigo-600 transition flex items-center justify-center"
+                                    title="Paste bảng từ vựng đã copy"
+                                >
+                                    <ClipboardPaste size={14}/>
+                                </button>
+                            </div>
                         </div>
 
                         {/* 5. GRAMMAR COLUMN [NEW] */}
@@ -520,6 +636,16 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                 <h4 className="text-xs font-bold text-gray-400 uppercase flex items-center">
                                     <BookOpen size={12} className="mr-1"/> Cấu trúc Ngữ Pháp
                                 </h4>
+                                
+                                {/* [NEW] COPY GRAMMAR LIST */}
+                                <button 
+                                    type="button" 
+                                    onClick={() => copyToClipboard(block.grammars || [], CLIPBOARD_TYPES.GRAMMAR_LIST)} 
+                                    className="text-gray-400 hover:text-orange-600 flex items-center text-[10px] font-bold"
+                                    title="Copy toàn bộ danh sách ngữ pháp"
+                                >
+                                    <Copy size={12} className="mr-1"/> Copy
+                                </button>
                             </div>
 
                             <input 
@@ -587,8 +713,19 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                     <button type="button" onClick={() => addGrammar(block.id)} className="flex-1 flex items-center justify-center p-2 border border-dashed border-indigo-200 rounded text-indigo-600 text-xs font-bold hover:bg-indigo-50 transition">
                                         <Plus size={14} className="mr-1"/> Thêm Ngữ pháp
                                     </button>
+                                    
                                     <button type="button" onClick={() => openBulkModal(block.id, undefined, 'grammar')} className="flex-1 flex items-center justify-center p-2 border border-dashed border-orange-300 rounded text-orange-700 text-xs font-bold hover:bg-orange-50 transition bg-orange-50/30">
                                         <FileText size={14} className="mr-1"/> Nhập nhiều
+                                    </button>
+
+                                    {/* [NEW] PASTE GRAMMAR BUTTON */}
+                                    <button 
+                                        type="button" 
+                                        onClick={() => pasteGrammarList(block.id)} 
+                                        className="px-3 border border-dashed border-gray-300 rounded text-gray-500 hover:text-indigo-600 hover:border-indigo-400 transition"
+                                        title="Paste danh sách ngữ pháp"
+                                    >
+                                        <ClipboardPaste size={14} />
                                     </button>
                                 </div>
                             )}
