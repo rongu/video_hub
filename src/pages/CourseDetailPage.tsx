@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
     ChevronLeft, List, Loader2, CheckCircle2, Circle, Lock, X, Phone, MessageCircle, ArrowRight, 
     PlayCircle, FileText, HelpCircle, AlertCircle, RefreshCcw, Check, ChevronRight, 
-    Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronUp, BookOpen, Menu
+    Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronUp, ChevronDown, BookOpen, Menu
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown'; 
 import { useTranslation } from 'react-i18next';
@@ -428,7 +428,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
     const [loading, setLoading] = useState(true);
     const [showContactModal, setShowContactModal] = useState(false);
     const [showRoadmap, setShowRoadmap] = useState(false);
-    
+    const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({});
     const [sessions] = useCourseSessions(courseId);
     const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
     const hasAutoResumed = useRef(false);
@@ -492,6 +492,41 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         });
         return grouped;
     }, [videos]);
+
+    useEffect(() => {
+        setExpandedSessions(prev => {
+            const newState = { ...prev };
+            let hasChanges = false;
+
+            sessions.forEach(session => {
+                const sessionVideos = videosBySession[session.id] || [];
+                if (sessionVideos.length === 0) return;
+
+                const isAllCompleted = sessionVideos.every(v => completedVideoIds.includes(v.id));
+                const hasSelectedVideo = selectedVideo && sessionVideos.some(v => v.id === selectedVideo.id);
+
+                // Khởi tạo trạng thái ban đầu nếu chưa có
+                if (prev[session.id] === undefined) {
+                    // Mặc định: Mở nếu có video đang chọn HOẶC chưa hoàn thành hết. Đóng nếu đã xong hết.
+                    newState[session.id] = hasSelectedVideo ? true : !isAllCompleted;
+                    hasChanges = true;
+                } else if (hasSelectedVideo && !prev[session.id]) {
+                    // Luôn tự động mở session chứa video đang được chọn nếu nó đang bị đóng
+                    newState[session.id] = true;
+                    hasChanges = true;
+                }
+            });
+
+            return hasChanges ? newState : prev;
+        });
+    }, [sessions, videosBySession, completedVideoIds, selectedVideo]);
+
+    const toggleSession = (sessionId: string) => {
+        setExpandedSessions(prev => ({
+            ...prev,
+            [sessionId]: !prev[sessionId]
+        }));
+    };
 
     const renderContent = () => {
         if (!selectedVideo) return <div className="w-full h-full flex flex-col items-center justify-center text-white/50 p-8 text-center bg-gray-900"><PlayCircle size={48} className="mb-4 opacity-20" /><p className="font-bold uppercase text-xs tracking-widest">{t('detail.select_lesson_msg')}</p></div>;
@@ -676,40 +711,55 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                 sessions.map(session => {
                                     const sessionVideos = videosBySession[session.id] || [];
                                     if (sessionVideos.length === 0) return null;
+                                    
+                                    // THÊM MỚI: Lấy trạng thái từ state
+                                    const isExpanded = expandedSessions[session.id];
+
                                     return (
                                         <div key={session.id} className="mb-4">
-                                            <div className="px-3 py-2 text-xs font-black uppercase text-gray-400 tracking-widest border-b border-gray-100 mb-2">
-                                                {session.title}
+                                            {/* SỬA LẠI UI TITLE ĐỂ BẤM ĐƯỢC */}
+                                            <div 
+                                                onClick={() => toggleSession(session.id)}
+                                                className="px-3 py-2 text-xs font-black uppercase text-gray-500 tracking-widest border-b border-gray-100 mb-2 flex justify-between items-center cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition-colors rounded-lg select-none"
+                                            >
+                                                <span>{session.title}</span>
+                                                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                             </div>
-                                            {sessionVideos.map(video => {
-                                                const isDone = completedVideoIds.includes(video.id);
-                                                const isActive = selectedVideo?.id === video.id;
-                                                const isLocked = !isEnrolled;
+                                            
+                                            {/* ẨN/HIỆN DANH SÁCH BÀI HỌC */}
+                                            {isExpanded && (
+                                                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                                                    {sessionVideos.map(video => {
+                                                        const isDone = completedVideoIds.includes(video.id);
+                                                        const isActive = selectedVideo?.id === video.id;
+                                                        const isLocked = !isEnrolled;
 
-                                                return (
-                                                    <div 
-                                                        key={video.id}
-                                                        onClick={() => {
-                                                            if (!isLocked) {
-                                                                setSelectedVideo(video);
-                                                                setShowRoadmap(false);
-                                                            }
-                                                        }}
-                                                        className={`group p-3 rounded-lg flex items-center justify-between transition-all border-l-4 mb-2 ${
-                                                            isActive ? 'bg-indigo-50 border-indigo-600' : 
-                                                            isLocked ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' : 'hover:bg-gray-50 border-transparent cursor-pointer'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center space-x-3 overflow-hidden">
-                                                            <div onClick={(e) => { if (isLocked) return; handleToggleIcon(video.id, e); }} className={isLocked ? "pointer-events-none" : "cursor-pointer"}>
-                                                                {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-indigo-400 flex-shrink-0" />}
+                                                        return (
+                                                            <div 
+                                                                key={video.id}
+                                                                onClick={() => {
+                                                                    if (!isLocked) {
+                                                                        setSelectedVideo(video);
+                                                                        setShowRoadmap(false);
+                                                                    }
+                                                                }}
+                                                                className={`group p-3 rounded-lg flex items-center justify-between transition-all border-l-4 mb-2 ${
+                                                                    isActive ? 'bg-indigo-50 border-indigo-600' : 
+                                                                    isLocked ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' : 'hover:bg-gray-50 border-transparent cursor-pointer'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center space-x-3 overflow-hidden">
+                                                                    <div onClick={(e) => { if (isLocked) return; handleToggleIcon(video.id, e); }} className={isLocked ? "pointer-events-none" : "cursor-pointer"}>
+                                                                        {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-indigo-400 flex-shrink-0" />}
+                                                                    </div>
+                                                                    <span className={`text-sm truncate ${isActive ? 'font-bold text-indigo-900' : 'text-gray-700'}`}>{video.title}</span>
+                                                                </div>
+                                                                {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-indigo-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
                                                             </div>
-                                                            <span className={`text-sm truncate ${isActive ? 'font-bold text-indigo-900' : 'text-gray-700'}`}>{video.title}</span>
-                                                        </div>
-                                                        {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-indigo-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
-                                                    </div>
-                                                );
-                                            })}
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     )
                                 })
