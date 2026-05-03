@@ -133,11 +133,11 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
 
     return (
         // [UI UPDATE] Thêm khung trắng, đổ bóng để dễ nhìn hơn
-        <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+        <div className="argon-card overflow-hidden">
             {/* HEADER */}
-            <div className="bg-indigo-600 p-6 text-white flex justify-between items-center">
+            <div className="p-6 text-white flex justify-between items-center" style={{background: 'linear-gradient(195deg, #49A3F1, #1A73E8)'}}>
                 <div>
-                    <h3 className="text-xl font-bold uppercase tracking-tight flex items-center">
+                    <h3 className="text-xl font-bold flex items-center">
                         {isEditing ? <Edit2 className="mr-2" size={24} /> : <Plus className="mr-2" size={24} />}
                         {isEditing ? 'Chỉnh sửa Khóa học' : 'Tạo Khóa học Mới'}
                     </h3>
@@ -163,14 +163,14 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                     <div className="space-y-6">
                         <div className="flex items-center space-x-2 border-b pb-2">
                             <span className="text-2xl">🇻🇳</span>
-                            <h4 className="font-bold text-gray-900 text-sm uppercase tracking-wider">Tiếng Việt <span className="text-red-500 text-xs normal-case">(Bắt buộc)</span></h4>
+                            <h4 className="font-bold text-gray-700 text-sm">Tiếng Việt <span className="text-red-500 text-xs">(Bắt buộc)</span></h4>
                         </div>
 
                         {/* 1. ẢNH BÌA */}
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">Ảnh Bìa Khóa Học</label>
                             {!previewUrl ? (
-                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center text-gray-400 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-50 transition cursor-pointer relative">
+                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center text-gray-400 hover:border-[#1A73E8] hover:text-[#1A73E8] hover:bg-blue-50 transition cursor-pointer relative">
                                     <input 
                                         type="file" 
                                         accept="image/*" 
@@ -203,7 +203,7 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"
+                                className="argon-input py-3"
                                 placeholder="VD: Lập trình ReactJS..."
                                 disabled={loading}
                             />
@@ -217,14 +217,14 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                                     <button
                                         type="button"
                                         onClick={() => setActiveTab('write')}
-                                        className={`px-3 py-1 text-xs font-bold rounded-md flex items-center transition ${activeTab === 'write' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        className={`px-3 py-1 text-xs font-bold rounded-md flex items-center transition ${activeTab === 'write' ? 'bg-white text-[#1A73E8] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                     >
                                         <Edit2 size={12} className="mr-1"/> Viết
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setActiveTab('preview')}
-                                        className={`px-3 py-1 text-xs font-bold rounded-md flex items-center transition ${activeTab === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        className={`px-3 py-1 text-xs font-bold rounded-md flex items-center transition ${activeTab === 'preview' ? 'bg-white text-[#1A73E8] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                     >
                                         <Eye size={12} className="mr-1"/> Xem
                                     </button>
@@ -236,12 +236,12 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                                     value={desc}
                                     onChange={(e) => setDesc(e.target.value)}
                                     rows={8}
-                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition font-mono text-sm"
+                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1A73E8] focus:bg-white transition font-mono text-sm"
                                     placeholder="# Nội dung chính..."
                                     disabled={loading}
                                 />
                             ) : (
-                                <div className="w-full h-[200px] p-4 border border-gray-200 rounded-xl bg-gray-50 overflow-y-auto custom-scrollbar prose prose-sm prose-indigo max-w-none">
+                                <div className="w-full h-[200px] p-4 border border-gray-200 rounded-xl bg-gray-50 overflow-y-auto custom-scrollbar prose prose-sm max-w-none">
                                     {desc ? <ReactMarkdown>{desc}</ReactMarkdown> : <p className="text-gray-400 italic text-center mt-10">Chưa có nội dung.</p>}
                                 </div>
                             )}
@@ -252,10 +252,10 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                     <div className="space-y-6">
                         <div className="flex items-center space-x-2 border-b pb-2">
                             <span className="text-2xl">🇯🇵</span>
-                            <h4 className="font-bold text-indigo-900 text-sm uppercase tracking-wider">Tiếng Nhật <span className="text-gray-400 text-xs normal-case">(Tùy chọn)</span></h4>
+                            <h4 className="font-bold text-gray-700 text-sm">Tiếng Nhật <span className="text-gray-400 text-xs">(Tùy chọn)</span></h4>
                         </div>
 
-                        <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 space-y-6 h-full">
+                        <div className="bg-blue-50/50 p-6 rounded-xl border border-blue-100 space-y-6 h-full">
                             {/* 1. TIÊU ĐỀ JA */}
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">Tiêu đề (JA)</label>
@@ -263,7 +263,7 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                                     type="text"
                                     value={titleJa}
                                     onChange={(e) => setTitleJa(e.target.value)}
-                                    className="w-full p-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition"
+                                    className="w-full p-3 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-[#1A73E8] transition"
                                     placeholder="コースのタイトル..."
                                     disabled={loading}
                                 />
@@ -275,12 +275,12 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                                 <textarea
                                     value={descJa}
                                     onChange={(e) => setDescJa(e.target.value)}
-                                    rows={12} // Cao hơn một chút để cân bằng layout
-                                    className="w-full p-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition resize-none"
+                                    rows={12}
+                                    className="w-full p-3 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-[#1A73E8] transition resize-none"
                                     placeholder="コースの説明..."
                                     disabled={loading}
                                 />
-                                <p className="text-xs text-indigo-500 mt-2">
+                                <p className="text-xs text-[#1A73E8] mt-2">
                                     * Nếu để trống, hệ thống sẽ hiển thị nội dung Tiếng Việt.
                                 </p>
                             </div>
@@ -288,16 +288,16 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                     </div>
                 </div>
 
-                <div className="pt-6 border-t border-gray-100 flex justify-end">
+                <div className="pt-6 border-t border-gray-200 flex justify-end">
                     {onCancel && (
-                        <button type="button" onClick={onCancel} className="mr-4 px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition">
+                        <button type="button" onClick={onCancel} className="mr-4 px-6 py-3 font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition">
                             Hủy
                         </button>
                     )}
                     <button
                         type="submit"
                         disabled={loading}
-                        className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 hover:shadow-xl transition-all disabled:opacity-70 flex items-center"
+                        className="argon-button-gradient px-8 py-3 flex items-center disabled:opacity-70"
                     >
                         {loading ? <Loader2 size={20} className="animate-spin mr-2" /> : null}
                         {loading ? 'Đang xử lý...' : (isEditing ? 'Lưu Thay Đổi' : 'Tạo Khóa Học')}

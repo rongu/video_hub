@@ -131,8 +131,8 @@ const App: React.FC = () => {
     const renderContent = () => {
         if (!isAuthReady || !dbInstance) {
             return (
-                <div className="flex items-center justify-center min-h-screen bg-gray-50">
-                    <Loader2 className="h-8 w-8 text-indigo-600 animate-spin" />
+                <div className="flex items-center justify-center min-h-screen bg-[#F8F9FA]">
+                    <Loader2 className="h-8 w-8 text-[#1A73E8] animate-spin" />
                 </div>
             );
         }

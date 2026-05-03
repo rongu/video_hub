@@ -303,11 +303,11 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
     };
 
     return (
-        <div className="p-6 bg-white rounded-xl shadow-2xl border-t-8 border-indigo-600 w-full max-w-4xl mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar relative">
+        <div className="argon-card p-6 w-full max-w-4xl mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar relative">
             
             {/* HEADER */}
-            <div className="flex justify-between items-center mb-4 border-b pb-3">
-                <h3 className="text-xl font-bold text-indigo-700">
+            <div className="flex justify-between items-center mb-4 border-b border-gray-200 pb-3">
+                <h3 className="text-xl font-bold text-gray-700">
                     {/* [UPDATED] Tiêu đề thay đổi theo chế độ */}
                     {isEditing ? `Chỉnh sửa: "${initialVideo?.title}"` : `Thêm Nội dung: "${courseTitle}"`}
                 </h3>
@@ -323,8 +323,8 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
             {/* TABS CHỌN TYPE */}
             <div className="flex mb-6 bg-gray-100 p-1 rounded-lg overflow-x-auto">
                 {[
-                    { id: 'video', label: 'Video', icon: VideoIcon, color: 'text-indigo-600' },
-                    { id: 'audio', label: 'Audio', icon: Headphones, color: 'text-purple-600' },
+                    { id: 'video', label: 'Video', icon: VideoIcon, color: 'text-[#1A73E8]' },
+                    { id: 'audio', label: 'Audio', icon: Headphones, color: 'text-amber-600' },
                     { id: 'custom', label: 'Tương tác', icon: LayoutTemplate, color: 'text-pink-600' },
                     { id: 'text', label: 'Bài giảng', icon: FileText, color: 'text-green-600' },
                     { id: 'quiz', label: 'Quiz', icon: FileQuestion, color: 'text-orange-600' },
@@ -356,15 +356,15 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                 {/* 1. SESSION SELECTOR (Gọi Modal của Cha) */}
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
                     <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
-                        <ListPlus size={18} className="mr-2 text-indigo-600"/> 1. Chọn Session <span className="text-red-500 ml-1">*</span>
+                        <ListPlus size={18} className="mr-2 text-[#1A73E8]"/> 1. Chọn Session <span className="text-red-500 ml-1">*</span>
                     </label>
                     {selectedSessionId ? (
-                        <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 font-medium text-sm">
-                            <span className="flex items-center"><CheckCircle size={18} className="mr-2 text-indigo-600"/> Đã chọn: <strong className="ml-1">{selectedSessionTitle}</strong></span>
-                            <button type="button" onClick={handleOpenSessionManager} disabled={uploading} className="text-indigo-600 underline text-xs hover:text-indigo-800">Thay đổi</button>
+                        <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg text-gray-700 font-medium text-sm">
+                            <span className="flex items-center"><CheckCircle size={18} className="mr-2 text-[#1A73E8]"/> Đã chọn: <strong className="ml-1">{selectedSessionTitle}</strong></span>
+                            <button type="button" onClick={handleOpenSessionManager} disabled={uploading} className="text-[#1A73E8] underline text-xs hover:text-blue-700">Thay đổi</button>
                         </div>
                     ) : (
-                        <button type="button" onClick={handleOpenSessionManager} disabled={uploading} className="w-full py-3 bg-white border border-indigo-300 text-indigo-600 rounded-lg hover:bg-indigo-50 flex justify-center items-center font-bold text-sm transition dashed">
+                        <button type="button" onClick={handleOpenSessionManager} disabled={uploading} className="w-full py-3 bg-white border border-blue-300 text-[#1A73E8] rounded-lg hover:bg-blue-50 flex justify-center items-center font-bold text-sm transition dashed">
                             <Zap size={18} className="mr-2" /> Nhấn để chọn Session
                         </button>
                     )}
@@ -408,13 +408,13 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                             {isEditing && initialVideo?.videoUrl && (
                                 <p className="text-xs text-gray-500 mb-2 flex items-center">
                                     <VideoIcon size={12} className="mr-1"/> Video hiện tại: 
-                                    <a href={initialVideo.videoUrl} target="_blank" rel="noreferrer" className="text-indigo-600 underline ml-1 font-medium">Xem</a>
+                                    <a href={initialVideo.videoUrl} target="_blank" rel="noreferrer" className="text-[#1A73E8] underline ml-1 font-medium">Xem</a>
                                 </p>
                             )}
 
                             <input id="fileInput" type="file" accept="video/*" multiple={!isEditing} onChange={handleFileChange} className="hidden" disabled={uploading} />
                             
-                            <label htmlFor="fileInput" className={`flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-xl cursor-pointer transition-all ${files.length > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'}`}>
+                            <label htmlFor="fileInput" className={`flex flex-col items-center justify-center p-10 border-2 border-dashed rounded-xl cursor-pointer transition-all ${files.length > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-[#1A73E8] hover:bg-blue-50'}`}>
                                 <UploadCloud size={40} className={`mb-3 ${files.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
                                 <span className="text-sm font-bold text-gray-600">
                                     {files.length > 0 
@@ -428,20 +428,20 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                                 <div className="mt-4 space-y-2">
                                     {files.map((f, idx) => (
                                         <div key={idx} className="flex items-center text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
-                                            <VideoIcon size={14} className="mr-2 text-indigo-500"/> {f.name} <span className="ml-auto text-gray-400">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
+                                            <VideoIcon size={14} className="mr-2 text-[#1A73E8]"/> {f.name} <span className="ml-auto text-gray-400">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
                                         </div>
                                     ))}
                                 </div>
                             )}
 
                             {uploading && (
-                                <div className="mt-6 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
-                                    <p className="text-xs font-bold text-indigo-700 mb-2 flex justify-between">
+                                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                                    <p className="text-xs font-bold text-[#1A73E8] mb-2 flex justify-between">
                                         <span>Đang tải lên ({currentFileIndex}/{files.length || 1})...</span>
                                         <span>{uploadProgress}%</span>
                                     </p>
-                                    <div className="w-full bg-indigo-200 rounded-full h-2 overflow-hidden">
-                                        <div className="bg-indigo-600 h-full transition-all duration-300 ease-out" style={{ width: `${uploadProgress}%` }}></div>
+                                    <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                                        <div className="h-full transition-all duration-300 ease-out" style={{ width: `${uploadProgress}%`, background: 'linear-gradient(195deg, #49A3F1, #1A73E8)' }}></div>
                                     </div>
                                 </div>
                             )}
@@ -451,18 +451,18 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">2. Tiêu đề Audio <span className="text-red-500">*</span></label>
-                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-purple-500 transition" value={textTitle} onChange={(e) => setTextTitle(e.target.value)} required placeholder="VD: Listening Test 1..." />
+                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-amber-500 transition" value={textTitle} onChange={(e) => setTextTitle(e.target.value)} required placeholder="VD: Listening Test 1..." />
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-2">
                                     {isEditing ? '3. File Audio (Chọn để thay thế)' : '3. File Audio (.mp3, .wav)'} 
                                     {!isEditing && <span className="text-red-500 ml-1">*</span>}
                                 </label>
-                                <input type="file" accept="audio/*" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 transition"/>
+                                <input type="file" accept="audio/*" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 transition"/>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">4. Transcript / Mô tả (Tùy chọn)</label>
-                                <textarea className="w-full p-3 border border-gray-300 rounded-lg h-32 text-sm focus:border-purple-500 outline-none transition" value={textContent} onChange={(e) => setTextContent(e.target.value)} placeholder="Nội dung bài nghe hoặc lời thoại..."></textarea>
+                                <textarea className="w-full p-3 border border-gray-300 rounded-lg h-32 text-sm focus:border-amber-500 outline-none transition" value={textContent} onChange={(e) => setTextContent(e.target.value)} placeholder="Nội dung bài nghe hoặc lời thoại..."></textarea>
                             </div>
                         </div>
 
@@ -470,14 +470,14 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">2. Tiêu đề <span className="text-red-500">*</span></label>
-                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-indigo-500 transition" value={textTitle} onChange={(e) => setTextTitle(e.target.value)} required placeholder={`Nhập tên ${contentType}...`}/>
+                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-[#1A73E8] transition" value={textTitle} onChange={(e) => setTextTitle(e.target.value)} required placeholder={`Nhập tên ${contentType}...`}/>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">
                                     {contentType === 'quiz' ? '3. Dữ liệu Quiz (JSON)' : '3. Nội dung Bài giảng (Markdown)'}
                                 </label>
                                 <textarea 
-                                    className="w-full p-3 border border-gray-300 rounded-lg h-48 font-mono text-sm focus:border-indigo-500 outline-none transition" 
+                                    className="w-full p-3 border border-gray-300 rounded-lg h-48 font-mono text-sm focus:border-[#1A73E8] outline-none transition" 
                                     value={textContent} 
                                     onChange={(e) => setTextContent(e.target.value)} 
                                     placeholder={contentType === 'quiz' ? '[{"question": "...", "answers": ["A", "B"], "correct": 0}]' : 'Nội dung bài học...'}
@@ -491,11 +491,12 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                 <button 
                     type="submit" 
                     disabled={uploading || !selectedSessionId} 
-                    className={`w-full flex justify-center py-4 px-4 border border-transparent rounded-xl shadow-lg text-base font-bold text-white transition duration-200 mt-6 ${
+                    className={`w-full flex justify-center py-4 px-4 border border-transparent rounded-lg text-base font-bold text-white transition duration-200 mt-6 ${
                         uploading || !selectedSessionId 
                         ? 'bg-gray-300 cursor-not-allowed' 
-                        : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-xl transform hover:-translate-y-0.5'
+                        : ''
                     }`}
+                    style={!(uploading || !selectedSessionId) ? {background: 'linear-gradient(195deg, #49A3F1, #1A73E8)', boxShadow: '0 3px 5px -1px rgba(26,115,232,0.2)'} : {}}
                 >
                     {uploading ? <Loader2 className="animate-spin mr-2" /> : <Save size={20} className="mr-2"/>}
                     {uploading ? 'Đang xử lý...' : (isEditing ? 'Cập nhật Thay đổi' : 'Lưu & Thêm mới')}

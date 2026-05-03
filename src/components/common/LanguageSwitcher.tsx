@@ -26,7 +26,7 @@ const LanguageSwitcher: React.FC = () => {
     return (
         <button 
             onClick={toggleLanguage}
-            className="flex items-center space-x-1 text-gray-500 hover:text-indigo-600 transition font-bold text-sm px-3 py-1 rounded-lg hover:bg-gray-100"
+            className="flex items-center space-x-1 text-gray-600 hover:text-[#1A73E8] transition font-semibold text-sm px-3 py-1 rounded-lg hover:bg-blue-50"
             title="Đổi ngôn ngữ (VN <-> JA)"
         >
             <Globe size={18} />

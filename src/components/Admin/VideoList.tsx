@@ -107,8 +107,8 @@ const VideoList: React.FC<VideoListProps> = ({ courseId, sessions, videos, onVid
                     onClick={() => showToggleIcon && toggleSession(node.id)}
                 >
                     <span className={`flex items-center space-x-2 ${isParentNode ? 'font-bold' : 'font-medium'}`}>
-                        {showToggleIcon ? <Icon className="h-4 w-4 text-indigo-600" /> : <span className="h-4 w-4 mr-1"></span>}
-                        {isParentNode ? <FolderOpen className="h-5 w-5 text-indigo-600" /> : <VideoIcon className="h-5 w-5 text-green-600" />}
+                        {showToggleIcon ? <Icon className="h-4 w-4 text-[#1A73E8]" /> : <span className="h-4 w-4 mr-1"></span>}
+                        {isParentNode ? <FolderOpen className="h-5 w-5 text-[#1A73E8]" /> : <VideoIcon className="h-5 w-5 text-green-600" />}
                         <span>{node.title} <span className="text-sm font-normal text-gray-500 ml-2">({totalVideoCount} video)</span></span>
                     </span>
                 </div>

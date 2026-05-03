@@ -45,53 +45,57 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
     }, [onNavigate]);
 
     return (
-        <div className="flex items-center justify-center min-h-screen w-full p-4">
-            <div className="bg-white p-8 md:p-10 rounded-xl shadow-2xl border-t-8 border-green-600 max-w-md w-full space-y-6">
+        <div className="flex items-center justify-center min-h-screen w-full p-4 bg-[#F8F9FA]">
+            <div className="argon-card p-8 md:p-10 max-w-md w-full space-y-6">
                 
-                <h2 className="text-3xl font-extrabold text-green-700 text-center flex items-center justify-center">
-                    <UserPlus size={28} className="mr-3"/> Đăng ký
-                </h2>
+                <div className="text-center">
+                    <div className="argon-icon-badge success mx-auto mb-4">
+                        <UserPlus size={24} />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-700">Đăng ký</h2>
+                    <p className="text-gray-600 text-sm mt-1">Tạo tài khoản mới để bắt đầu</p>
+                </div>
                 
                 {error && (
-                    <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 rounded-md text-sm">
+                    <div className="bg-red-50 border-l-4 border-[#F44336] text-red-700 p-3 rounded-md text-sm">
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="relative">
-                        <UserIcon size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
+                        <UserIcon size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
                         <input
                             type="text"
                             placeholder="Tên hiển thị"
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
                             required
-                            className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition"
+                            className="argon-input pl-10"
                             disabled={loading}
                         />
                     </div>
                     <div className="relative">
-                        <Mail size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
+                        <Mail size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
                         <input
                             type="email"
                             placeholder="Email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
-                            className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition"
+                            className="argon-input pl-10"
                             disabled={loading}
                         />
                     </div>
                     <div className="relative">
-                        <Lock size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
+                        <Lock size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
                         <input
                             type="password"
                             placeholder="Mật khẩu (tối thiểu 6 ký tự)"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
-                            className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition"
+                            className="argon-input pl-10"
                             minLength={6}
                             disabled={loading}
                         />
@@ -100,11 +104,10 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className={`w-full py-3 rounded-lg text-white font-semibold text-lg transition duration-200 flex items-center justify-center ${
-                            loading ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 shadow-lg'
-                        }`}
+                        className="w-full py-3 text-sm flex items-center justify-center text-white font-bold rounded-lg transition"
+                        style={{background: loading ? '#A5D6A7' : 'linear-gradient(195deg, #66BB6A, #43A047)', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 3px 5px -1px rgba(76,175,80,0.2), 0 6px 10px 0 rgba(76,175,80,0.14)'}}
                     >
-                        {loading ? <Loader2 size={20} className="animate-spin mr-2"/> : <UserPlus size={20} className="mr-2"/>}
+                        {loading ? <Loader2 size={18} className="animate-spin mr-2"/> : <UserPlus size={18} className="mr-2"/>}
                         {loading ? 'Đang tạo tài khoản...' : 'Đăng ký'}
                     </button>
                 </form>
@@ -114,14 +117,14 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate }) => {
                         Đã có tài khoản?
                         <button 
                             onClick={() => handleNavigate('login')}
-                            className="text-indigo-600 font-medium hover:text-indigo-800 ml-1 transition"
+                            className="text-[#1A73E8] font-semibold hover:text-blue-700 ml-1 transition"
                         >
                             Đăng nhập
                         </button>
                     </p>
                     <button 
                         onClick={() => handleNavigate('landing')}
-                        className="text-gray-500 font-medium hover:text-gray-700 mt-2 flex items-center justify-center mx-auto"
+                        className="text-gray-600 font-medium hover:text-gray-700 mt-2 flex items-center justify-center mx-auto transition"
                     >
                         <ArrowLeft size={16} className="mr-1"/> Quay lại trang chính
                     </button>

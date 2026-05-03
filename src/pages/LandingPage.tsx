@@ -54,15 +54,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
     };
 
     return (
-        <div className="min-h-screen bg-white font-sans text-gray-900">
+        <div className="min-h-screen bg-[#F8F9FA] font-sans text-gray-700">
             {/* Navbar */}
-            <nav className="border-b border-gray-100 bg-white/90 backdrop-blur-md sticky top-0 z-50">
+            <nav className="border-b border-gray-200 bg-white/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
                 <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center space-x-2 cursor-pointer" onClick={() => onNavigate('landing')}>
-                        <div className="bg-indigo-600 p-1.5 rounded-lg shadow-lg">
-                            <PlayCircle className="text-white" size={24} />
+                        <div className="argon-icon-badge primary" style={{width:'2.25rem',height:'2.25rem'}}>
+                            <PlayCircle className="text-white" size={20} />
                         </div>
-                        <span className="text-xl font-black text-indigo-900 uppercase tracking-tighter">VideoHub</span>
+                        <span className="text-xl font-bold text-gray-700 tracking-tight">VideoHub</span>
                     </div>
 
                     <div className="flex items-center space-x-4">
@@ -71,19 +71,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
 
                         {user ? (
                             <>
-                                <button onClick={() => onNavigate('home')} className="text-gray-600 font-bold text-sm hover:text-indigo-600 transition">
+                                <button onClick={() => onNavigate('home')} className="text-gray-600 font-semibold text-sm hover:text-[#1A73E8] transition">
                                     {t('nav.my_courses')}
                                 </button>
-                                <button onClick={onLogout} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-xl text-sm font-bold">
+                                <button onClick={onLogout} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-200 transition">
                                     {t('nav.logout')}
                                 </button>
                             </>
                         ) : (
                             <>
-                                <button onClick={() => onNavigate('login')} className="text-gray-600 font-bold text-sm">
+                                <button onClick={() => onNavigate('login')} className="text-gray-600 font-semibold text-sm hover:text-[#1A73E8] transition">
                                     {t('nav.login')}
                                 </button>
-                                <button onClick={() => onNavigate('register')} className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg">
+                                <button onClick={() => onNavigate('register')} className="argon-button-gradient text-sm">
                                     {t('nav.register')}
                                 </button>
                             </>
@@ -93,54 +93,54 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
             </nav>
 
             {/* Hero */}
-            <header className="py-16 px-6 text-center">
-                <h1 className="text-5xl font-black text-gray-900 tracking-tighter uppercase">
+            <header className="py-16 px-6 text-center bg-white">
+                <h1 className="text-4xl md:text-5xl font-bold text-gray-700 tracking-tight">
                     {t('landing.hero_title')}
                 </h1>
-                <p className="text-gray-500 mt-4 max-w-xl mx-auto font-medium">
+                <p className="text-gray-600 mt-4 max-w-xl mx-auto font-normal text-lg">
                     {t('landing.hero_subtitle')}
                 </p>
             </header>
 
             {/* Course Grid */}
-            <section className="py-12 bg-gray-50 px-6 border-t border-gray-100 min-h-[60vh]">
+            <section className="py-12 bg-[#F8F9FA] px-6 border-t border-gray-200 min-h-[60vh]">
                 <div className="max-w-7xl mx-auto">
                     {loading ? (
-                        <div className="flex justify-center py-20"><Loader2 className="animate-spin text-indigo-600" size={32} /></div>
+                        <div className="flex justify-center py-20"><Loader2 className="animate-spin text-[#1A73E8]" size={32} /></div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {courses.map((course) => {
                                 const isEnrolled = userEnrollments.includes(course.id);
                                 return (
                                     <div 
                                         key={course.id} 
                                         onClick={() => onNavigate('detail', course.id)}
-                                        className="group bg-white rounded-[2.5rem] overflow-hidden border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 cursor-pointer flex flex-col"
+                                        className="argon-card group overflow-hidden cursor-pointer flex flex-col hover:-translate-y-px"
                                     >
                                         <div className="aspect-video bg-gray-100 relative overflow-hidden">
                                             <img src={course.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={tr_h(course.title)} />
-                                            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-indigo-600 uppercase">
+                                            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] font-bold text-[#1A73E8] uppercase">
                                                 {course.videoCount} {t('landing.lessons')}
                                             </div>
                                         </div>
-                                        <div className="p-8 flex-grow flex flex-col">
-                                            <h3 className="text-xl font-black text-gray-900 mb-3 line-clamp-1 uppercase">{tr_h(course.title)}</h3>
-                                            <p className="text-gray-500 text-sm line-clamp-2 mb-8 leading-relaxed flex-grow">{tr_h(course.description)}</p>
+                                        <div className="p-6 flex-grow flex flex-col">
+                                            <h3 className="text-lg font-bold text-gray-700 mb-2 line-clamp-1">{tr_h(course.title)}</h3>
+                                            <p className="text-gray-600 text-sm line-clamp-2 mb-6 leading-relaxed flex-grow">{tr_h(course.description)}</p>
                                             
-                                            <div className="pt-6 border-t border-gray-50 flex items-center justify-between">
+                                            <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
                                                 {isEnrolled ? (
-                                                    <span className="text-green-600 font-black text-xs uppercase flex items-center tracking-widest">
+                                                    <span className="text-[#4CAF50] font-semibold text-xs flex items-center">
                                                         <CheckCircle size={16} className="mr-1.5" /> {t('landing.participated')}
                                                     </span>
                                                 ) : (
                                                     <button 
                                                         onClick={handleEnrollClick}
-                                                        className="flex items-center text-indigo-600 font-black text-xs uppercase tracking-widest hover:text-indigo-800 transition"
+                                                        className="flex items-center text-[#1A73E8] font-semibold text-xs hover:text-blue-700 transition"
                                                     >
                                                         <MessageSquare size={16} className="mr-1.5" /> {t('landing.enroll_now')}
                                                     </button>
                                                 )}
-                                                <span className="text-gray-400 font-black text-[10px] uppercase flex items-center">
+                                                <span className="text-gray-600 font-medium text-xs flex items-center">
                                                     {t('landing.detail')} <ArrowRight size={14} className="ml-1" />
                                                 </span>
                                             </div>
@@ -156,40 +156,40 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
             {/* MODAL LIÊN HỆ GHI DANH */}
             {showContactModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-                        <div className="bg-indigo-600 p-8 text-white relative">
+                    <div className="argon-card w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-8 text-white relative" style={{background: 'linear-gradient(195deg, #49A3F1, #1A73E8)'}}>
                             <button onClick={() => setShowContactModal(false)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition">
                                 <X size={20} />
                             </button>
-                            <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Đăng ký tham gia</h3>
-                            <p className="text-indigo-100 text-sm">Vui lòng liên hệ với Admin qua các kênh bên dưới để được kích hoạt khóa học nhanh nhất.</p>
+                            <h3 className="text-2xl font-bold mb-2">Đăng ký tham gia</h3>
+                            <p className="text-blue-100 text-sm">Vui lòng liên hệ với Admin qua các kênh bên dưới để được kích hoạt khóa học nhanh nhất.</p>
                         </div>
-                        <div className="p-8 space-y-4">
-                            <a href="tel:0901234567" className="flex items-center p-4 bg-gray-50 rounded-2xl hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100 group">
-                                <div className="bg-indigo-600 p-3 rounded-xl text-white mr-4 shadow-lg shadow-indigo-100">
+                        <div className="p-6 space-y-4">
+                            <a href="tel:0901234567" className="flex items-center p-4 bg-[#F8F9FA] rounded-xl hover:bg-blue-50 transition-colors border border-gray-200 hover:border-[#1A73E8] group">
+                                <div className="argon-icon-badge primary mr-4">
                                     <Phone size={20} />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Hotline / Zalo</p>
-                                    <p className="text-lg font-black text-gray-900">090 123 4567</p>
+                                    <p className="text-xs font-semibold text-gray-600 uppercase">Hotline / Zalo</p>
+                                    <p className="text-lg font-bold text-gray-700">090 123 4567</p>
                                 </div>
-                                <ArrowRight className="ml-auto text-gray-300 group-hover:text-indigo-600 transition-transform" size={20} />
+                                <ArrowRight className="ml-auto text-gray-400 group-hover:text-[#1A73E8] transition-transform" size={20} />
                             </a>
 
-                            <a href="https://t.me/admin_id" target="_blank" className="flex items-center p-4 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors border border-transparent hover:border-blue-100 group">
-                                <div className="bg-blue-500 p-3 rounded-xl text-white mr-4 shadow-lg shadow-blue-100">
+                            <a href="https://t.me/admin_id" target="_blank" className="flex items-center p-4 bg-[#F8F9FA] rounded-xl hover:bg-blue-50 transition-colors border border-gray-200 hover:border-[#1A73E8] group">
+                                <div className="argon-icon-badge primary mr-4">
                                     <MessageCircle size={20} />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Telegram</p>
-                                    <p className="text-lg font-black text-gray-900">@admin_videohub</p>
+                                    <p className="text-xs font-semibold text-gray-600 uppercase">Telegram</p>
+                                    <p className="text-lg font-bold text-gray-700">@admin_videohub</p>
                                 </div>
-                                <ArrowRight className="ml-auto text-gray-300 group-hover:text-blue-500 transition-transform" size={20} />
+                                <ArrowRight className="ml-auto text-gray-400 group-hover:text-[#1A73E8] transition-transform" size={20} />
                             </a>
                             
                             <button 
                                 onClick={() => setShowContactModal(false)}
-                                className="w-full py-4 mt-4 bg-gray-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all"
+                                className="w-full py-3 mt-4 bg-gray-700 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 transition-all"
                             >
                                 Đóng
                             </button>
@@ -198,7 +198,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, user, onLogout })
                 </div>
             )}
 
-            <footer className="py-12 border-t border-gray-100 text-center text-gray-400 text-[10px] font-black uppercase tracking-widest">
+            <footer className="py-8 border-t border-gray-200 text-center text-gray-600 text-xs font-normal">
                 <p>© 2025 {t('footer.slogan')}</p>
             </footer>
         </div>

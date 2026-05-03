@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+﻿import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { 
     ChevronLeft, List, Loader2, CheckCircle2, Circle, Lock, X, Phone, MessageCircle, ArrowRight, 
     PlayCircle, FileText, HelpCircle, AlertCircle, RefreshCcw, Check, ChevronRight, 
     Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronUp, ChevronDown, BookOpen, Menu
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown'; 
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { 
     type Course, 
@@ -32,6 +34,104 @@ interface CourseDetailPageProps {
 
 // --- SUB COMPONENTS ---
 
+// --- MARKDOWN RENDERER ---
+const markdownComponents: Components = {
+    h1: ({ children }) => (
+        <h1 className="text-2xl font-bold text-gray-900 mt-8 mb-4 pb-3 border-b-2 border-blue-200">
+            {children}
+        </h1>
+    ),
+    h2: ({ children }) => (
+        <h2 className="text-xl font-bold text-gray-800 mt-7 mb-3 pl-4 border-l-4 border-blue-500 py-1">
+            {children}
+        </h2>
+    ),
+    h3: ({ children }) => (
+        <h3 className="text-base font-bold text-gray-800 mt-5 mb-2 flex items-center gap-2">
+            {children}
+        </h3>
+    ),
+    p: ({ children }) => (
+        <p className="text-gray-700 leading-relaxed mb-3 text-[15px]">
+            {children}
+        </p>
+    ),
+    strong: ({ children }) => (
+        <strong className="font-bold text-gray-900">{children}</strong>
+    ),
+    em: ({ children }) => (
+        <em className="italic text-gray-600">{children}</em>
+    ),
+    blockquote: ({ children }) => (
+        <blockquote className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 my-4 text-gray-700 text-sm">
+            {children}
+        </blockquote>
+    ),
+    ul: ({ children }) => (
+        <ul className="list-disc pl-6 space-y-1 mb-3 text-gray-700 text-[15px]">
+            {children}
+        </ul>
+    ),
+    ol: ({ children }) => (
+        <ol className="list-decimal pl-6 space-y-1 mb-3 text-gray-700 text-[15px]">
+            {children}
+        </ol>
+    ),
+    li: ({ children }) => (
+        <li className="text-gray-700 leading-relaxed">{children}</li>
+    ),
+    table: ({ children }) => (
+        <div className="overflow-x-auto my-5 rounded-xl border border-gray-200 shadow-sm">
+            <table className="w-full border-collapse text-sm">{children}</table>
+        </div>
+    ),
+    thead: ({ children }) => (
+        <thead className="bg-gradient-to-r from-blue-600 to-blue-500 text-white">
+            {children}
+        </thead>
+    ),
+    tbody: ({ children }) => (
+        <tbody>{children}</tbody>
+    ),
+    tr: ({ children }) => (
+        <tr className="even:bg-blue-50/40 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0">
+            {children}
+        </tr>
+    ),
+    th: ({ children }) => (
+        <th className="px-4 py-3 text-left font-semibold text-white text-sm whitespace-nowrap">
+            {children}
+        </th>
+    ),
+    td: ({ children }) => (
+        <td className="px-4 py-2.5 text-gray-700">{children}</td>
+    ),
+    pre: ({ children }) => (
+        <pre className="bg-gray-900 text-green-300 rounded-xl p-4 overflow-x-auto text-sm my-4 font-mono leading-relaxed">
+            {children}
+        </pre>
+    ),
+    code: ({ children, className }) => (
+        className
+            ? <code className={`${className} font-mono`}>{children}</code>
+            : <code className="bg-gray-100 text-pink-600 px-1.5 py-0.5 rounded text-[13px] font-mono">{children}</code>
+    ),
+    hr: () => <hr className="my-6 border-t border-gray-200" />,
+    a: ({ href, children }) => (
+        <a href={href} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
+            {children}
+        </a>
+    ),
+};
+
+const MarkdownContent: React.FC<{ content: string }> = ({ content }) => (
+    <div className="markdown-body">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {content}
+        </ReactMarkdown>
+    </div>
+);
+
 const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, index }) => {
     const { t } = useTranslation();
     const [selected, setSelected] = useState<number | null>(null);
@@ -41,7 +141,7 @@ const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, in
     return (
         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
             <p className="font-bold text-gray-800 mb-3 flex items-start">
-                <span className="bg-indigo-600 text-white text-xs rounded px-2 py-0.5 mr-2 mt-0.5">
+                <span className="bg-[#1A73E8] text-white text-xs rounded px-2 py-0.5 mr-2 mt-0.5">
                     {t('detail.quiz.question', { index: index + 1 })}
                 </span>
                 {quiz.question}
@@ -54,7 +154,7 @@ const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, in
                         else if (idx === selected && idx !== quiz.correctIndex) btnClass = "bg-red-100 border-red-500 text-red-800";
                         else btnClass = "border-gray-200 opacity-50";
                     } else if (selected === idx) {
-                        btnClass = "border-indigo-600 bg-indigo-50 text-indigo-900";
+                        btnClass = "border-[#1A73E8] bg-blue-50 text-gray-700";
                     }
                     return (
                         <button key={idx} disabled={submitted} onClick={() => setSelected(idx)}
@@ -102,7 +202,7 @@ const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden
                             className="group flex flex-col items-center gap-1 opacity-50 hover:opacity-100 transition-opacity py-1"
                             title={isExpanded ? t('detail.image.collapse_tooltip') : t('detail.image.expand_tooltip')}
                         >
-                            <div className="w-12 h-1.5 bg-gray-300 rounded-full group-hover:bg-indigo-400 transition-colors"></div>
+                            <div className="w-12 h-1.5 bg-gray-300 rounded-full group-hover:bg-[#1A73E8] transition-colors"></div>
                         </div>
                     )}
                 </div>
@@ -111,7 +211,7 @@ const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden
                     className={`ml-3 p-1.5 rounded-full transition ${
                         isExpanded 
                         ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' 
-                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                        : 'bg-blue-100 text-[#1A73E8] hover:bg-blue-200'
                     }`}
                 >
                     {isExpanded ? <Minus size={16} /> : <Plus size={16} />}
@@ -132,9 +232,9 @@ const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden
 
 const AudioBlockItem: React.FC<{ url: string; name: string }> = ({ url, name }) => {
     return (
-        <div className="flex items-center p-3 bg-indigo-50 rounded-xl border border-indigo-100 mb-3">
-            <div className="bg-indigo-600 p-2 rounded-full text-white mr-3 shadow-sm"><Volume2 size={20} /></div>
-            <div className="flex-grow min-w-0 mr-3"><p className="text-sm font-bold text-indigo-900 truncate">{name}</p></div>
+        <div className="flex items-center p-3 bg-blue-50 rounded-xl border border-blue-100 mb-3">
+            <div className="bg-[#1A73E8] p-2 rounded-full text-white mr-3 shadow-sm"><Volume2 size={20} /></div>
+            <div className="flex-grow min-w-0 mr-3"><p className="text-sm font-bold text-gray-700 truncate">{name}</p></div>
             <audio controls className="h-8 w-32 md:w-64" controlsList="nodownload"><source src={url} /></audio>
         </div>
     );
@@ -153,7 +253,7 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
     const handleSpeak = (text: string, e: React.MouseEvent) => {
         e.stopPropagation(); 
         if (!window.speechSynthesis) {
-            alert("Trình duyệt của bạn không hỗ trợ phát âm.");
+            alert("Trình duyệt của bạn không hềEtrợ phát âm.");
             return;
         }
         window.speechSynthesis.cancel();
@@ -171,10 +271,10 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
                 className="flex items-center justify-between p-3 bg-blue-500 cursor-pointer hover:bg-blue-300 transition border-b border-slate-200 select-none"
             >
                 <div className="flex items-center">
-                    <div className="bg-white p-1.5 rounded-lg border border-slate-200 mr-3 shadow-sm text-indigo-600">
+                    <div className="bg-white p-1.5 rounded-lg border border-slate-200 mr-3 shadow-sm text-[#1A73E8]">
                         <Languages size={18} />
                     </div>
-                    <span className="text-xs font-black text-slate-700 uppercase tracking-widest">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                         {title || `Vocabulary (${vocabularies.length})`}
                     </span>
                     {!isExpanded && <span className="ml-2 text-[10px] text-gray-400 italic">({vocabularies.length} words)</span>}
@@ -184,7 +284,7 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
                     className={`ml-3 p-1.5 rounded-full transition ${
                         isExpanded 
                         ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' 
-                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                        : 'bg-blue-100 text-[#1A73E8] hover:bg-blue-200'
                     }`}
                 >
                     {isExpanded ? <ChevronUp size={16} /> : <Plus size={16} />}
@@ -206,10 +306,10 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
                                 <tr key={vocab.id} className="hover:bg-gray-50 transition-colors group">
                                     <td className="p-3 align-top min-w-[150px]">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-sm font-bold text-indigo-700">{vocab.word}</span>
+                                            <span className="text-sm font-bold text-[#1A73E8]">{vocab.word}</span>
                                             <button 
                                                 onClick={(e) => handleSpeak(vocab.word, e)}
-                                                className="p-1 rounded-full text-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                                                className="p-1 rounded-full text-blue-300 hover:text-[#1A73E8] hover:bg-blue-50 transition"
                                                 title="Phát âm"
                                             >
                                                 <Volume2 size={14} />
@@ -223,12 +323,12 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
                                         <div className="space-y-1">
                                             {(showVi || !vocab.meaningJa) && vocab.meaningVi && (
                                                 <div className="text-sm text-gray-800">
-                                                    <span className="mr-1 text-xs opacity-50">🇻🇳</span> {vocab.meaningVi}
+                                                    <span className="mr-1 text-xs opacity-50">�E�E</span> {vocab.meaningVi}
                                                 </div>
                                             )}
                                             {(showJa || !vocab.meaningVi) && vocab.meaningJa && (
                                                 <div className="text-sm text-gray-600">
-                                                    <span className="mr-1 text-xs opacity-50">🇯🇵</span> {vocab.meaningJa}
+                                                    <span className="mr-1 text-xs opacity-50">�E�E</span> {vocab.meaningJa}
                                                 </div>
                                             )}
                                         </div>
@@ -266,7 +366,7 @@ const GrammarSection: React.FC<{ grammars: BlockGrammar[]; title?: string }> = (
                     <div className="bg-white p-1.5 rounded-lg border border-orange-200 mr-3 shadow-sm text-orange-600">
                         <BookOpen size={18} />
                     </div>
-                    <span className="text-xs font-black text-slate-700 uppercase tracking-widest">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                         {title || 'Grammar'}
                     </span>
                     {!isExpanded && <span className="ml-2 text-[10px] text-gray-400 italic">({grammars.length} explain)</span>}
@@ -296,18 +396,18 @@ const GrammarSection: React.FC<{ grammars: BlockGrammar[]; title?: string }> = (
                         <tbody className="text-sm text-slate-700 divide-y divide-orange-50">
                             {grammars.map((grammar) => (
                                 <tr key={grammar.id} className="hover:bg-orange-50/30 transition-colors">
-                                    <td className="p-3 align-top font-bold text-indigo-900">
+                                    <td className="p-3 align-top font-bold text-gray-700">
                                         {grammar.usage}
                                     </td>
                                     <td className="p-3 align-top">
                                         {(showVi || !grammar.explanationJa) && grammar.explanationVi && (
                                             <div className="mb-1 text-slate-800">
-                                                <span className="mr-1 text-[10px] opacity-50">🇻🇳</span> {grammar.explanationVi}
+                                                <span className="mr-1 text-[10px] opacity-50">�E�E</span> {grammar.explanationVi}
                                             </div>
                                         )}
                                         {(showJa || !grammar.explanationVi) && grammar.explanationJa && (
                                             <div className="text-xs text-slate-500">
-                                                <span className="mr-1 text-[10px] opacity-50">🇯🇵</span> {grammar.explanationJa}
+                                                <span className="mr-1 text-[10px] opacity-50">�E�E</span> {grammar.explanationJa}
                                             </div>
                                         )}
                                     </td>
@@ -366,13 +466,13 @@ const QuizView: React.FC<{ data: string; title: string; onComplete?: () => void 
         return (
             <div className="w-full h-full bg-white p-6 md:p-10 flex flex-col items-center justify-center overflow-y-auto">
                 <div className="w-full max-w-lg text-center space-y-6">
-                    <div className="mb-4 inline-block p-4 bg-indigo-50 rounded-full">{percentage >= 80 ? <CheckCircle2 size={64} className="text-green-500" /> : <AlertCircle size={64} className="text-orange-500" />}</div>
-                    <h2 className="text-3xl font-black text-gray-800 uppercase">{t('detail.quiz.result')}</h2>
+                    <div className="mb-4 inline-block p-4 bg-blue-50 rounded-full">{percentage >= 80 ? <CheckCircle2 size={64} className="text-green-500" /> : <AlertCircle size={64} className="text-orange-500" />}</div>
+                    <h2 className="text-3xl font-bold text-gray-800 uppercase">{t('detail.quiz.result')}</h2>
                     <div className="py-6 border-y border-gray-100">
-                        <div className="text-6xl font-black text-indigo-600 mb-2">{score}/{questions.length}</div>
+                        <div className="text-6xl font-bold text-[#1A73E8] mb-2">{score}/{questions.length}</div>
                         <p className="text-gray-500 font-medium">{t('detail.quiz.correct_count', { percent: percentage })}</p>
                     </div>
-                    <button onClick={() => { setSelectedAnswers({}); setShowResult(false); setCurrentQIndex(0); setScore(0); }} className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold uppercase hover:bg-indigo-700 flex items-center justify-center">
+                    <button onClick={() => { setSelectedAnswers({}); setShowResult(false); setCurrentQIndex(0); setScore(0); }} className="w-full py-4 bg-[#1A73E8] text-white rounded-xl font-bold uppercase hover:bg-blue-700 flex items-center justify-center">
                         <RefreshCcw size={20} className="mr-2"/> {t('detail.quiz.retry')}
                     </button>
                 </div>
@@ -394,8 +494,8 @@ const QuizView: React.FC<{ data: string; title: string; onComplete?: () => void 
                         {currentQ.answers.map((ans, idx) => {
                             const isSelected = selectedAnswers[currentQIndex] === idx;
                             return (
-                                <button key={idx} onClick={() => handleSelect(idx)} className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center group ${isSelected ? 'border-indigo-600 bg-indigo-50 text-indigo-900' : 'border-gray-100 hover:border-indigo-200 hover:bg-gray-50'}`}>
-                                    <div className={`w-6 h-6 rounded-full border-2 mr-4 flex items-center justify-center ${isSelected ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'}`}>{isSelected && <div className="w-2.5 h-2.5 bg-white rounded-full" />}</div>
+                                <button key={idx} onClick={() => handleSelect(idx)} className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center group ${isSelected ? 'border-[#1A73E8] bg-blue-50 text-gray-700' : 'border-gray-100 hover:border-blue-200 hover:bg-gray-50'}`}>
+                                    <div className={`w-6 h-6 rounded-full border-2 mr-4 flex items-center justify-center ${isSelected ? 'border-[#1A73E8] bg-[#1A73E8]' : 'border-gray-300'}`}>{isSelected && <div className="w-2.5 h-2.5 bg-white rounded-full" />}</div>
                                     <span className="text-base font-medium">{ans}</span>
                                 </button>
                             );
@@ -406,7 +506,7 @@ const QuizView: React.FC<{ data: string; title: string; onComplete?: () => void 
             <div className="p-4 border-t border-gray-100 bg-white flex justify-between items-center flex-shrink-0">
                 <button onClick={() => setCurrentQIndex(prev => Math.max(0, prev - 1))} disabled={currentQIndex === 0} className="px-4 py-2 text-gray-500 font-bold disabled:opacity-30 hover:bg-gray-100 rounded-lg">{t('detail.quiz.prev')}</button>
                 {currentQIndex === questions.length - 1 ? (
-                    <button onClick={handleSubmit} disabled={Object.keys(selectedAnswers).length !== questions.length} className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:bg-gray-300 flex items-center"><Check size={18} className="mr-2"/> {t('detail.quiz.submit')}</button>
+                    <button onClick={handleSubmit} disabled={Object.keys(selectedAnswers).length !== questions.length} className="px-6 py-2 bg-[#1A73E8] text-white rounded-lg font-bold hover:bg-blue-700 disabled:bg-gray-300 flex items-center"><Check size={18} className="mr-2"/> {t('detail.quiz.submit')}</button>
                 ) : (
                     <button onClick={() => setCurrentQIndex(prev => Math.min(questions.length - 1, prev + 1))} className="px-6 py-2 bg-gray-900 text-white rounded-lg font-bold hover:bg-gray-800 flex items-center">{t('detail.quiz.next')} <ChevronRight size={18} className="ml-1"/></button>
                 )}
@@ -507,11 +607,11 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 
                 // Khởi tạo trạng thái ban đầu nếu chưa có
                 if (prev[session.id] === undefined) {
-                    // Mặc định: Mở nếu có video đang chọn HOẶC chưa hoàn thành hết. Đóng nếu đã xong hết.
+                    // Mặc định: MềEnếu có video đang chọn HOẶC chưa hoàn thành hết. Đóng nếu đã xong hết.
                     newState[session.id] = hasSelectedVideo ? true : !isAllCompleted;
                     hasChanges = true;
                 } else if (hasSelectedVideo && !prev[session.id]) {
-                    // Luôn tự động mở session chứa video đang được chọn nếu nó đang bị đóng
+                    // Luôn tự động mềEsession chứa video đang được chọn nếu nó đang bềEđóng
                     newState[session.id] = true;
                     hasChanges = true;
                 }
@@ -529,7 +629,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
     };
 
     const renderContent = () => {
-        if (!selectedVideo) return <div className="w-full h-full flex flex-col items-center justify-center text-white/50 p-8 text-center bg-gray-900"><PlayCircle size={48} className="mb-4 opacity-20" /><p className="font-bold uppercase text-xs tracking-widest">{t('detail.select_lesson_msg')}</p></div>;
+        if (!selectedVideo) return <div className="w-full h-full flex flex-col items-center justify-center text-white/50 p-8 text-center bg-gray-900"><PlayCircle size={48} className="mb-4 opacity-20" /><p className="font-bold uppercase text-xs tracking-wide">{t('detail.select_lesson_msg')}</p></div>;
 
         if (selectedVideo.type === 'quiz') {
             return <QuizView data={selectedVideo.quizData || '[]'} title={selectedVideo.title} onComplete={() => !completedVideoIds.includes(selectedVideo.id) && handleMarkComplete(selectedVideo.id, true)}/>;
@@ -539,11 +639,11 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             const blocks = selectedVideo.blockData || [];
             return (
                 <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
-                    {/* [CHANGED] max-w-4xl -> max-w-5xl để rộng hơn */}
+                    {/* [CHANGED] max-w-4xl -> max-w-5xl đềErộng hơn */}
                     <div className="max-w-5xl mx-auto pb-16">
                         <div className="border-b border-gray-100 pb-6 mb-8">
-                            <h2 className="text-3xl font-black text-gray-900 mb-2 flex items-center">
-                                <LayoutTemplate className="mr-3 text-purple-600" size={32}/> {selectedVideo.title}
+                            <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
+                                <LayoutTemplate className="mr-3 text-[#1A73E8]" size={32}/> {selectedVideo.title}
                             </h2>
                             <p className="text-gray-500 font-medium text-sm">{t('detail.interactive_lesson')}</p>
                         </div>
@@ -551,7 +651,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                             {blocks.length === 0 && <p className="text-gray-400 italic text-center">{t('detail.content_updating')}</p>}
                             {blocks.map((block) => (
                                 <div key={block.id} className="animate-in fade-in duration-500">
-                                    {block.description && <div className="prose prose-purple prose-lg max-w-none text-gray-700 mb-6"><ReactMarkdown>{block.description}</ReactMarkdown></div>}
+                                    {block.description && <div className="mb-6"><MarkdownContent content={block.description} /></div>}
                                     
                                     {/* Render Videos */}
                                     {block.videos && block.videos.length > 0 && (
@@ -598,7 +698,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                 </div>
                             ))}
                         </div>
-                        <div className="mt-16 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
+                        <div className="mt-16 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-[#1A73E8] text-white hover:bg-blue-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
                     </div>
                 </div>
             );
@@ -608,10 +708,10 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             return (
                 <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
                     <div className="max-w-3xl mx-auto pb-10">
-                        <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-black text-gray-900 mb-2 flex items-center"><Headphones className="mr-3 text-purple-600" size={32}/> {selectedVideo.title}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.audio_lesson')}</p></div>
+                        <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><Headphones className="mr-3 text-[#1A73E8]" size={32}/> {selectedVideo.title}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.audio_lesson')}</p></div>
                         <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8 flex flex-col items-center justify-center"><div className="w-full max-w-md"><audio controls className="w-full" controlsList="nodownload"><source src={selectedVideo.audioUrl} type="audio/mpeg" /></audio></div></div>
-                        {selectedVideo.content && <div className="prose prose-lg prose-indigo max-w-none text-gray-700 leading-relaxed"><h3 className="text-lg font-bold uppercase text-gray-400 text-xs tracking-widest mb-4">Nội dung chi tiết</h3><ReactMarkdown>{selectedVideo.content}</ReactMarkdown></div>}
-                        <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
+                        {selectedVideo.content && <div className="mb-6"><h3 className="font-bold uppercase text-gray-400 text-xs tracking-wide mb-4">Nội dung chi tiết</h3><MarkdownContent content={selectedVideo.content} /></div>}
+                        <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-[#1A73E8] text-white hover:bg-blue-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
                     </div>
                 </div>
             );
@@ -621,9 +721,9 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             return (
                 <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
                     <div className="max-w-3xl mx-auto pb-10">
-                        <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-black text-gray-900 mb-2 flex items-center"><FileText className="mr-3 text-indigo-600" size={32}/> {selectedVideo.title}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.theory_lesson')}</p></div>
-                        <div className="prose prose-lg prose-indigo max-w-none text-gray-700 leading-relaxed"><ReactMarkdown>{selectedVideo.content || t('detail.content_updating')}</ReactMarkdown></div>
-                        <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
+                        <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><FileText className="mr-3 text-[#1A73E8]" size={32}/> {selectedVideo.title}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.theory_lesson')}</p></div>
+                        <MarkdownContent content={selectedVideo.content || t('detail.content_updating')} />
+                        <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-[#1A73E8] text-white hover:bg-blue-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
                     </div>
                 </div>
             );
@@ -632,7 +732,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         return <iframe src={selectedVideo.videoUrl} title={selectedVideo.title} className="w-full h-full" allowFullScreen key={selectedVideo.id} />;
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>;
+    if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-[#1A73E8]" size={40} /></div>;
 
     const isVideoType = !selectedVideo || !selectedVideo.type || selectedVideo.type === 'video';
     const contentContainerClass = isVideoType ? "aspect-video bg-gray-900" : "h-[600px] bg-white border-b lg:border-none"; 
@@ -641,17 +741,17 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         <div className="min-h-screen bg-white flex flex-col font-sans">
             <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <button onClick={() => onNavigate(user && isEnrolled ? 'home' : 'landing')} className="flex items-center text-gray-500 font-bold hover:text-indigo-600 transition text-sm uppercase tracking-tighter"><ChevronLeft size={18} className="mr-1"/> {t('detail.back')}</button>
+                    <button onClick={() => onNavigate(user && isEnrolled ? 'home' : 'landing')} className="flex items-center text-gray-500 font-bold hover:text-[#1A73E8] transition text-sm uppercase tracking-tight"><ChevronLeft size={18} className="mr-1"/> {t('detail.back')}</button>
                     
                     <div className="flex items-center gap-3">
                         <LanguageSwitcher />
 
-                        {isEnrolled && <div className="flex items-center space-x-3 bg-indigo-50 p-2 px-4 rounded-full border border-indigo-100"><div className="bg-gray-200 rounded-full h-1.5 w-24 overflow-hidden"><div className="bg-green-500 h-full transition-all duration-700" style={{ width: `${progressPercentage}%` }} /></div><span className="text-[10px] font-black text-indigo-700 uppercase">{t('detail.completed_percent', { percent: progressPercentage })}</span></div>}
+                        {isEnrolled && <div className="flex items-center space-x-3 bg-blue-50 p-2 px-4 rounded-full border border-blue-100"><div className="bg-gray-200 rounded-full h-1.5 w-24 overflow-hidden"><div className="bg-green-500 h-full transition-all duration-700" style={{ width: `${progressPercentage}%` }} /></div><span className="text-[10px] font-bold text-[#1A73E8] uppercase">{t('detail.completed_percent', { percent: progressPercentage })}</span></div>}
                         
                         {/* Button Menu (Roadmap Toggle) */}
                         <button 
                             onClick={() => setShowRoadmap(true)}
-                            className="p-2 rounded-lg bg-gray-100 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 transition border border-gray-200"
+                            className="p-2 rounded-lg bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-[#1A73E8] transition border border-gray-200"
                             title="Danh sách bài học"
                         >
                             <Menu size={20} />
@@ -664,13 +764,13 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             <main className="flex-grow p-6 md:p-10 max-w-7xl mx-auto w-full flex flex-col gap-10">
                 <div className="w-full space-y-8">
                     {/* Media Container */}
-                    <div className={`rounded-[2.5rem] overflow-hidden shadow-2xl relative border border-gray-100 w-full ${contentContainerClass}`}>
+                    <div className={`rounded-xl overflow-hidden shadow-lg relative border border-gray-100 w-full ${contentContainerClass}`}>
                         {!isEnrolled ? (
                             <div className="w-full h-full relative bg-gray-900">
                                 <img src={course?.imageUrl} className="w-full h-full object-cover opacity-20 blur-sm" alt="guest-view" />
                                 <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center space-y-6">
-                                    <div className="bg-white/10 backdrop-blur-md p-6 rounded-[2rem] border border-white/20"><Lock size={40} className="text-white" /></div>
-                                    <div className="max-w-sm"><h3 className="text-white text-2xl font-black mb-2 uppercase tracking-tight">{t('detail.locked_title')}</h3><p className="text-gray-300 text-sm mb-8 font-medium">{t('detail.locked_desc')}</p><button onClick={() => user ? setShowContactModal(true) : onNavigate('login')} className="bg-indigo-600 text-white w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition">{user ? t('detail.contact_admin_btn') : t('detail.login_register_btn')}</button></div>
+                                    <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20"><Lock size={40} className="text-white" /></div>
+                                    <div className="max-w-sm"><h3 className="text-white text-2xl font-bold mb-2 uppercase tracking-tight">{t('detail.locked_title')}</h3><p className="text-gray-300 text-sm mb-8 font-medium">{t('detail.locked_desc')}</p><button onClick={() => user ? setShowContactModal(true) : onNavigate('login')} className="bg-[#1A73E8] text-white w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-wide shadow-lg hover:bg-blue-700 transition">{user ? t('detail.contact_admin_btn') : t('detail.login_register_btn')}</button></div>
                                 </div>
                             </div>
                         ) : renderContent()}
@@ -678,13 +778,13 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 
                     {/* Meta Info Below Video */}
                     <div className="space-y-4 max-w-5xl mx-auto">
-                        <div className="flex items-center space-x-2"><div className="h-8 w-1.5 bg-indigo-600 rounded-full"></div><h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter leading-tight">{tr_h(selectedVideo?.title) || tr_h(course?.title)}</h2></div>
+                        <div className="flex items-center space-x-2"><div className="h-8 w-1.5 bg-[#1A73E8] rounded-full"></div><h2 className="text-3xl font-bold text-gray-900 uppercase tracking-tight leading-tight">{tr_h(selectedVideo?.title) || tr_h(course?.title)}</h2></div>
                         <div className="flex items-center space-x-4">
-                             {selectedVideo && completedVideoIds.includes(selectedVideo.id) && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center"><CheckCircle2 size={12} className="mr-1" /> {t('detail.completed')}</span>}
-                             <span className="text-gray-400 text-xs font-bold uppercase tracking-widest">{t('detail.lesson_counter', { current: videos.findIndex(v => v.id === selectedVideo?.id) + 1, total: videos.length })}</span>
-                             {selectedVideo?.type && selectedVideo.type !== 'video' && <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded text-white ${selectedVideo.type === 'quiz' ? 'bg-orange-400' : selectedVideo.type === 'text' ? 'bg-blue-400' : selectedVideo.type === 'audio' ? 'bg-purple-400' : 'bg-pink-400'}`}>{selectedVideo.type === 'custom' ? 'Interactive' : selectedVideo.type}</span>}
+                             {selectedVideo && completedVideoIds.includes(selectedVideo.id) && <span className="bg-green-100 text-green-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide flex items-center"><CheckCircle2 size={12} className="mr-1" /> {t('detail.completed')}</span>}
+                             <span className="text-gray-400 text-xs font-bold uppercase tracking-wide">{t('detail.lesson_counter', { current: videos.findIndex(v => v.id === selectedVideo?.id) + 1, total: videos.length })}</span>
+                             {selectedVideo?.type && selectedVideo.type !== 'video' && <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded text-white ${selectedVideo.type === 'quiz' ? 'bg-orange-400' : selectedVideo.type === 'text' ? 'bg-blue-400' : selectedVideo.type === 'audio' ? 'bg-amber-400' : 'bg-pink-400'}`}>{selectedVideo.type === 'custom' ? 'Interactive' : selectedVideo.type}</span>}
                         </div>
-                        <div className="prose prose-indigo prose-lg text-gray-500 font-medium pt-2 max-w-none"><ReactMarkdown>{tr_h(course?.description) || ""}</ReactMarkdown></div>
+                        <div className="pt-2"><MarkdownContent content={tr_h(course?.description) || ""} /></div>
                     </div>
                 </div>
             </main>
@@ -693,10 +793,10 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             {showRoadmap && (
                 <div className="fixed inset-0 z-50 flex justify-end">
                     <div className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-in fade-in" onClick={() => setShowRoadmap(false)}></div>
-                    <div className="relative w-full max-w-md bg-white shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300">
+                    <div className="relative w-full max-w-md bg-white shadow-lg h-full flex flex-col animate-in slide-in-from-right duration-300">
                         <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between flex-shrink-0">
-                            <h3 className="font-black text-gray-800 text-[10px] uppercase tracking-widest flex items-center">
-                                <List size={16} className="mr-2 text-indigo-600"/> {t('detail.roadmap')}
+                            <h3 className="font-bold text-gray-800 text-[10px] uppercase tracking-wide flex items-center">
+                                <List size={16} className="mr-2 text-[#1A73E8]"/> {t('detail.roadmap')}
                             </h3>
                             <button onClick={() => setShowRoadmap(false)} className="p-1 hover:bg-gray-200 rounded-full text-gray-500">
                                 <X size={20} />
@@ -705,7 +805,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                         
                         <div className="overflow-y-auto flex-grow p-4 space-y-2 custom-scrollbar bg-white">
                             <div className="mb-4 text-center">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">{videos.length} {t('landing.lessons')}</span>
+                                <span className="text-[10px] font-bold text-gray-400 uppercase">{videos.length} {t('landing.lessons')}</span>
                             </div>
                             {sessions.length > 0 ? (
                                 sessions.map(session => {
@@ -717,16 +817,16 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 
                                     return (
                                         <div key={session.id} className="mb-4">
-                                            {/* SỬA LẠI UI TITLE ĐỂ BẤM ĐƯỢC */}
+                                            {/* SỬA LẠI UI TITLE ĐềEBẤM ĐƯỢC */}
                                             <div 
                                                 onClick={() => toggleSession(session.id)}
-                                                className="px-3 py-2 text-xs font-black uppercase text-gray-500 tracking-widest border-b border-gray-100 mb-2 flex justify-between items-center cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition-colors rounded-lg select-none"
+                                                className="px-3 py-2 text-xs font-bold uppercase text-gray-500 tracking-wide border-b border-gray-100 mb-2 flex justify-between items-center cursor-pointer hover:bg-blue-50 hover:text-[#1A73E8] transition-colors rounded-lg select-none"
                                             >
                                                 <span>{session.title}</span>
                                                 {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                             </div>
                                             
-                                            {/* ẨN/HIỆN DANH SÁCH BÀI HỌC */}
+                                            {/* ẨN/HIềE DANH SÁCH BÀI HỌC */}
                                             {isExpanded && (
                                                 <div className="animate-in fade-in slide-in-from-top-1 duration-200">
                                                     {sessionVideos.map(video => {
@@ -744,17 +844,17 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                                                     }
                                                                 }}
                                                                 className={`group p-3 rounded-lg flex items-center justify-between transition-all border-l-4 mb-2 ${
-                                                                    isActive ? 'bg-indigo-50 border-indigo-600' : 
+                                                                    isActive ? 'bg-blue-50 border-[#1A73E8]' : 
                                                                     isLocked ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' : 'hover:bg-gray-50 border-transparent cursor-pointer'
                                                                 }`}
                                                             >
                                                                 <div className="flex items-center space-x-3 overflow-hidden">
                                                                     <div onClick={(e) => { if (isLocked) return; handleToggleIcon(video.id, e); }} className={isLocked ? "pointer-events-none" : "cursor-pointer"}>
-                                                                        {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-indigo-400 flex-shrink-0" />}
+                                                                        {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-blue-400 flex-shrink-0" />}
                                                                     </div>
-                                                                    <span className={`text-sm truncate ${isActive ? 'font-bold text-indigo-900' : 'text-gray-700'}`}>{video.title}</span>
+                                                                    <span className={`text-sm truncate ${isActive ? 'font-bold text-gray-700' : 'text-gray-700'}`}>{video.title}</span>
                                                                 </div>
-                                                                {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-indigo-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
+                                                                {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-blue-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-blue-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
                                                             </div>
                                                         );
                                                     })}
@@ -779,17 +879,17 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                                 }
                                             }}
                                             className={`group p-3 rounded-lg flex items-center justify-between transition-all border-l-4 ${
-                                                isActive ? 'bg-indigo-50 border-indigo-600' : 
+                                                isActive ? 'bg-blue-50 border-[#1A73E8]' : 
                                                 isLocked ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60' : 'hover:bg-gray-50 border-transparent cursor-pointer'
                                             }`}
                                         >
                                             <div className="flex items-center space-x-3 overflow-hidden">
                                                 <div onClick={(e) => { if (isLocked) return; handleToggleIcon(video.id, e); }} className={isLocked ? "pointer-events-none" : "cursor-pointer"}>
-                                                    {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-indigo-400 flex-shrink-0" />}
+                                                    {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-blue-400 flex-shrink-0" />}
                                                 </div>
-                                                <span className={`text-sm truncate ${isActive ? 'font-bold text-indigo-900' : 'text-gray-700'}`}>{video.title}</span>
+                                                <span className={`text-sm truncate ${isActive ? 'font-bold text-gray-700' : 'text-gray-700'}`}>{video.title}</span>
                                             </div>
-                                            {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-purple-600' : 'text-purple-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-indigo-600' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
+                                            {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-blue-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-blue-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
                                         </div>
                                     );
                                 })
@@ -801,21 +901,21 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 
             {showContactModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100">
-                        <div className="bg-indigo-600 p-8 text-white relative">
+                    <div className="bg-white w-full max-w-md rounded-xl shadow-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-100">
+                        <div className="bg-[#1A73E8] p-8 text-white relative">
                             <button onClick={() => setShowContactModal(false)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition"><X size={20} /></button>
-                            <h3 className="text-2xl font-black uppercase tracking-tight mb-2">{t('detail.register_modal_title')}</h3>
-                            <p className="text-indigo-100 text-sm italic leading-relaxed">{t('detail.register_modal_desc')}</p>
+                            <h3 className="text-2xl font-bold uppercase tracking-tight mb-2">{t('detail.register_modal_title')}</h3>
+                            <p className="text-blue-100 text-sm italic leading-relaxed">{t('detail.register_modal_desc')}</p>
                         </div>
                         <div className="p-8 space-y-4">
-                            <a href="tel:0901234567" className="flex items-center p-4 bg-gray-50 rounded-2xl hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100 group"><div className="bg-indigo-600 p-3 rounded-xl text-white mr-4"><Phone size={20} /></div><div><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Hotline / Zalo</p><p className="text-lg font-black text-gray-900">090 123 4567</p></div><ArrowRight className="ml-auto text-gray-300 group-hover:text-indigo-600 transition-transform" size={20} /></a>
-                            <a href="https://t.me/admin_id" target="_blank" className="flex items-center p-4 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors border border-transparent hover:border-blue-100 group"><div className="bg-blue-500 p-3 rounded-xl text-white mr-4"><MessageCircle size={20} /></div><div><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Telegram</p><p className="text-lg font-black text-gray-900">@admin_videohub</p></div><ArrowRight className="ml-auto text-gray-300 group-hover:text-blue-500 transition-transform" size={20} /></a>
-                            <button onClick={() => setShowContactModal(false)} className="w-full py-4 mt-4 bg-gray-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest">{t('detail.close')}</button>
+                            <a href="tel:0901234567" className="flex items-center p-4 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors border border-transparent hover:border-blue-100 group"><div className="bg-[#1A73E8] p-3 rounded-xl text-white mr-4"><Phone size={20} /></div><div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Hotline / Zalo</p><p className="text-lg font-bold text-gray-900">090 123 4567</p></div><ArrowRight className="ml-auto text-gray-300 group-hover:text-[#1A73E8] transition-transform" size={20} /></a>
+                            <a href="https://t.me/admin_id" target="_blank" className="flex items-center p-4 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors border border-transparent hover:border-blue-100 group"><div className="bg-blue-500 p-3 rounded-xl text-white mr-4"><MessageCircle size={20} /></div><div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Telegram</p><p className="text-lg font-bold text-gray-900">@admin_videohub</p></div><ArrowRight className="ml-auto text-gray-300 group-hover:text-blue-500 transition-transform" size={20} /></a>
+                            <button onClick={() => setShowContactModal(false)} className="w-full py-4 mt-4 bg-gray-900 text-white rounded-2xl font-bold uppercase text-xs tracking-wide">{t('detail.close')}</button>
                         </div>
                     </div>
                 </div>
             )}
-            <footer className="py-12 border-t border-gray-100 text-center text-gray-400 text-[10px] font-black uppercase tracking-widest">
+            <footer className="py-12 border-t border-gray-100 text-center text-gray-400 text-[10px] font-bold uppercase tracking-wide">
                 <p>© 2025 {t('footer.slogan')}</p>
             </footer>
         </div>

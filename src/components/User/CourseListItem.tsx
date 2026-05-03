@@ -10,34 +10,30 @@ interface CourseListItemProps {
 const CourseListItem: React.FC<CourseListItemProps> = ({ course, onViewCourse }) => {
     return (
         <div 
-            className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer border-t-4 border-indigo-500"
+            className="argon-card cursor-pointer"
             onClick={() => onViewCourse(course)}
         >
             <div className="p-6">
-                {/* Tiêu đề Khóa học */}
-                <h3 className="text-xl font-bold text-gray-800 mb-2 truncate" title={tr_h(course.title)}>
-                    <BookOpen className="inline h-5 w-5 text-indigo-600 mr-2" />
+                <h3 className="text-lg font-bold text-gray-700 mb-2 truncate" title={tr_h(course.title)}>
+                    <BookOpen className="inline h-5 w-5 text-[#1A73E8] mr-2" />
                     {tr_h(course.title)}
                 </h3>
                 
-                {/* Mô tả ngắn */}
                 <p className="text-gray-600 mb-4 line-clamp-2">
                     {tr_h(course.description)}
                 </p>
 
-                <div className="flex items-center justify-between border-t pt-4">
-                    {/* Số lượng Video */}
-                    <div className="flex items-center text-sm font-semibold text-indigo-700">
+                <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+                    <div className="flex items-center text-sm font-semibold text-[#1A73E8]">
                         <Video className="h-4 w-4 mr-1" />
                         {course.videoCount} bài học
                     </div>
 
-                    {/* Nút Xem chi tiết */}
                     <button
-                        className="py-1 px-4 text-sm font-semibold rounded-full bg-indigo-500 text-white hover:bg-indigo-600 transition duration-150 shadow-md"
+                        className="argon-button-gradient py-1 px-4 text-sm"
                         aria-label={`Xem chi tiết khóa học ${course.title}`}
                         onClick={(e) => {
-                            e.stopPropagation(); // Ngăn chặn sự kiện click lan truyền lên div cha
+                            e.stopPropagation();
                             onViewCourse(course);
                         }}
                     >

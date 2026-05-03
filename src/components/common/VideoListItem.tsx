@@ -79,15 +79,15 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
     const renderTypeIcon = () => {
         if (video.type === 'quiz') return <HelpCircle className="flex-shrink-0 h-8 w-8 text-orange-500 ml-4 hover:text-orange-600 transition" />;
         if (video.type === 'text') return <FileText className="flex-shrink-0 h-8 w-8 text-green-500 ml-4 hover:text-green-600 transition" />;
-        if (video.type === 'audio') return <Headphones className="flex-shrink-0 h-8 w-8 text-purple-500 ml-4 hover:text-purple-600 transition" />;
+        if (video.type === 'audio') return <Headphones className="flex-shrink-0 h-8 w-8 text-amber-500 ml-4 hover:text-amber-600 transition" />;
         if (video.type === 'custom') return <LayoutTemplate className="flex-shrink-0 h-8 w-8 text-pink-500 ml-4 hover:text-pink-600 transition" />;
-        return <PlayCircle className="flex-shrink-0 h-8 w-8 text-indigo-500 ml-4 hover:text-indigo-600 transition" />;
+        return <PlayCircle className="flex-shrink-0 h-8 w-8 text-[#1A73E8] ml-4 hover:text-blue-700 transition" />;
     };
 
     if (isEditing) {
         return (
-            <div className={`flex items-center p-4 bg-indigo-50 border-2 border-indigo-400 rounded-xl shadow-lg transition duration-300 ${className}`}>
-                <div className="flex-shrink-0 w-8 text-lg font-bold text-indigo-600 mr-4 text-center">
+            <div className={`flex items-center p-4 bg-blue-50 border-2 border-[#1A73E8] rounded-xl shadow-lg transition duration-300 ${className}`}>
+                <div className="flex-shrink-0 w-8 text-lg font-bold text-[#1A73E8] mr-4 text-center">
                     #{index + 1}
                 </div>
                 
@@ -98,7 +98,7 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
                         value={newTitle}
                         onChange={(e) => setNewTitle(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="flex-grow p-2 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition disabled:bg-gray-100"
+                        className="argon-input flex-grow p-2 disabled:bg-gray-100"
                         disabled={loading}
                     />
                     
@@ -112,9 +112,9 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
     return (
         <div 
             onClick={handleViewClick}
-            className={`flex items-center p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition duration-300 cursor-pointer border border-gray-100 hover:border-indigo-400 ${className}`}
+            className={`flex items-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition duration-300 cursor-pointer border border-gray-200 hover:border-[#1A73E8] ${className}`}
         >
-            <div className="flex-shrink-0 w-8 text-lg font-bold text-indigo-600 mr-4 text-center">
+            <div className="flex-shrink-0 w-8 text-lg font-bold text-[#1A73E8] mr-4 text-center">
                 #{index + 1}
             </div>
             <div className="flex-grow overflow-hidden">
@@ -123,17 +123,17 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
                         <span className={`flex-shrink-0 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded text-white ${
                             video.type === 'quiz' ? 'bg-orange-400' : 
                             video.type === 'text' ? 'bg-green-400' :
-                            video.type === 'audio' ? 'bg-purple-400' :
+                            video.type === 'audio' ? 'bg-amber-400' :
                             'bg-pink-400'
                         }`}>
                             {video.type === 'custom' ? 'Interactive' : video.type}
                         </span>
                     )}
-                    <p className="text-gray-800 font-semibold truncate hover:text-indigo-600">{video.title}</p>
+                    <p className="text-gray-800 font-semibold truncate hover:text-[#1A73E8]">{video.title}</p>
                 </div>
                 
                 <div className="text-xs text-gray-500 mt-1 flex items-center space-x-2">
-                    <Bookmark size={14} className="text-indigo-400"/>
+                    <Bookmark size={14} className="text-[#1A73E8]"/>
                     <span className="font-medium truncate">
                         ID: {video.sessionId}
                     </span>
@@ -141,7 +141,7 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
             </div>
 
             <div className="flex space-x-2 ml-4 flex-shrink-0">
-                <button onClick={startEdit} className="p-2 text-indigo-500 hover:bg-indigo-100 rounded-full transition"><Edit2 size={18} /></button>
+                <button onClick={startEdit} className="p-2 text-[#1A73E8] hover:bg-blue-50 rounded-full transition"><Edit2 size={18} /></button>
                 <button onClick={handleDeleteClick} className="p-2 text-red-500 hover:bg-red-100 rounded-full transition"><Trash2 size={18} /></button>
             </div>
             

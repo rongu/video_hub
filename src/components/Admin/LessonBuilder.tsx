@@ -19,7 +19,7 @@ interface LessonBuilderProps {
     onChange: (blocks: LessonBlock[]) => void;
 }
 
-// Định nghĩa chữ ký dữ liệu để đảm bảo paste đúng format
+// Định nghĩa chữ ký dữ liệu đềEđảm bảo paste đúng format
 const CLIPBOARD_TYPES = {
     VOCAB_GROUP: 'VIDEO_HUB_VOCAB_GROUP',
     GRAMMAR_LIST: 'VIDEO_HUB_GRAMMAR_LIST'
@@ -119,12 +119,12 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
             try {
                 parsed = JSON.parse(text);
             } catch (e) {
-                alert("Clipboard không chứa dữ liệu hợp lệ! Hãy nhấn nút Copy ở bảng từ vựng trước.");
+                alert("Clipboard không chứa dữ liệu hợp lềE Hãy nhấn nút Copy ềEbảng từ vựng trước.");
                 return;
             }
 
             if (parsed.type !== CLIPBOARD_TYPES.VOCAB_GROUP) {
-                alert('Dữ liệu trong clipboard không phải là Bảng từ vựng (Có thể bạn đang copy Ngữ pháp?).');
+                alert('Dữ liệu trong clipboard không phải là Bảng từ vựng (Có thềEbạn đang copy Ngữ pháp?).');
                 return;
             }
 
@@ -159,7 +159,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
             try {
                 parsed = JSON.parse(text);
             } catch (e) {
-                alert("Clipboard không chứa dữ liệu hợp lệ! Hãy nhấn nút Copy ở phần Ngữ pháp trước.");
+                alert("Clipboard không chứa dữ liệu hợp lềE Hãy nhấn nút Copy ềEphần Ngữ pháp trước.");
                 return;
             }
 
@@ -423,8 +423,8 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <p className="text-sm text-gray-500 italic">Kéo xuống để xem thêm nội dung.</p>
-                <button type="button" onClick={addBlock} className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-bold text-sm hover:bg-indigo-200 flex items-center">
+                <p className="text-sm text-gray-500 italic">Kéo xuống đềExem thêm nội dung.</p>
+                <button type="button" onClick={addBlock} className="px-4 py-2 bg-blue-100 text-[#1A73E8] rounded-lg font-bold text-sm hover:bg-blue-200 flex items-center">
                     <Plus size={16} className="mr-2"/> Thêm Block nội dung
                 </button>
             </div>
@@ -436,7 +436,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                             <textarea 
                                 value={block.description || ''}
                                 onChange={(e) => updateBlockField(block.id, 'description', e.target.value)}
-                                className="w-full mt-2 bg-transparent text-sm text-gray-600 outline-none resize-none border-b border-dashed border-gray-300 focus:border-indigo-500 py-1"
+                                className="w-full mt-2 bg-transparent text-sm text-gray-600 outline-none resize-none border-b border-dashed border-gray-300 focus:border-[#1A73E8] py-1"
                                 rows={2}
                                 placeholder="Mô tả / Hướng dẫn (Markdown)..."
                             />
@@ -459,7 +459,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                     </div>
                                 ))}
                             </div>
-                            <label className={`cursor-pointer flex items-center justify-center p-2 border border-dashed border-indigo-200 rounded text-indigo-600 text-xs font-bold hover:bg-indigo-50 transition ${uploading ? 'opacity-50' : ''}`}>
+                            <label className={`cursor-pointer flex items-center justify-center p-2 border border-dashed border-blue-200 rounded text-[#1A73E8] text-xs font-bold hover:bg-blue-50 transition ${uploading ? 'opacity-50' : ''}`}>
                                 {uploading ? <Loader2 size={14} className="animate-spin"/> : <UploadCloud size={14} className="mr-1"/>} Upload Audio
                                 <input type="file" accept="audio/*" className="hidden" disabled={uploading} onChange={(e) => e.target.files && handleUpload(e.target.files[0], 'audio', block.id)}/>
                             </label>
@@ -492,7 +492,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                             <img src={img.url} className="w-full h-24 object-contain bg-white" alt="thumb" />
                                         </div>
                                         <div className="flex items-center mt-2 p-1 bg-gray-100 rounded border border-gray-200">
-                                            <input id={`spoiler-${img.id}`} type="checkbox" checked={img.isSpoiler || false} onChange={() => toggleImageSpoiler(block.id, img.id, img.isSpoiler || false)} className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"/>
+                                            <input id={`spoiler-${img.id}`} type="checkbox" checked={img.isSpoiler || false} onChange={() => toggleImageSpoiler(block.id, img.id, img.isSpoiler || false)} className="w-4 h-4 text-[#1A73E8] border-gray-300 rounded focus:ring-[#1A73E8] cursor-pointer"/>
                                             <label htmlFor={`spoiler-${img.id}`} className="ml-2 text-xs font-bold text-gray-700 cursor-pointer select-none">Che ảnh này</label>
                                         </div>
                                         <button type="button" onClick={() => removeSubItem(block.id, 'images', img.id)} className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-md hover:bg-red-600 transition"><X size={12}/></button>
@@ -516,12 +516,12 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                             {/* List of Vocabulary Groups */}
                             <div className="space-y-4">
                                 {block.vocabularyGroups?.map((group) => (
-                                    <div key={group.id} className="border border-indigo-100 rounded-lg p-3 bg-indigo-50/20 relative">
+                                    <div key={group.id} className="border border-blue-100 rounded-lg p-3 bg-blue-50/20 relative">
                                         <div className="flex gap-2 mb-3 items-center">
                                             <input 
                                                 type="text" 
-                                                placeholder="Tiêu đề bảng này (VD: Động từ)..."
-                                                className="flex-grow text-sm font-bold border-b border-indigo-200 bg-transparent focus:border-indigo-500 outline-none text-indigo-900 placeholder-indigo-300"
+                                                placeholder="Tiêu đềEbảng này (VD: Động từ)..."
+                                                className="flex-grow text-sm font-bold border-b border-blue-200 bg-transparent focus:border-[#1A73E8] outline-none text-gray-700 placeholder-blue-300"
                                                 value={group.title || ''}
                                                 onChange={(e) => updateGroupTitle(block.id, group.id, e.target.value)}
                                             />
@@ -529,7 +529,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                             <button 
                                                 type="button" 
                                                 onClick={() => copyToClipboard(group, CLIPBOARD_TYPES.VOCAB_GROUP)} 
-                                                className="text-gray-400 hover:text-indigo-600" 
+                                                className="text-gray-400 hover:text-[#1A73E8]" 
                                                 title="Copy bảng này"
                                             >
                                                 <Copy size={14}/>
@@ -554,12 +554,12 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                                     {group.vocabularies.map((vocab) => (
                                                         <tr key={vocab.id} className="border-b last:border-0 hover:bg-gray-50">
                                                             <td className="p-2 align-top">
-                                                                <div className="font-bold text-indigo-700">{vocab.word}</div>
+                                                                <div className="font-bold text-[#1A73E8]">{vocab.word}</div>
                                                                 <div className="text-gray-400 text-[10px]">/{vocab.ipa}/</div>
                                                             </td>
                                                             <td className="p-2 align-top">
-                                                                <div>🇻🇳 {vocab.meaningVi}</div>
-                                                                <div className="text-gray-500">🇯🇵 {vocab.meaningJa}</div>
+                                                                <div>�E�E {vocab.meaningVi}</div>
+                                                                <div className="text-gray-500">�E�E {vocab.meaningJa}</div>
                                                             </td>
                                                             <td className="p-2 align-top text-gray-500 italic">{vocab.note}</td>
                                                             <td className="p-2 align-top text-center">
@@ -596,7 +596,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                             </div>
                                         ) : (
                                             <div className="flex gap-2">
-                                                <button type="button" onClick={() => addVocabToGroup(block.id, group.id)} className="flex-1 py-1.5 border border-dashed border-indigo-300 rounded text-indigo-600 text-[10px] font-bold hover:bg-indigo-50 flex items-center justify-center">
+                                                <button type="button" onClick={() => addVocabToGroup(block.id, group.id)} className="flex-1 py-1.5 border border-dashed border-blue-300 rounded text-[#1A73E8] text-[10px] font-bold hover:bg-blue-50 flex items-center justify-center">
                                                     <Plus size={12} className="mr-1"/> Thêm 1 từ
                                                 </button>
                                                 <button type="button" onClick={() => openBulkModal(block.id, group.id)} className="flex-1 py-1.5 border border-dashed border-green-400 rounded text-green-700 text-[10px] font-bold hover:bg-green-50 flex items-center justify-center">
@@ -613,7 +613,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                 <button 
                                     type="button" 
                                     onClick={() => addVocabularyGroup(block.id)} 
-                                    className="flex-grow py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-xs font-bold hover:border-indigo-400 hover:text-indigo-600 transition flex items-center justify-center"
+                                    className="flex-grow py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-xs font-bold hover:border-[#1A73E8] hover:text-[#1A73E8] transition flex items-center justify-center"
                                 >
                                     <TableIcon size={14} className="mr-1"/> Tạo bảng từ vựng mới
                                 </button>
@@ -622,7 +622,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                 <button 
                                     type="button" 
                                     onClick={() => pasteVocabGroup(block.id)} 
-                                    className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-xs font-bold hover:border-indigo-400 hover:text-indigo-600 transition flex items-center justify-center"
+                                    className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 text-xs font-bold hover:border-[#1A73E8] hover:text-[#1A73E8] transition flex items-center justify-center"
                                     title="Paste bảng từ vựng đã copy"
                                 >
                                     <ClipboardPaste size={14}/>
@@ -642,7 +642,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                     type="button" 
                                     onClick={() => copyToClipboard(block.grammars || [], CLIPBOARD_TYPES.GRAMMAR_LIST)} 
                                     className="text-gray-400 hover:text-orange-600 flex items-center text-[10px] font-bold"
-                                    title="Copy toàn bộ danh sách ngữ pháp"
+                                    title="Copy toàn bềEdanh sách ngữ pháp"
                                 >
                                     <Copy size={12} className="mr-1"/> Copy
                                 </button>
@@ -650,8 +650,8 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
 
                             <input 
                                 type="text" 
-                                placeholder="Tiêu đề ngữ pháp (VD: Thì hiện tại đơn)..."
-                                className="w-full text-sm font-bold border-b border-gray-200 focus:border-indigo-500 outline-none mb-3 py-1 text-indigo-700 placeholder-gray-300"
+                                placeholder="Tiêu đềEngữ pháp (VD: Thì hiện tại đơn)..."
+                                className="w-full text-sm font-bold border-b border-gray-200 focus:border-[#1A73E8] outline-none mb-3 py-1 text-[#1A73E8] placeholder-gray-300"
                                 value={block.grammarTitle || ''}
                                 onChange={(e) => updateBlockField(block.id, 'grammarTitle', e.target.value)}
                             />
@@ -669,10 +669,10 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                     <tbody className="text-xs">
                                         {block.grammars?.map((item) => (
                                             <tr key={item.id} className="border-b last:border-0 hover:bg-gray-50 group/row">
-                                                <td className="p-2 align-top font-bold text-indigo-700">{item.usage}</td>
+                                                <td className="p-2 align-top font-bold text-[#1A73E8]">{item.usage}</td>
                                                 <td className="p-2 align-top">
-                                                    <div className="text-gray-700 mb-1">🇻🇳 {item.explanationVi}</div>
-                                                    <div className="text-gray-500">🇯🇵 {item.explanationJa}</div>
+                                                    <div className="text-gray-700 mb-1">�E�E {item.explanationVi}</div>
+                                                    <div className="text-gray-500">�E�E {item.explanationJa}</div>
                                                 </td>
                                                 <td className="p-2 align-top text-gray-600 font-mono bg-gray-50/50 rounded">
                                                     {item.example ? <div dangerouslySetInnerHTML={{ __html: item.example.replace(/\n/g, '<br/>') }} /> : '-'}
@@ -698,7 +698,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                     <textarea 
                                         className="w-full text-xs p-2 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 outline-none font-mono"
                                         rows={5}
-                                        placeholder={`Thói quen | Diễn tả hành động lặp lại | 習慣 | I usually get up at 6AM.`}
+                                        placeholder={`Thói quen | DiềE tả hành động lặp lại | 習�E | I usually get up at 6AM.`}
                                         value={bulkText}
                                         onChange={(e) => setBulkText(e.target.value)}
                                         autoFocus
@@ -710,7 +710,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                 </div>
                             ) : (
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => addGrammar(block.id)} className="flex-1 flex items-center justify-center p-2 border border-dashed border-indigo-200 rounded text-indigo-600 text-xs font-bold hover:bg-indigo-50 transition">
+                                    <button type="button" onClick={() => addGrammar(block.id)} className="flex-1 flex items-center justify-center p-2 border border-dashed border-blue-200 rounded text-[#1A73E8] text-xs font-bold hover:bg-blue-50 transition">
                                         <Plus size={14} className="mr-1"/> Thêm Ngữ pháp
                                     </button>
                                     
@@ -722,7 +722,7 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                                     <button 
                                         type="button" 
                                         onClick={() => pasteGrammarList(block.id)} 
-                                        className="px-3 border border-dashed border-gray-300 rounded text-gray-500 hover:text-indigo-600 hover:border-indigo-400 transition"
+                                        className="px-3 border border-dashed border-gray-300 rounded text-gray-500 hover:text-[#1A73E8] hover:border-[#1A73E8] transition"
                                         title="Paste danh sách ngữ pháp"
                                     >
                                         <ClipboardPaste size={14} />

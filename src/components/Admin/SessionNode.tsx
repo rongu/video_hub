@@ -93,14 +93,14 @@ const SessionNode: React.FC<SessionNodeProps> = ({
             <div 
                 className={`flex items-center justify-between p-2.5 rounded-lg transition border ${
                     isSelected 
-                        ? 'bg-indigo-100 border-indigo-400 shadow-sm' 
+                        ? 'bg-blue-100 border-[#1A73E8] shadow-sm' 
                         : 'bg-white hover:bg-gray-50 border-gray-100'
                 }`}
                 style={{ paddingLeft }}
             >
                 <div className="flex items-center flex-grow overflow-hidden">
                     <div 
-                        className="cursor-pointer p-1 text-gray-400 hover:text-indigo-600 transition" 
+                        className="cursor-pointer p-1 text-gray-400 hover:text-[#1A73E8] transition" 
                         onClick={() => setIsExpanded(!isExpanded)}
                     >
                         {session.children.length > 0 ? (
@@ -118,7 +118,7 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                                 onChange={(e) => setEditTitle(e.target.value)}
                                 onBlur={handleUpdateSubmit}
                                 onKeyDown={(e) => e.key === 'Enter' && handleUpdateSubmit()}
-                                className="border-b-2 border-indigo-500 bg-transparent focus:outline-none text-sm font-bold w-full text-indigo-800"
+                                className="border-b-2 border-[#1A73E8] bg-transparent focus:outline-none text-sm font-bold w-full text-blue-800"
                             />
                             <button onClick={handleUpdateSubmit} className="text-green-600 hover:text-green-700">
                                 <Save size={18}/>
@@ -131,10 +131,10 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                         >
                             <IconComponent 
                                 size={18} 
-                                className={`mr-2 flex-shrink-0 ${level === 0 ? 'text-indigo-600' : 'text-amber-500'}`} 
+                                className={`mr-2 flex-shrink-0 ${level === 0 ? 'text-[#1A73E8]' : 'text-amber-500'}`} 
                             />
                             
-                            <span className={`text-sm truncate ${isSelected ? 'font-bold text-indigo-700' : 'text-gray-700 font-medium'}`}>
+                            <span className={`text-sm truncate ${isSelected ? 'font-bold text-[#1A73E8]' : 'text-gray-700 font-medium'}`}>
                                 {session.title}
                                 {session.videoCount > 0 && (
                                     <span className="text-xs font-normal text-green-600 ml-2 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
@@ -143,7 +143,7 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                                 )}
                             </span>
                             
-                            {isSelected && <CheckCircle size={16} className="ml-2 text-indigo-600 flex-shrink-0" />}
+                            {isSelected && <CheckCircle size={16} className="ml-2 text-[#1A73E8] flex-shrink-0" />}
                         </div>
                     )}
                 </div>
@@ -156,7 +156,7 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onMove(session, 'up'); }} 
                                 disabled={isFirst || loading}
-                                className="text-gray-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-gray-400"
+                                className="text-gray-400 hover:text-[#1A73E8] disabled:opacity-30 disabled:hover:text-gray-400"
                                 title="Lên trên"
                             >
                                 <ArrowUp size={14}/>
@@ -164,7 +164,7 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onMove(session, 'down'); }} 
                                 disabled={isLast || loading}
-                                className="text-gray-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-gray-400"
+                                className="text-gray-400 hover:text-[#1A73E8] disabled:opacity-30 disabled:hover:text-gray-400"
                                 title="Xuống dưới"
                             >
                                 <ArrowDown size={14}/>
@@ -201,16 +201,16 @@ const SessionNode: React.FC<SessionNodeProps> = ({
             </div>
 
             {isAddingChild && (
-                <form onSubmit={handleAddChildSubmit} className="flex items-center space-x-2 p-2 bg-indigo-50 rounded-lg" style={{ marginLeft: `calc(${paddingLeft} + 24px)` }}>
+                <form onSubmit={handleAddChildSubmit} className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg" style={{ marginLeft: `calc(${paddingLeft} + 24px)` }}>
                     <input 
                         autoFocus
                         placeholder="Tên chương con mới..."
                         value={newChildTitle}
                         onChange={(e) => setNewChildTitle(e.target.value)}
-                        className="flex-grow text-xs border border-indigo-200 rounded p-1.5 focus:ring-1 focus:ring-indigo-500"
+                        className="flex-grow text-xs border border-blue-200 rounded p-1.5 focus:ring-1 focus:ring-[#1A73E8]"
                         disabled={loading}
                     />
-                    <button type="submit" disabled={loading || !newChildTitle.trim()} className="text-indigo-600 hover:text-indigo-800 disabled:text-gray-400">
+                    <button type="submit" disabled={loading || !newChildTitle.trim()} className="text-[#1A73E8] hover:text-blue-800 disabled:text-gray-400">
                         {loading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>}
                     </button>
                     <button type="button" onClick={() => setIsAddingChild(false)}>
@@ -249,7 +249,7 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                     onClose={() => setShowDeleteModal(false)}
                     onConfirm={handleConfirmDelete}
                     title="Xác nhận xóa chương?"
-                    description={`Bạn có chắc chắn muốn xóa chương "${session.title}"? Mọi nội dung bên trong cũng sẽ bị xóa bỏ.`}
+                    description={`Bạn có chắc chắn muốn xóa chương "${session.title}"? Mọi nội dung bên trong cũng sẽ bềExóa bềE`}
                     isProcessing={loading}
                 />
             )}

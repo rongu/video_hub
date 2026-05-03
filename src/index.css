@@ -1,35 +1,161 @@
 @import "tailwindcss";
 
+/* ================================================================
+   ARGON DASHBOARD – GLOBAL DESIGN SYSTEM (IPA Standard)
+   Color Palette based on Argon Dashboard Material-UI
+   ================================================================ */
+
 /* QUAN TRỌNG: CÀI ĐẶT THẺ GỐC CHO PHÙ HỢP VỚI REACT VÀ TAILWIND */
 html {
-  /* Đảm bảo font size chuẩn */
   -webkit-text-size-adjust: 100%;
-  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  font-family: "Open Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 html, body {
   margin: 0;
   padding: 0;
   width: 100%;
-  /* [FIX 1] Dùng min-height để content dài vẫn scroll được, không bị fix cứng */
   min-height: 100%;
-  
-  /* [FIX 2] Ngăn chặn thanh cuộn ngang (horizontal scroll) do một số element bị tràn */
   overflow-x: hidden;
-  
-  /* Màu nền mặc định tốt cho mắt */
-  background-color: #f9fafb; /* gray-50 */
+  background-color: #F8F9FA; /* Argon Background */
+  color: #344767; /* Argon Primary Text */
 }
 
 #root {
-  /* [FIX 3] Root chiếm toàn bộ chiều cao màn hình tối thiểu */
   min-height: 100vh;
   width: 100%;
-  
-  /* Biến root thành flex container để dễ quản lý layout cha */
   display: flex;
   flex-direction: column;
-  
-  /* Cách ly context xếp chồng (stacking context) */
   isolation: isolate;
+}
+
+/* ================================================================
+   ARGON CARD – White card with subtle shadow
+   ================================================================ */
+.argon-card {
+  background: white;
+  border-radius: 0.75rem;
+  border: 1px solid #E9ECEF;
+  box-shadow: 0 0 2rem 0 rgba(136, 152, 170, 0.15);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.argon-card:hover {
+  box-shadow: 0 0 3rem 0 rgba(136, 152, 170, 0.25);
+}
+
+/* ================================================================
+   ARGON BUTTON – Gradient primary action button
+   ================================================================ */
+.argon-button-gradient {
+  background: linear-gradient(195deg, #49A3F1, #1A73E8);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 700;
+  padding: 0.625rem 1.5rem;
+  cursor: pointer;
+  transition: opacity 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 3px 5px -1px rgba(26, 115, 232, 0.2),
+              0 6px 10px 0 rgba(26, 115, 232, 0.14),
+              0 1px 18px 0 rgba(26, 115, 232, 0.12);
+}
+
+.argon-button-gradient:hover {
+  opacity: 0.92;
+  box-shadow: 0 4px 8px -1px rgba(26, 115, 232, 0.3),
+              0 8px 16px 0 rgba(26, 115, 232, 0.2),
+              0 2px 24px 0 rgba(26, 115, 232, 0.16);
+  transform: translateY(-1px);
+}
+
+.argon-button-gradient:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ================================================================
+   ARGON SIDEBAR NAV ITEM
+   ================================================================ */
+.argon-nav-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #7B809A;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.argon-nav-item:hover {
+  background-color: #F8F9FA;
+  color: #344767;
+}
+
+.argon-nav-item.active {
+  background: linear-gradient(195deg, #49A3F1, #1A73E8);
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(26, 115, 232, 0.2);
+}
+
+/* ================================================================
+   ARGON INPUT FIELD
+   ================================================================ */
+.argon-input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #E9ECEF;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: #344767;
+  background: white;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  outline: none;
+}
+
+/* When input has an icon on the left (pl-10 from Tailwind) */
+.argon-input.pl-10 {
+  padding-left: 2.5rem !important;
+}
+
+.argon-input:focus {
+  border-color: #1A73E8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.15);
+}
+
+.argon-input::placeholder {
+  color: #ADB5BD;
+}
+
+/* ================================================================
+   ARGON STAT BADGE (for icons in header cards)
+   ================================================================ */
+.argon-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.75rem;
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.argon-icon-badge.primary {
+  background: linear-gradient(195deg, #49A3F1, #1A73E8);
+}
+
+.argon-icon-badge.success {
+  background: linear-gradient(195deg, #66BB6A, #43A047);
+}
+
+.argon-icon-badge.warning {
+  background: linear-gradient(195deg, #FFA726, #FB8C00);
+}
+
+.argon-icon-badge.error {
+  background: linear-gradient(195deg, #EF5350, #E53935);
 }

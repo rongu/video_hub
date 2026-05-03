@@ -40,10 +40,10 @@ const VideoManagerContainer: React.FC<{
 
     return (
         <div className="flex flex-col h-full">
-            <div className="p-4 bg-gray-100 border-b border-gray-200 flex justify-end">
+            <div className="p-4 bg-[#F8F9FA] border-b border-gray-200 flex justify-end">
                 <button 
                     onClick={onAddVideo}
-                    className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition shadow-sm"
+                    className="argon-button-gradient flex items-center text-sm"
                 >
                     <PlusCircle size={18} className="mr-2"/> Thêm Video / Bài học
                 </button>
@@ -143,21 +143,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                         <input 
                             type="text" 
                             placeholder="Tìm kiếm khóa học..." 
-                            className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 outline-none transition"
+                            className="argon-input pl-10 py-3"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
                     <button 
                         onClick={() => setShowCreateCourse(true)}
-                        className="w-full md:w-auto px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition flex items-center justify-center"
+                        className="argon-button-gradient w-full md:w-auto flex items-center justify-center"
                     >
                         <Plus className="mr-2" size={20} /> Tạo Khóa Học Mới
                     </button>
                 </div>
 
                 {loadingCourses ? (
-                    <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>
+                    <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A73E8]"></div></div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {courses
@@ -179,27 +179,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex">
+        <div className="min-h-screen bg-[#F8F9FA] font-sans text-gray-700 flex">
             {/* SIDEBAR */}
-            <aside className="w-20 lg:w-64 bg-white border-r border-gray-100 flex-shrink-0 fixed h-full z-20 hidden md:flex flex-col">
-                <div className="p-6 flex items-center justify-center lg:justify-start border-b border-gray-50">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg text-white font-black text-xl">V</div>
-                    <span className="ml-3 font-black text-xl hidden lg:block text-gray-800 tracking-tight">VIDEO HUB</span>
+            <aside className="w-20 lg:w-64 bg-white border-r border-gray-200 flex-shrink-0 fixed h-full z-20 hidden md:flex flex-col">
+                <div className="p-6 flex items-center justify-center lg:justify-start border-b border-gray-200">
+                    <div className="argon-icon-badge primary" style={{fontSize:'1.125rem',fontWeight:700}}>V</div>
+                    <span className="ml-3 font-bold text-xl hidden lg:block text-gray-700 tracking-tight">VIDEO HUB</span>
                 </div>
                 
                 <nav className="flex-grow p-4 space-y-2">
-                    <button onClick={() => setActiveTab('courses')} className={`w-full flex items-center p-3 rounded-xl transition font-bold ${activeTab === 'courses' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
+                    <button onClick={() => setActiveTab('courses')} className={`argon-nav-item w-full ${activeTab === 'courses' ? 'active' : ''}`}>
                         <LayoutDashboard size={22} /><span className="ml-3 hidden lg:block">Quản lý Khóa học</span>
                     </button>
-                    <button onClick={() => setActiveTab('users')} className={`w-full flex items-center p-3 rounded-xl transition font-bold ${activeTab === 'users' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
+                    <button onClick={() => setActiveTab('users')} className={`argon-nav-item w-full ${activeTab === 'users' ? 'active' : ''}`}>
                         <Users size={22} /><span className="ml-3 hidden lg:block">Học viên</span>
                     </button>
 
-                    {/* [NEW] Nút Xem Trang Chủ */}
-                    <div className="pt-2 mt-2 border-t border-gray-50">
+                    <div className="pt-2 mt-2 border-t border-gray-200">
                         <button 
                             onClick={() => onNavigate('landing')} 
-                            className="w-full flex items-center p-3 rounded-xl transition font-bold text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                            className="argon-nav-item w-full"
                         >
                             <Globe size={22} />
                             <span className="ml-3 hidden lg:block">Xem Trang Chủ</span>
@@ -207,8 +206,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                     </div>
                 </nav>
 
-                <div className="p-4 border-t border-gray-50">
-                    <button onClick={onLogout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition font-bold">
+                <div className="p-4 border-t border-gray-200">
+                    <button onClick={onLogout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-50 hover:text-red-500 rounded-lg transition font-semibold">
                         <LogOut size={22} /><span className="ml-3 hidden lg:block">Đăng xuất</span>
                     </button>
                 </div>
@@ -218,10 +217,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
             <main className="flex-grow md:ml-20 lg:ml-64 p-6 lg:p-10">
                 <header className="flex justify-between items-center mb-10">
                     <div>
-                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">Dashboard</h1>
-                        <p className="text-gray-400 font-medium text-sm mt-1">Xin chào, {user.email}</p>
+                        <h1 className="text-3xl font-bold text-gray-700">Dashboard</h1>
+                        <p className="text-gray-600 font-normal text-sm mt-1">Xin chào, {user.email}</p>
                     </div>
-                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold border border-indigo-200">
+                    <div className="argon-icon-badge primary" style={{width:'2.5rem',height:'2.5rem',fontSize:'0.875rem',fontWeight:700}}>
                         {user.email?.charAt(0).toUpperCase()}
                     </div>
                 </header>
@@ -268,10 +267,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
             {selectedCourseForVideos && (
                 <div className="fixed inset-0 z-50 bg-gray-50 overflow-hidden flex flex-col">
                     <div className="bg-white px-6 py-4 border-b flex justify-between items-center shadow-sm z-10">
-                        <button onClick={() => setSelectedCourseForVideos(null)} className="flex items-center text-gray-500 hover:text-gray-900 font-bold">
+                        <button onClick={() => setSelectedCourseForVideos(null)} className="flex items-center text-gray-600 hover:text-gray-700 font-semibold">
                             <span className="mr-2">←</span> Quay lại Dashboard
                         </button>
-                        <h2 className="font-black text-xl uppercase text-indigo-600">{tr_h(selectedCourseForVideos.title)}</h2>
+                        <h2 className="font-bold text-xl text-[#1A73E8]">{tr_h(selectedCourseForVideos.title)}</h2>
                     </div>
                     
                     <div className="flex-grow overflow-hidden relative">
