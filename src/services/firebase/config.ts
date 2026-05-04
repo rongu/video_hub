@@ -77,3 +77,5 @@ export const getCourseDocRef = (courseId: string) => doc(getFirestoreDb(), `arti
 export const getSessionsCollectionRef = (courseId: string) => collection(getCoursesCollectionRef(), courseId, 'sessions');
 export const getVideosCollectionRef = (courseId: string) => collection(getCoursesCollectionRef(), courseId, 'videos');
 export const getEnrollmentsCollectionRef = () => collection(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/enrollments`);
+export const getCategoriesCollectionRef = () => collection(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/categories`);
+export const getCategoryDocRef = (categoryId: string) => doc(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/categories`, categoryId);

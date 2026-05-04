@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
 import { 
     LayoutDashboard, Users, LogOut, Plus, Search, 
-    PlusCircle, Globe, BarChart2
+    PlusCircle, Globe, BarChart2, Tag
 } from 'lucide-react';
 
 import CourseCard from '../components/Admin/CourseCard';
@@ -17,6 +17,8 @@ import ConfirmDeleteModal from '../components/Admin/ConfirmDeleteModal';
 import useCourseSessions from '../hooks/useCourseSessions';
 import { subscribeToVideos, type Video as IVideo, tr_h } from '../services/firebase';
 import StatsDashboardPage from '../components/Admin/StatsDashboardPage';
+import CategoryManagerPage from '../components/Admin/CategoryManagerPage';
+import { subscribeToCategories, type Category } from '../services/firebase/categories';
 
 // ✅ ĐỊNH NGHĨA LẠI PageType CHO KHỚP VỚI APP.TSX
 export type PageType = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail';
@@ -73,11 +75,13 @@ interface AdminDashboardProps {
 
 // --- COMPONENT CHÍNH ---
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavigate }) => {
-    const [activeTab, setActiveTab] = useState<'courses' | 'users' | 'stats'>('courses');
+    const [activeTab, setActiveTab] = useState<'courses' | 'users' | 'stats' | 'categories'>('courses');
     
     const [courses, setCourses] = useState<Course[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loadingCourses, setLoadingCourses] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
     
     // Modals State: Course
     const [showCreateCourse, setShowCreateCourse] = useState(false);
@@ -110,7 +114,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
             setCourses(fetchedCourses);
             setLoadingCourses(false);
         });
-        return () => unsubscribe();
+        const unsubCats = subscribeToCategories(setCategories);
+        return () => {
+            unsubscribe();
+            unsubCats();
+        };
     }, []);
 
     const handleDeleteCourse = async () => {
@@ -138,6 +146,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
         if (activeTab === 'stats') {
             return <StatsDashboardPage />;
         }
+        if (activeTab === 'categories') {
+            return <CategoryManagerPage />;
+        }
 
         return (
             <div className="space-y-6">
@@ -160,16 +171,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                     </button>
                 </div>
 
+                {/* Category filter */}
+                {categories.length > 0 && (
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <button
+                            onClick={() => setFilterCategoryId(null)}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border-2 transition ${
+                                !filterCategoryId ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                            }`}
+                        >
+                            Tất cả
+                        </button>
+                        {categories.map(cat => {
+                            const active = filterCategoryId === cat.id;
+                            return (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setFilterCategoryId(active ? null : cat.id)}
+                                    className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full border-2 transition ${
+                                        active ? 'bg-gray-700 text-white border-gray-700 scale-105' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                    }`}
+                                >
+                                    {cat.emoji} {typeof cat.name === 'string' ? cat.name : cat.name.vi}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
                 {loadingCourses ? (
                     <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1A73E8]"></div></div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {courses
                             .filter(c => tr_h(c.title).toLowerCase().includes(searchTerm.toLowerCase()))
+                            .filter(c => !filterCategoryId || c.categoryIds?.includes(filterCategoryId))
                             .map(course => (
                             <CourseCard 
                                 key={course.id} 
-                                course={course} 
+                                course={course}
+                                categories={categories}
                                 onEditCourse={() => setEditingCourse(course)}
                                 onDeleteCourse={() => setDeletingCourse(course)}
                                 onManageVideos={() => setSelectedCourseForVideos(course)}
@@ -201,6 +242,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                     <button onClick={() => setActiveTab('stats')} className={`argon-nav-item w-full ${activeTab === 'stats' ? 'active' : ''}`}>
                         <BarChart2 size={22} /><span className="ml-3 hidden lg:block">Thống kê</span>
                     </button>
+                    <button onClick={() => setActiveTab('categories')} className={`argon-nav-item w-full ${activeTab === 'categories' ? 'active' : ''}`}>
+                        <Tag size={22} /><span className="ml-3 hidden lg:block">Danh mục</span>
+                    </button>
 
                     <div className="pt-2 mt-2 border-t border-gray-200">
                         <button 
@@ -225,7 +269,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                 <header className="flex justify-between items-center mb-10">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-700">
-                            {activeTab === 'stats' ? 'Thống kê hệ thống' : activeTab === 'users' ? 'Quản lý học viên' : 'Quản lý khóa học'}
+                            {activeTab === 'stats' ? 'Thống kê hệ thống' : activeTab === 'users' ? 'Quản lý học viên' : activeTab === 'categories' ? 'Danh mục khóa học' : 'Quản lý khóa học'}
                         </h1>
                         <p className="text-gray-600 font-normal text-sm mt-1">Xin chào, {user.email}</p>
                     </div>

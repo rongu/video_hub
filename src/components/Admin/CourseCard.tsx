@@ -1,8 +1,11 @@
 import { type Course, tr_h} from '../../services/firebase'; 
 import { Video, Edit, Trash2 } from 'lucide-react';
+import { type Category } from '../../services/firebase/categories';
+import { CategoryBadge } from './CategoryManagerPage';
 
 interface CourseCardProps {
     course: Course;
+    categories?: Category[];
     onManageVideos: (course: Course) => void;
     // Thêm các handlers mới cho Edit/Delete
     onEditCourse: (course: Course) => void;
@@ -12,6 +15,7 @@ interface CourseCardProps {
 
 const CourseCard: React.FC<CourseCardProps> = ({ 
     course, 
+    categories = [],
     onManageVideos, 
     onEditCourse, 
     onDeleteCourse, 
@@ -23,6 +27,8 @@ const CourseCard: React.FC<CourseCardProps> = ({
         return date.toLocaleDateString('vi-VN', { year: 'numeric', month: 'numeric', day: 'numeric' });
     };
 
+    const courseCategories = categories.filter(c => course.categoryIds?.includes(c.id));
+
     return (
         <div className={`argon-card flex flex-col overflow-hidden 
             ${isSelected ? 'border-4 border-[#1A73E8] ring-4 ring-blue-100' : ''}`}
@@ -30,6 +36,13 @@ const CourseCard: React.FC<CourseCardProps> = ({
             <div className="p-5 flex-grow space-y-2">
                 <h3 className="text-lg font-bold text-gray-700 line-clamp-2">{tr_h(course.title)}</h3>
                 <p className="text-sm text-gray-600 line-clamp-3">{tr_h(course.description)}</p>
+                {courseCategories.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                        {courseCategories.map(cat => (
+                            <CategoryBadge key={cat.id} category={cat} />
+                        ))}
+                    </div>
+                )}
                 <div className="text-xs text-gray-600 pt-2 border-t border-gray-200 mt-3">
                     Ngày tạo: {formatDate(course.createdAt)}
                 </div>

@@ -16,6 +16,7 @@ export interface Course {
     adminId: string;
     videoCount: number;
     imageUrl?: string;
+    categoryIds?: string[];           // Danh sách ID của các category
 }
 
 export const subscribeToCourses = (callback: (courses: Course[]) => void) => {

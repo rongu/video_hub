@@ -7,7 +7,9 @@ import {
     uploadCourseImage, 
     type MultilingualField 
 } from '../../services/firebase';
-import { Loader2, Image as ImageIcon, X, Eye, Edit2, Plus } from 'lucide-react';
+import { subscribeToCategories, getCategoryColorConfig, type Category } from '../../services/firebase/categories';
+import { CategoryBadge } from './CategoryManagerPage';
+import { Loader2, Image as ImageIcon, X, Eye, Edit2, Plus, Tag } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface CreateCourseFormProps {
@@ -26,6 +28,10 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
     const [titleJa, setTitleJa] = useState(''); 
     const [descJa, setDescJa] = useState('');   
 
+    // --- STATE CATEGORIES ---
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+
     // --- STATE HÌNH ẢNH ---
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -38,6 +44,11 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
     const isEditing = !!initialCourse;
 
     // --- KHỞI TẠO DỮ LIỆU ---
+    useEffect(() => {
+        const unsubCats = subscribeToCategories(setCategories);
+        return () => unsubCats();
+    }, []);
+
     useEffect(() => {
         if (initialCourse) {
             // Helper bóc tách dữ liệu đa ngôn ngữ
@@ -55,12 +66,14 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
 
             setPreviewUrl(initialCourse.imageUrl || null);
             setImageFile(null); 
+            setSelectedCategoryIds(initialCourse.categoryIds || []);
         } else {
             // Reset form
             setTitle(''); setTitleJa('');
             setDesc(''); setDescJa('');
             setPreviewUrl(null);
             setImageFile(null);
+            setSelectedCategoryIds([]);
         }
     }, [initialCourse]);
 
@@ -111,7 +124,8 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                 } as MultilingualField,
                 adminId: user.uid,
                 imageUrl: imageUrl, 
-                updatedAt: Date.now()
+                updatedAt: Date.now(),
+                categoryIds: selectedCategoryIds,
             };
 
             if (isEditing && initialCourse?.id) {
@@ -130,6 +144,12 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
             setLoading(false);
         }
     }, [title, desc, titleJa, descJa, imageFile, isEditing, initialCourse, user, onCourseSaved]);
+
+    const toggleCategory = (id: string) => {
+        setSelectedCategoryIds(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
 
     return (
         // [UI UPDATE] Thêm khung trắng, đổ bóng để dễ nhìn hơn
@@ -287,6 +307,45 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                         </div>
                     </div>
                 </div>
+
+                {/* CATEGORY PICKER */}
+                {categories.length > 0 && (
+                    <div>
+                        <label className="flex items-center gap-1.5 text-sm font-bold text-gray-700 mb-2">
+                            <Tag size={16} className="text-[#1A73E8]" /> Danh mục
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {categories.map(cat => {
+                                const selected = selectedCategoryIds.includes(cat.id);
+                                const cfg = getCategoryColorConfig(cat.color);
+                                return (
+                                    <button
+                                        type="button"
+                                        key={cat.id}
+                                        onClick={() => toggleCategory(cat.id)}
+                                        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border-2 transition-all ${
+                                            selected
+                                                ? `${cfg.bg} ${cfg.text} ${cfg.border} scale-105 shadow-sm`
+                                                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        <span>{cat.emoji}</span>
+                                        <span>{typeof cat.name === 'string' ? cat.name : cat.name.vi}</span>
+                                        {selected && <span className="ml-0.5 font-bold">✓</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {selectedCategoryIds.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                                <span className="text-xs text-gray-400">Đã chọn:</span>
+                                {categories.filter(c => selectedCategoryIds.includes(c.id)).map(cat => (
+                                    <CategoryBadge key={cat.id} category={cat} />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="pt-6 border-t border-gray-200 flex justify-end">
                     {onCancel && (
