@@ -1,0 +1,12 @@
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, getDocs } from "firebase/firestore";
+const app = initializeApp({ apiKey:"AIzaSyBhG9ccu-wsSrTDm6S_Fz2HtYWn_DDE-h8", projectId:"video-hub-1", storageBucket:"video-hub-1.firebasestorage.app", appId:"1:165232200741:web:d34258d29e98f52d7c83cc" });
+const db = getFirestore(app);
+const BASE = "artifacts/video-hub-prod-id/public/data";
+const COURSE_ID = "bgvCsA1i2rNpaYnKJBdA";
+const sSnap = await getDocs(collection(db, BASE+"/courses/"+COURSE_ID+"/sessions"));
+console.log("Sessions:", sSnap.size);
+for(const s of sSnap.docs) console.log(" ",s.id, JSON.stringify(s.data().title), "vc="+s.data().videoCount);
+const vSnap = await getDocs(collection(db, BASE+"/courses/"+COURSE_ID+"/videos"));
+console.log("Videos:", vSnap.size);
+process.exit(0);

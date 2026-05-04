@@ -6,6 +6,9 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
 import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { 
@@ -189,9 +192,22 @@ const preprocessMarkdownTables = (content: string, lang: string): string => {
 };
 
 /**
+ * Chuyển đổi pattern kanji（ふりがな） → <ruby> HTML với tooltip hover.
+ * Hỗ trợ cả dấu ngoặc full-width （） và half-width ().
+ * RT bị ẩn mặc định, hiện khi hover qua CSS class .jp-ruby.
+ */
+const preprocessFurigana = (content: string): string => {
+    return content.replace(
+        /([^\s（）()「」【】\n\r]+)[（(]([ぁ-ん]+)[）)]/g,
+        '<ruby class="jp-ruby" data-rt="$2">$1<rt>$2</rt></ruby>'
+    );
+};
+
+/**
  * Xử lý toàn bộ bilingual content:
  * 1. Tag [vi]...[/vi][ja]...[/ja] — dùng cho text inline/block
  * 2. Cột bảng có tên VN/JP — tự động ẩn theo language setting
+ * 3. Furigana: 漢字（ふりがな） → ruby hover tooltip
  */
 const preprocessMarkdown = (content: string, lang: string): string => {
     // Bước 1: xử lý tag bilingual
@@ -207,6 +223,8 @@ const preprocessMarkdown = (content: string, lang: string): string => {
     }
     // Bước 2: lọc cột bảng theo ngôn ngữ
     processed = preprocessMarkdownTables(processed, lang);
+    // Bước 3: chuyển furigana trong ngoặc → ruby hover tooltip
+    processed = preprocessFurigana(processed);
     return processed;
 };
 
@@ -215,7 +233,7 @@ const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
     const processed = preprocessMarkdown(content, i18n.language);
     return (
         <div className="markdown-body">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
                 {processed}
             </ReactMarkdown>
         </div>
@@ -728,9 +746,8 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         if (selectedVideo.type === 'custom') {
             const blocks = selectedVideo.blockData || [];
             return (
-                <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
-                    {/* [CHANGED] max-w-4xl -> max-w-5xl đềErộng hơn */}
-                    <div className="max-w-5xl mx-auto pb-16">
+                <div className="w-full h-full bg-white py-8 px-6 md:px-10 overflow-y-auto custom-scrollbar">
+                    <div className="pb-16">
                         <div className="border-b border-gray-100 pb-6 mb-8">
                             <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
                                 <LayoutTemplate className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}
@@ -799,8 +816,8 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 
         if (selectedVideo.type === 'audio') {
             return (
-                <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
-                    <div className="max-w-3xl mx-auto pb-10">
+                <div className="w-full h-full bg-white py-8 px-6 md:px-10 overflow-y-auto custom-scrollbar">
+                    <div className="pb-10">
                         <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><Headphones className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.audio_lesson')}</p></div>
                         <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8 flex flex-col items-center justify-center"><div className="w-full max-w-md"><audio controls className="w-full" controlsList="nodownload"><source src={selectedVideo.audioUrl} type="audio/mpeg" /></audio></div></div>
                         {selectedVideo.content && <div className="mb-6"><h3 className="font-bold uppercase text-gray-400 text-xs tracking-wide mb-4">Nội dung chi tiết</h3><MarkdownContent content={selectedVideo.content} /></div>}
@@ -812,8 +829,8 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 
         if (selectedVideo.type === 'text') {
             return (
-                <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
-                    <div className="max-w-3xl mx-auto pb-10">
+                <div className="w-full h-full bg-white py-8 px-6 md:px-10 overflow-y-auto custom-scrollbar">
+                    <div className="pb-10">
                         <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><FileText className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.theory_lesson')}</p></div>
                         <MarkdownContent content={selectedVideo.content || t('detail.content_updating')} />
                         <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-[#1A73E8] text-white hover:bg-blue-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import 'katex/dist/katex.min.css'
 import App from './App.tsx'
 // [BỔ SUNG] Import file cấu hình i18n
 import './i18n';

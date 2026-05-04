@@ -159,3 +159,61 @@ html, body {
 .argon-icon-badge.error {
   background: linear-gradient(195deg, #EF5350, #E53935);
 }
+
+/* ================================================================
+   FURIGANA / RUBY – kanji hover tooltip
+   漢字（ふりがな） → hiragana ẩn mặc định, hiện khi hover
+   ================================================================ */
+.markdown-body ruby.jp-ruby {
+  display: inline;
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted #888;
+  text-decoration: none;
+}
+
+/* Ẩn <rt> mặc định */
+.markdown-body ruby.jp-ruby rt {
+  display: none !important;
+  position: absolute;
+}
+
+/* Tooltip dùng ::after với data-rt attribute */
+.markdown-body ruby.jp-ruby::after {
+  content: attr(data-rt);
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e2940;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.6;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 30;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.markdown-body ruby.jp-ruby:hover::after {
+  display: block;
+}
+
+/* Custom scrollbar cho lesson content */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
