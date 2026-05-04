@@ -1,26 +1,52 @@
-﻿import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, writeBatch, collection, getDocs, increment, serverTimestamp } from 'firebase/firestore';
+/**
+ * add-jlptn4.mjs
+ * Seed JLPT N4 course lessons.
+ * Each L##.md => type "custom" lesson with markdownContent + audios (L##-conv*.mp3).
+ * All existing videos/sessions are DELETED then re-added on every run.
+ *
+ * Usage: node add-jlptn4.mjs <email> <password> [--dry-run]
+ */
+import { initializeApp }        from 'firebase/app';
+import {
+    getFirestore, doc, writeBatch,
+    collection, getDocs, setDoc,
+    increment, serverTimestamp
+}                                from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { readFileSync, existsSync } from 'fs';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { readFileSync, existsSync, readdirSync } from 'fs';
 
 const app = initializeApp({
-    apiKey: "AIzaSyBhG9ccu-wsSrTDm6S_Fz2HtYWn_DDE-h8",
-    projectId: "video-hub-1",
-    storageBucket: "video-hub-1.firebasestorage.app",
-    appId: "1:165232200741:web:d34258d29e98f52d7c83cc"
+    apiKey:        'AIzaSyBhG9ccu-wsSrTDm6S_Fz2HtYWn_DDE-h8',
+    projectId:     'video-hub-1',
+    storageBucket: 'video-hub-1.firebasestorage.app',
+    appId:         '1:165232200741:web:d34258d29e98f52d7c83cc',
 });
-const db = getFirestore(app); const auth = getAuth(app);
-const email = process.argv[2]; const password = process.argv[3];
-if (!email || !password) { console.error('Usage: node add-jlptn4.mjs <email> <password>'); process.exit(1); }
-let userCred;
-try { userCred = await signInWithEmailAndPassword(auth, email, password); console.log('Signed in:', userCred.user.uid); }
-catch (err) { console.error('Login failed:', err.message); process.exit(1); }
+const db      = getFirestore(app);
+const auth    = getAuth(app);
+const storage = getStorage(app);
 
-const COURSE_ID   = 'ouBXr5GlgqVKYPFWTFnz';
+const email    = process.argv[2];
+const password = process.argv[3];
+const DRY_RUN  = process.argv.includes('--dry-run');
+if (!email || !password) { console.error('Usage: node add-jlptn4.mjs <email> <password> [--dry-run]'); process.exit(1); }
+if (DRY_RUN) console.log('DRY RUN mode');
+
+let userCred;
+try {
+    userCred = await signInWithEmailAndPassword(auth, email, password);
+    console.log('Signed in:', userCred.user.uid);
+} catch (err) {
+    console.error('Login failed:', err.message);
+    process.exit(1);
+}
+
+const COURSE_ID     = 'ouBXr5GlgqVKYPFWTFnz';
 const SESSION_TITLE = 'N4 Lessons';
-const ADMIN_ID    = userCred.user.uid;
-const BASE        = 'artifacts/video-hub-prod-id/public/data';
-const LESSONS_DIR = 'C:/Users/LongTM4/Downloads/jlpt/lesson-n4';
+const ADMIN_ID      = userCred.user.uid;
+const BASE          = 'artifacts/video-hub-prod-id/public/data';
+const LESSONS_DIR   = 'C:/Users/LongTM4/Downloads/jlpt/lesson-n4';
+
 
 const LESSONS = [
     { id: '01', uuid: 'b4000001-0001-4000-8000-000000000001', title: 'Bài L01 – Casual form (普通形) – Động từ' },
@@ -57,42 +83,99 @@ const LESSONS = [
     { id: '32', uuid: 'b4000001-0032-4000-8000-000000000032', title: 'Bài L32 – Final Review: 50 Ngữ Pháp + 100 Từ Vựng Khó N4' },
 ];
 
-const courseRef  = doc(db, BASE + '/courses/' + COURSE_ID);
-const sessionsCol = collection(db, BASE + '/courses/' + COURSE_ID + '/sessions');
 
-// Find or create session
-const existingSessionsSnap = await getDocs(sessionsCol);
-let SESSION_ID = null;
-for (const s of existingSessionsSnap.docs) {
-    if ((s.data().title || '').includes('N4')) { SESSION_ID = s.id; break; }
+// ── Helpers ────────────────────────────────────────────────────────────────
+async function deleteDocs(snapshotDocs) {
+    for (let i = 0; i < snapshotDocs.length; i += 490) {
+        const chunk = snapshotDocs.slice(i, i + 490);
+        const b = writeBatch(db);
+        chunk.forEach(d => b.delete(d.ref));
+        await b.commit();
+    }
 }
-if (!SESSION_ID) {
-    const newSessionRef = doc(sessionsCol);
-    const sb = writeBatch(db);
-    sb.set(newSessionRef, { courseId: COURSE_ID, title: SESSION_TITLE, orderIndex: 1, videoCount: 0, parentId: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    await sb.commit();
-    SESSION_ID = newSessionRef.id;
-    console.log('Created session:', SESSION_ID);
+
+async function uploadAudio(localPath, fileName, lessonUUID, index) {
+    const data        = readFileSync(localPath);
+    const storagePath = `artifacts/video-hub-prod-id/assets/${COURSE_ID}/${lessonUUID}/${fileName}`;
+    const storageRef  = ref(storage, storagePath);
+    await uploadBytes(storageRef, data, { contentType: 'audio/mpeg' });
+    const url = await getDownloadURL(storageRef);
+    return { id: `${lessonUUID}-a${String(index).padStart(2,'0')}`, name: fileName, url };
 }
-console.log('Session:', SESSION_ID);
 
-const existingSnap = await getDocs(collection(db, BASE + '/courses/' + COURSE_ID + '/videos'));
-const existingIds  = new Set(existingSnap.docs.map(d => d.id));
-const existingTitles = new Set(existingSnap.docs.map(d => { const t = d.data().title; return typeof t === 'string' ? t : (t?.vi || ''); }));
-const sessionRef = doc(db, BASE + '/courses/' + COURSE_ID + '/sessions/' + SESSION_ID);
+// ── Delete all existing videos + sessions ──────────────────────────────────
+const courseRef   = doc(db, `${BASE}/courses/${COURSE_ID}`);
+const sessionsCol = collection(db, `${BASE}/courses/${COURSE_ID}/sessions`);
 
-let added = 0, skipped = 0;
+if (!DRY_RUN) {
+    console.log('\nDeleting old data...');
+    const oldVideos   = await getDocs(collection(db, `${BASE}/courses/${COURSE_ID}/videos`));
+    const oldSessions = await getDocs(sessionsCol);
+    await deleteDocs(oldVideos.docs);   console.log(`   Deleted ${oldVideos.size} videos`);
+    await deleteDocs(oldSessions.docs); console.log(`   Deleted ${oldSessions.size} sessions`);
+    const rb = writeBatch(db);
+    rb.update(courseRef, { videoCount: 0, updatedAt: serverTimestamp() });
+    await rb.commit();
+}
+
+// ── Create session ─────────────────────────────────────────────────────────
+let SESSION_ID;
+if (DRY_RUN) {
+    SESSION_ID = 'DRY_SESSION';
+    console.log('\n[DRY] Would create session:', SESSION_TITLE);
+} else {
+    const sessionDocRef = doc(sessionsCol);
+    await setDoc(sessionDocRef, {
+        courseId: COURSE_ID, title: SESSION_TITLE, orderIndex: 1,
+        videoCount: 0, parentId: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    });
+    SESSION_ID = sessionDocRef.id;
+    console.log('\nCreated session:', SESSION_ID);
+}
+const sessionRef = doc(db, `${BASE}/courses/${COURSE_ID}/sessions/${SESSION_ID}`);
+
+// ── Process lessons ────────────────────────────────────────────────────────
+const allFiles = existsSync(LESSONS_DIR) ? readdirSync(LESSONS_DIR).sort() : [];
+let totalAdded = 0, totalSkipped = 0, totalFailed = 0;
+
 for (const lesson of LESSONS) {
-    if (existingIds.has(lesson.uuid) || existingTitles.has(lesson.title)) { console.log('  SKIP  L' + lesson.id); skipped++; continue; }
-    const filePath = LESSONS_DIR + '/L' + lesson.id + '.md';
-    if (!existsSync(filePath)) { console.log('  MISS  L' + lesson.id); skipped++; continue; }
-    const content = readFileSync(filePath, 'utf8');
+    const mdFile   = `L${lesson.id}.md`;
+    const mdPath   = `${LESSONS_DIR}/${mdFile}`;
+    const mp3Files = allFiles.filter(f => f.startsWith(`L${lesson.id}-`) && f.endsWith('.mp3')).sort();
+
+    if (!existsSync(mdPath)) { console.log(`  MISS  ${mdFile}`); totalSkipped++; continue; }
+
+    const mdContent = readFileSync(mdPath, 'utf8');
+    console.log(`  ${mdFile}${mp3Files.length ? ` + ${mp3Files.length} audio` : ''}`);
+
+    if (DRY_RUN) { mp3Files.forEach(f => console.log(`       -> ${f}`)); totalAdded++; continue; }
+
+    const audioItems = [];
+    for (let i = 0; i < mp3Files.length; i++) {
+        try {
+            audioItems.push(await uploadAudio(`${LESSONS_DIR}/${mp3Files[i]}`, mp3Files[i], lesson.uuid, i + 1));
+            console.log(`       OK ${mp3Files[i]}`);
+        } catch (err) { console.error(`       FAIL upload ${mp3Files[i]}:`, err.message); }
+    }
+
+    const blockData = [{
+        id: `${lesson.uuid}-b01`, description: '', markdownContent: mdContent,
+        audios: audioItems, videos: [], images: [], vocabularyGroups: [], quizzes: [], grammars: [],
+    }];
+
     const batch = writeBatch(db);
-    batch.set(doc(db, BASE + '/courses/' + COURSE_ID + '/videos/' + lesson.uuid), { courseId: COURSE_ID, sessionId: SESSION_ID, title: { vi: lesson.title }, adminId: ADMIN_ID, createdAt: serverTimestamp(), type: 'text', content });
+    batch.set(doc(db, `${BASE}/courses/${COURSE_ID}/videos/${lesson.uuid}`), {
+        courseId: COURSE_ID, sessionId: SESSION_ID, title: { vi: lesson.title },
+        adminId: ADMIN_ID, type: 'custom', blockData, createdAt: serverTimestamp(),
+    });
     batch.update(courseRef,  { videoCount: increment(1), updatedAt: serverTimestamp() });
     batch.update(sessionRef, { videoCount: increment(1), updatedAt: serverTimestamp() });
-    try { await batch.commit(); console.log('  OK    L' + lesson.id + ' – ' + lesson.title); added++; }
-    catch (err) { console.error('  FAIL  L' + lesson.id + ':', err.message); }
+
+    try { await batch.commit(); console.log(`       saved "${lesson.title}"`); totalAdded++; }
+    catch (err) { console.error(`       FAIL "${lesson.title}":`, err.message); totalFailed++; }
 }
-console.log('\nDone. Added: ' + added + '  Skipped: ' + skipped);
+
+console.log(`\n${'─'.repeat(50)}`);
+console.log(`Done${DRY_RUN ? ' (DRY RUN)' : ''}.`);
+console.log(`  Added: ${totalAdded}  Skipped: ${totalSkipped}  Failed: ${totalFailed}`);
 process.exit(0);

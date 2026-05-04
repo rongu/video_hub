@@ -16,6 +16,9 @@ export const subscribeToAllEnrollments = (callback: (enrollments: Enrollment[]) 
                 enrolledAt: data.enrolledAt?.toDate?.() || new Date(),
             } as Enrollment;
         }));
+    }, (error) => {
+        console.warn('subscribeToAllEnrollments: permission denied or unavailable.', error.code);
+        callback([]);
     });
 };
 

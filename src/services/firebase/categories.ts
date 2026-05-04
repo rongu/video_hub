@@ -38,6 +38,9 @@ export const subscribeToCategories = (callback: (categories: Category[]) => void
             ...(d.data() as any),
             createdAt: (d.data().createdAt as Timestamp)?.toMillis() || Date.now(),
         } as Category)));
+    }, (error) => {
+        console.warn('subscribeToCategories: permission denied or unavailable, returning empty list.', error.code);
+        callback([]);
     });
 };
 

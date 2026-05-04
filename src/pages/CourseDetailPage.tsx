@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { 
     type Course, 
     type Video,
+    type BlockAudio,
     type BlockQuiz,
     type BlockVocabulary,
     type BlockGrammar,
@@ -136,7 +137,17 @@ const HIDE_COL_WHEN_VI = new Set(['jp', 'ja', 'japanese', 'tiếng nhật', '日
 
 const isHiddenColumn = (header: string, lang: string): boolean => {
     const h = header.trim().toLowerCase();
-    return lang === 'ja' ? HIDE_COL_WHEN_JA.has(h) : HIDE_COL_WHEN_VI.has(h);
+    // Exact match: "VN", "JP", ...
+    if (lang === 'ja' ? HIDE_COL_WHEN_JA.has(h) : HIDE_COL_WHEN_VI.has(h)) return true;
+    // Partial match: "Meaning (VN)", "VN Meaning", "JP Translation", etc.
+    // Extract words and parenthesised tokens from header
+    const tokens = h.match(/\(([^)]+)\)|[\w\u00C0-\u024F\u4E00-\u9FFF]+/g) || [];
+    for (const tok of tokens) {
+        const t = tok.replace(/[()]/g, '').trim();
+        if (lang === 'ja' && HIDE_COL_WHEN_JA.has(t)) return true;
+        if (lang !== 'ja' && HIDE_COL_WHEN_VI.has(t)) return true;
+    }
+    return false;
 };
 
 /**
@@ -223,7 +234,18 @@ const preprocessMarkdown = (content: string, lang: string): string => {
     }
     // Bước 2: lọc cột bảng theo ngôn ngữ
     processed = preprocessMarkdownTables(processed, lang);
-    // Bước 3: chuyển furigana trong ngoặc → ruby hover tooltip
+    // Bước 3: thêm hard line break (2 spaces) giữa các dòng hội thoại liên tiếp
+    // Markdown gộp dòng liên tiếp thành 1 đoạn → cần "  " cuối dòng để có <br>
+    // Pattern: **Tên：** hoặc **Tên:** ở đầu dòng (hội thoại JLPT)
+    const DIALOGUE_LINE_RE = /^\*\*[^*\n]+[：:]\*\*/;
+    const dialogLines = processed.split('\n');
+    for (let i = 0; i < dialogLines.length - 1; i++) {
+        if (DIALOGUE_LINE_RE.test(dialogLines[i]) && DIALOGUE_LINE_RE.test(dialogLines[i + 1])) {
+            dialogLines[i] = dialogLines[i].trimEnd() + '  ';
+        }
+    }
+    processed = dialogLines.join('\n');
+    // Bước 4: chuyển furigana trong ngoặc → ruby hover tooltip
     processed = preprocessFurigana(processed);
     return processed;
 };
@@ -344,6 +366,168 @@ const AudioBlockItem: React.FC<{ url: string; name: string }> = ({ url, name }) 
             <div className="bg-[#1A73E8] p-2 rounded-full text-white mr-3 shadow-sm"><Volume2 size={20} /></div>
             <div className="flex-grow min-w-0 mr-3"><p className="text-sm font-bold text-gray-700 truncate">{name}</p></div>
             <audio controls className="h-8 w-32 md:w-64" controlsList="nodownload"><source src={url} /></audio>
+        </div>
+    );
+};
+
+/**
+ * Renders markdown content with audio players injected inline next to each
+ * conversation section. Matches `### Hội thoại N` / `### Conversation N` /
+ * `### 会話 N` headings to audio files named `*-convN.*` (e.g. L01-conv1.mp3).
+ * The audio player is inserted after the context blockquote (> 🎧 …) if present,
+ * otherwise right below the heading — so the learner can listen before reading.
+ * Falls back to listing all audios at the bottom when no convN naming is detected.
+ */
+const MarkdownWithInlineAudio: React.FC<{
+    markdownContent?: string;
+    audios?: BlockAudio[];
+}> = ({ markdownContent, audios }) => {
+    const { i18n } = useTranslation();
+
+    if (!markdownContent && (!audios || audios.length === 0)) return null;
+
+    if (!markdownContent) {
+        return audios && audios.length > 0 ? (
+            <div className="space-y-2 mb-6">
+                {audios.map(a => <AudioBlockItem key={a.id} url={a.url} name={a.name} />)}
+            </div>
+        ) : null;
+    }
+
+    if (!audios || audios.length === 0) {
+        const processed = preprocessMarkdown(markdownContent, i18n.language);
+        return (
+            <div className="mb-6 markdown-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
+                    {processed}
+                </ReactMarkdown>
+            </div>
+        );
+    }
+
+    // Build audio map: convN → BlockAudio
+    const audioMap = new Map<number, BlockAudio>();
+    const unindexed: BlockAudio[] = [];
+    audios.forEach(a => {
+        const m = a.name.match(/conv(\d+)/i);
+        if (m) audioMap.set(parseInt(m[1]), a);
+        else unindexed.push(a);
+    });
+
+    // No conv-numbered audios → fall back: markdown then all audios below
+    if (audioMap.size === 0) {
+        const processed = preprocessMarkdown(markdownContent, i18n.language);
+        return (
+            <div className="mb-6">
+                <div className="markdown-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
+                        {processed}
+                    </ReactMarkdown>
+                </div>
+                <div className="space-y-2 mt-4">
+                    {audios.map(a => <AudioBlockItem key={a.id} url={a.url} name={a.name} />)}
+                </div>
+            </div>
+        );
+    }
+
+    // Split markdown at:
+    //   ### Hội thoại N / ### Conversation N (JLPT — markdown heading)
+    //   **Conversation N ...  (A2-KET — bold text heading)
+    const CONV_HEADING_RE = /^(?:#{1,4}\s+|\*{1,2}\s*)(?:Hội\s*thoại|Conversation|会話)\s+(\d+)/i;
+    const lines = markdownContent.split('\n');
+
+    interface Section { lines: string[]; convN: number | null; }
+    const sections: Section[] = [];
+    let currentLines: string[] = [];
+    let currentConvN: number | null = null;
+
+    for (const line of lines) {
+        const m = line.match(CONV_HEADING_RE);
+        if (m) {
+            sections.push({ lines: currentLines, convN: currentConvN });
+            currentLines = [line];
+            currentConvN = parseInt(m[1]);
+        } else {
+            currentLines.push(line);
+        }
+    }
+    if (currentLines.length > 0) {
+        sections.push({ lines: currentLines, convN: currentConvN });
+    }
+
+    const renderSection = (section: Section, idx: number) => {
+        const { lines: sLines, convN } = section;
+        const audio = convN !== null ? audioMap.get(convN) : undefined;
+        const md = sLines.join('\n');
+
+        if (!audio) {
+            const p = preprocessMarkdown(md, i18n.language);
+            return (
+                <div key={idx} className="markdown-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{p}</ReactMarkdown>
+                </div>
+            );
+        }
+
+        // Find split point for audio insertion.
+        // Rules (in priority order):
+        //   1. If first blockquote after heading is context (🎧/🔊 or answer choices A/B/C)
+        //      → put audio AFTER that blockquote, before the dialogue.
+        //   2. If first blockquote is dialogue (**Name：** pattern)
+        //      → put audio right after heading (before everything).
+        //   3. No blockquote found → put audio after heading only.
+        let splitIdx = Math.min(1, sLines.length);
+        // Find first non-blank line index
+        let firstMeaningfulIdx = -1;
+        for (let i = 1; i < sLines.length; i++) {
+            if (sLines[i].trim() !== '') { firstMeaningfulIdx = i; break; }
+        }
+        if (firstMeaningfulIdx >= 0) {
+            const firstLine = sLines[firstMeaningfulIdx];
+            if (firstLine.startsWith('> ') || firstLine === '>') {
+                // Check if it's dialogue: > **Name：** or > **Name:**
+                const isDialogueLine = /^>\s*\*\*[^*]+[：:]\*\*/.test(firstLine);
+                if (!isDialogueLine) {
+                    // Context blockquote (🎧 situation or answer choices) → advance past it
+                    splitIdx = firstMeaningfulIdx + 1;
+                    while (splitIdx < sLines.length &&
+                           (sLines[splitIdx].startsWith('> ') || sLines[splitIdx] === '>')) {
+                        splitIdx++;
+                    }
+                    // Skip one trailing blank line
+                    if (splitIdx < sLines.length && sLines[splitIdx].trim() === '') {
+                        splitIdx++;
+                    }
+                }
+                // else: dialogue → leave splitIdx = 1 (audio before dialogue)
+            }
+        }
+
+        const beforeMd = preprocessMarkdown(sLines.slice(0, splitIdx).join('\n'), i18n.language);
+        const afterMd = preprocessMarkdown(sLines.slice(splitIdx).join('\n'), i18n.language);
+
+        return (
+            <div key={idx}>
+                {beforeMd.trim() && (
+                    <div className="markdown-body">
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{beforeMd}</ReactMarkdown>
+                    </div>
+                )}
+                <AudioBlockItem url={audio.url} name={audio.name} />
+                {afterMd.trim() && (
+                    <div className="markdown-body">
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{afterMd}</ReactMarkdown>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="mb-6">
+            {sections.map(renderSection)}
+            {unindexed.map(a => <AudioBlockItem key={a.id} url={a.url} name={a.name} />)}
         </div>
     );
 };
@@ -799,10 +983,8 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                         title={block.grammarTitle}
                                     />
 
-                                    {/* Markdown bình thường */}
-                                    {block.markdownContent && <div className="mb-6"><MarkdownContent content={block.markdownContent} /></div>}
-
-                                    {block.audios && block.audios.length > 0 && <div className="space-y-2 mb-6">{block.audios.map(audio => <AudioBlockItem key={audio.id} url={audio.url} name={audio.name} />)}</div>}
+                                    {/* Markdown + inline audio (conv-aware) */}
+                                    <MarkdownWithInlineAudio markdownContent={block.markdownContent} audios={block.audios} />
                                     {block.images && block.images.length > 0 && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} isDefaultHidden={img.isSpoiler}/>)}</div>}
                                     {block.quizzes && block.quizzes.length > 0 && <div className="mt-6 border-t border-dashed pt-6">{block.quizzes.map((q, idx) => <InlineQuizItem key={q.id} quiz={q} index={idx} />)}</div>}
                                 </div>
