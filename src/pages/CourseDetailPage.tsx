@@ -632,7 +632,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         if (!selectedVideo) return <div className="w-full h-full flex flex-col items-center justify-center text-white/50 p-8 text-center bg-gray-900"><PlayCircle size={48} className="mb-4 opacity-20" /><p className="font-bold uppercase text-xs tracking-wide">{t('detail.select_lesson_msg')}</p></div>;
 
         if (selectedVideo.type === 'quiz') {
-            return <QuizView data={selectedVideo.quizData || '[]'} title={selectedVideo.title} onComplete={() => !completedVideoIds.includes(selectedVideo.id) && handleMarkComplete(selectedVideo.id, true)}/>;
+            return <QuizView data={selectedVideo.quizData || '[]'} title={tr_h(selectedVideo.title as any)} onComplete={() => !completedVideoIds.includes(selectedVideo.id) && handleMarkComplete(selectedVideo.id, true)}/>;
         }
 
         if (selectedVideo.type === 'custom') {
@@ -643,7 +643,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                     <div className="max-w-5xl mx-auto pb-16">
                         <div className="border-b border-gray-100 pb-6 mb-8">
                             <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
-                                <LayoutTemplate className="mr-3 text-[#1A73E8]" size={32}/> {selectedVideo.title}
+                                <LayoutTemplate className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}
                             </h2>
                             <p className="text-gray-500 font-medium text-sm">{t('detail.interactive_lesson')}</p>
                         </div>
@@ -708,7 +708,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             return (
                 <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
                     <div className="max-w-3xl mx-auto pb-10">
-                        <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><Headphones className="mr-3 text-[#1A73E8]" size={32}/> {selectedVideo.title}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.audio_lesson')}</p></div>
+                        <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><Headphones className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.audio_lesson')}</p></div>
                         <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8 flex flex-col items-center justify-center"><div className="w-full max-w-md"><audio controls className="w-full" controlsList="nodownload"><source src={selectedVideo.audioUrl} type="audio/mpeg" /></audio></div></div>
                         {selectedVideo.content && <div className="mb-6"><h3 className="font-bold uppercase text-gray-400 text-xs tracking-wide mb-4">Nội dung chi tiết</h3><MarkdownContent content={selectedVideo.content} /></div>}
                         <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-[#1A73E8] text-white hover:bg-blue-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
@@ -721,7 +721,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             return (
                 <div className="w-full h-full bg-white p-8 overflow-y-auto custom-scrollbar">
                     <div className="max-w-3xl mx-auto pb-10">
-                        <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><FileText className="mr-3 text-[#1A73E8]" size={32}/> {selectedVideo.title}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.theory_lesson')}</p></div>
+                        <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><FileText className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.theory_lesson')}</p></div>
                         <MarkdownContent content={selectedVideo.content || t('detail.content_updating')} />
                         <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-[#1A73E8] text-white hover:bg-blue-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
                     </div>
@@ -729,7 +729,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             );
         }
 
-        return <iframe src={selectedVideo.videoUrl} title={selectedVideo.title} className="w-full h-full" allowFullScreen key={selectedVideo.id} />;
+        return <iframe src={selectedVideo.videoUrl} title={tr_h(selectedVideo.title as any)} className="w-full h-full" allowFullScreen key={selectedVideo.id} />;
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-[#1A73E8]" size={40} /></div>;
@@ -852,7 +852,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                                                     <div onClick={(e) => { if (isLocked) return; handleToggleIcon(video.id, e); }} className={isLocked ? "pointer-events-none" : "cursor-pointer"}>
                                                                         {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-blue-400 flex-shrink-0" />}
                                                                     </div>
-                                                                    <span className={`text-sm truncate ${isActive ? 'font-bold text-gray-700' : 'text-gray-700'}`}>{video.title}</span>
+                                                                    <span className={`text-sm truncate ${isActive ? 'font-bold text-gray-700' : 'text-gray-700'}`}>{tr_h(video.title as any)}</span>
                                                                 </div>
                                                                 {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-blue-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-blue-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
                                                             </div>
@@ -887,7 +887,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                                 <div onClick={(e) => { if (isLocked) return; handleToggleIcon(video.id, e); }} className={isLocked ? "pointer-events-none" : "cursor-pointer"}>
                                                     {isLocked ? <Lock size={16} className="text-gray-400" /> : isDone ? <CheckCircle2 size={20} className="text-green-500 flex-shrink-0" /> : <Circle size={20} className="text-gray-300 group-hover:text-blue-400 flex-shrink-0" />}
                                                 </div>
-                                                <span className={`text-sm truncate ${isActive ? 'font-bold text-gray-700' : 'text-gray-700'}`}>{video.title}</span>
+                                                <span className={`text-sm truncate ${isActive ? 'font-bold text-gray-700' : 'text-gray-700'}`}>{tr_h(video.title as any)}</span>
                                             </div>
                                             {video.type === 'quiz' ? <HelpCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-orange-600' : 'text-orange-300'}`} /> : video.type === 'text' ? <FileText size={16} className={`flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-blue-300'}`} /> : video.type === 'custom' ? <LayoutTemplate size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-blue-300'}`} /> : video.type === 'audio' ? <Headphones size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-blue-300'}`} /> : <PlayCircle size={16} className={`flex-shrink-0 ${isActive ? 'text-[#1A73E8]' : 'text-gray-300 opacity-0 group-hover:opacity-100'}`} />}
                                         </div>

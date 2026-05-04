@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+﻿import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { PlayCircle, Edit2, Trash2, Save, X, Bookmark, FileText, HelpCircle, Headphones, LayoutTemplate } from 'lucide-react';
-import { type Video} from '../../services/firebase'; 
+import { type Video, tr_h } from '../../services/firebase'; 
 
 interface VideoListItemProps {
     video: Video; 
@@ -17,14 +17,15 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
     video, index, onViewVideo, onEditVideo, onDeleteVideo, className = '',
     onEditStart // [NEW] Destructuring prop mới
 }) => {
+    const titleStr = tr_h(video.title as any);
     const [isEditing, setIsEditing] = useState(false);
-    const [newTitle, setNewTitle] = useState(video.title);
+    const [newTitle, setNewTitle] = useState(titleStr);
     const [loading, setLoading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        setNewTitle(video.title);
-    }, [video.title]);
+        setNewTitle(titleStr);
+    }, [titleStr]);
 
     const startEdit = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -41,9 +42,9 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
 
     const cancelEdit = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        setNewTitle(video.title); 
+        setNewTitle(titleStr); 
         setIsEditing(false);
-    }, [video.title]);
+    }, [titleStr]);
     
     const handleViewClick = useCallback(() => {
         if (!isEditing) {
@@ -55,7 +56,7 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
         e.preventDefault();
         e.stopPropagation(); 
         
-        if (newTitle === video.title || newTitle.trim() === '') {
+        if (newTitle === titleStr || newTitle.trim() === '') {
             setIsEditing(false);
             return;
         }
@@ -69,7 +70,7 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
         } finally {
             setLoading(false);
         }
-    }, [video.id, video.title, newTitle, onEditVideo]);
+    }, [video.id, titleStr, newTitle, onEditVideo]);
 
     const handleDeleteClick = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -129,7 +130,7 @@ const VideoListItem: React.FC<VideoListItemProps> = ({
                             {video.type === 'custom' ? 'Interactive' : video.type}
                         </span>
                     )}
-                    <p className="text-gray-800 font-semibold truncate hover:text-[#1A73E8]">{video.title}</p>
+                    <p className="text-gray-800 font-semibold truncate hover:text-[#1A73E8]">{titleStr}</p>
                 </div>
                 
                 <div className="text-xs text-gray-500 mt-1 flex items-center space-x-2">
