@@ -81,6 +81,9 @@ export interface LessonBlock {
     // [NEW] Grammar
     grammars?: BlockGrammar[];
     grammarTitle?: string;
+
+    // [NEW] Markdown bình thường
+    markdownContent?: string;
 }
 
 export interface Video {

@@ -124,13 +124,103 @@ const markdownComponents: Components = {
     ),
 };
 
-const MarkdownContent: React.FC<{ content: string }> = ({ content }) => (
-    <div className="markdown-body">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {content}
-        </ReactMarkdown>
-    </div>
-);
+/**
+ * Các tên header cột cần ẩn theo ngôn ngữ.
+ * VD: khi lang=ja thì ẩn cột "VN", "VI", "Tiếng Việt"; giữ cột "JP", "JA".
+ */
+const HIDE_COL_WHEN_JA = new Set(['vn', 'vi', 'vietnamese', 'tiếng việt']);
+const HIDE_COL_WHEN_VI = new Set(['jp', 'ja', 'japanese', 'tiếng nhật', '日本語']);
+
+const isHiddenColumn = (header: string, lang: string): boolean => {
+    const h = header.trim().toLowerCase();
+    return lang === 'ja' ? HIDE_COL_WHEN_JA.has(h) : HIDE_COL_WHEN_VI.has(h);
+};
+
+/**
+ * Tự động ẩn cột VN/JP trong markdown table theo language setting.
+ * Hoạt động với bất kỳ bảng nào có header tên "VN", "JP", "VI", "JA"...
+ */
+const preprocessMarkdownTables = (content: string, lang: string): string => {
+    const lines = content.split('\n');
+    const result: string[] = [];
+    let i = 0;
+    while (i < lines.length) {
+        const line = lines[i];
+        const nextLine = i + 1 < lines.length ? lines[i + 1] : '';
+        const isTableHeader = line.trim().startsWith('|');
+        const nextIsAlignRow = /^\s*\|[\s\-:|]+\|\s*$/.test(nextLine);
+
+        if (isTableHeader && nextIsAlignRow) {
+            // Thu thập toàn bộ dòng của bảng
+            const tableLines: string[] = [];
+            let j = i;
+            while (j < lines.length && lines[j].trim().startsWith('|')) {
+                tableLines.push(lines[j]);
+                j++;
+            }
+            // Phân tích header row để tìm cột cần ẩn
+            const headerParts = tableLines[0].split('|');
+            const colsToHide = new Set<number>();
+            headerParts.forEach((cell, idx) => {
+                if (idx === 0 || idx === headerParts.length - 1) return;
+                if (isHiddenColumn(cell, lang)) colsToHide.add(idx - 1); // 0-based
+            });
+
+            if (colsToHide.size > 0) {
+                const processed = tableLines.map(tl => {
+                    const parts = tl.split('|');
+                    const filtered = parts.filter((_, idx) => {
+                        if (idx === 0 || idx === parts.length - 1) return true;
+                        return !colsToHide.has(idx - 1);
+                    });
+                    return filtered.join('|');
+                });
+                result.push(...processed);
+            } else {
+                result.push(...tableLines);
+            }
+            i = j;
+        } else {
+            result.push(line);
+            i++;
+        }
+    }
+    return result.join('\n');
+};
+
+/**
+ * Xử lý toàn bộ bilingual content:
+ * 1. Tag [vi]...[/vi][ja]...[/ja] — dùng cho text inline/block
+ * 2. Cột bảng có tên VN/JP — tự động ẩn theo language setting
+ */
+const preprocessMarkdown = (content: string, lang: string): string => {
+    // Bước 1: xử lý tag bilingual
+    let processed = content;
+    if (lang === 'ja') {
+        processed = processed
+            .replace(/\[vi\][\s\S]*?\[\/vi\]/g, '')
+            .replace(/\[ja\]([\s\S]*?)\[\/ja\]/g, '$1');
+    } else {
+        processed = processed
+            .replace(/\[ja\][\s\S]*?\[\/ja\]/g, '')
+            .replace(/\[vi\]([\s\S]*?)\[\/vi\]/g, '$1');
+    }
+    // Bước 2: lọc cột bảng theo ngôn ngữ
+    processed = preprocessMarkdownTables(processed, lang);
+    return processed;
+};
+
+const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
+    const { i18n } = useTranslation();
+    const processed = preprocessMarkdown(content, i18n.language);
+    return (
+        <div className="markdown-body">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {processed}
+            </ReactMarkdown>
+        </div>
+    );
+};
 
 const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, index }) => {
     const { t } = useTranslation();
@@ -691,6 +781,9 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                         grammars={block.grammars || []} 
                                         title={block.grammarTitle}
                                     />
+
+                                    {/* Markdown bình thường */}
+                                    {block.markdownContent && <div className="mb-6"><MarkdownContent content={block.markdownContent} /></div>}
 
                                     {block.audios && block.audios.length > 0 && <div className="space-y-2 mb-6">{block.audios.map(audio => <AudioBlockItem key={audio.id} url={audio.url} name={audio.name} />)}</div>}
                                     {block.images && block.images.length > 0 && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} isDefaultHidden={img.isSpoiler}/>)}</div>}

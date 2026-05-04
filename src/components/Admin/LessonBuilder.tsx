@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
     Plus, Trash2, Image as ImageIcon, Headphones, HelpCircle, 
     UploadCloud, X, Loader2, Video, Languages, FileText, Table as TableIcon,
-    BookOpen, Copy, ClipboardPaste // [NEW] Import icon Copy/Paste
+    BookOpen, Copy, ClipboardPaste, AlignLeft // [NEW] Import icon Copy/Paste
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -731,7 +731,19 @@ const LessonBuilder: React.FC<LessonBuilderProps> = ({ courseId, lessonId, initi
                             )}
                         </div>
 
-                         {/* 6. QUIZ */}
+                        {/* 6. MARKDOWN B?NH TH??NG */}
+                        <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm col-span-1 md:col-span-2 xl:col-span-3">
+                            <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center"><AlignLeft size={12} className="mr-1"/> N?i dung Markdown</h4>
+                            <textarea
+                                className="w-full text-sm p-2 border border-gray-200 rounded-lg focus:border-[#1A73E8] focus:ring-1 focus:ring-[#1A73E8] outline-none transition font-mono resize-y"
+                                rows={6}
+                                placeholder={`Nh?p n?i dung Markdown...\n\nD?ng tag ða ngôn ng? (hi?n th? theo language setting):\n[vi]N?i dung ti?ng Vi?t[/vi][ja]?????????[/ja]\n\nVí d?:\n**[vi]Ý ngh?a[/vi][ja]??[/ja]**: [vi]Tôi l? h?c sinh[/vi][ja]??????[/ja]`}
+                                value={block.markdownContent || ''}
+                                onChange={(e) => updateBlockField(block.id, 'markdownContent', e.target.value)}
+                            />
+                        </div>
+
+                         {/* 7. QUIZ */}
                          <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
                             <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center"><HelpCircle size={12} className="mr-1"/> Quiz Nhanh</h4>
                             <div className="space-y-2 mb-3">
