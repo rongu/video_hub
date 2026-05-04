@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
 import { 
     LayoutDashboard, Users, LogOut, Plus, Search, 
-    PlusCircle, Globe // [ICON MỚI]
+    PlusCircle, Globe, BarChart2
 } from 'lucide-react';
 
 import CourseCard from '../components/Admin/CourseCard';
@@ -16,6 +16,7 @@ import ConfirmDeleteModal from '../components/Admin/ConfirmDeleteModal';
 
 import useCourseSessions from '../hooks/useCourseSessions';
 import { subscribeToVideos, type Video as IVideo, tr_h } from '../services/firebase';
+import StatsDashboardPage from '../components/Admin/StatsDashboardPage';
 
 // ✅ ĐỊNH NGHĨA LẠI PageType CHO KHỚP VỚI APP.TSX
 export type PageType = 'landing' | 'login' | 'register' | 'home' | 'admin' | 'detail';
@@ -72,7 +73,7 @@ interface AdminDashboardProps {
 
 // --- COMPONENT CHÍNH ---
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavigate }) => {
-    const [activeTab, setActiveTab] = useState<'courses' | 'users'>('courses');
+    const [activeTab, setActiveTab] = useState<'courses' | 'users' | 'stats'>('courses');
     
     const [courses, setCourses] = useState<Course[]>([]);
     const [loadingCourses, setLoadingCourses] = useState(true);
@@ -134,6 +135,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
         if (activeTab === 'users') {
             return <UserManagementPage />;
         }
+        if (activeTab === 'stats') {
+            return <StatsDashboardPage />;
+        }
 
         return (
             <div className="space-y-6">
@@ -194,6 +198,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                     <button onClick={() => setActiveTab('users')} className={`argon-nav-item w-full ${activeTab === 'users' ? 'active' : ''}`}>
                         <Users size={22} /><span className="ml-3 hidden lg:block">Học viên</span>
                     </button>
+                    <button onClick={() => setActiveTab('stats')} className={`argon-nav-item w-full ${activeTab === 'stats' ? 'active' : ''}`}>
+                        <BarChart2 size={22} /><span className="ml-3 hidden lg:block">Thống kê</span>
+                    </button>
 
                     <div className="pt-2 mt-2 border-t border-gray-200">
                         <button 
@@ -217,7 +224,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
             <main className="flex-grow md:ml-20 lg:ml-64 p-6 lg:p-10">
                 <header className="flex justify-between items-center mb-10">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-700">Dashboard</h1>
+                        <h1 className="text-3xl font-bold text-gray-700">
+                            {activeTab === 'stats' ? 'Thống kê hệ thống' : activeTab === 'users' ? 'Quản lý học viên' : 'Quản lý khóa học'}
+                        </h1>
                         <p className="text-gray-600 font-normal text-sm mt-1">Xin chào, {user.email}</p>
                     </div>
                     <div className="argon-icon-badge primary" style={{width:'2.5rem',height:'2.5rem',fontSize:'0.875rem',fontWeight:700}}>
