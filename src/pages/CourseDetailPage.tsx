@@ -4,17 +4,10 @@ import {
     PlayCircle, FileText, HelpCircle, AlertCircle, RefreshCcw, Check, ChevronRight, 
     Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronUp, ChevronDown, BookOpen, Menu
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import rehypeRaw from 'rehype-raw';
-import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { 
     type Course, 
     type Video,
-    type BlockAudio,
     type BlockQuiz,
     type BlockVocabulary,
     type BlockGrammar,
@@ -28,6 +21,11 @@ import {
 import { useUserProgress } from '../hooks/useUserProgress';
 import { useCourseSessions } from '../hooks/useCourseSessions';
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
+import {
+    speakText,
+    MarkdownContent,
+    MarkdownWithInlineAudio,
+} from '../components/common/markdownUtils';
 import type { PageType } from '../App';
 
 interface CourseDetailPageProps {
@@ -37,230 +35,6 @@ interface CourseDetailPageProps {
 }
 
 // --- SUB COMPONENTS ---
-
-// --- MARKDOWN RENDERER ---
-const markdownComponents: Components = {
-    h1: ({ children }) => (
-        <h1 className="text-2xl font-bold text-gray-900 mt-8 mb-4 pb-3 border-b-2 border-blue-200">
-            {children}
-        </h1>
-    ),
-    h2: ({ children }) => (
-        <h2 className="text-xl font-bold text-gray-800 mt-7 mb-3 pl-4 border-l-4 border-blue-500 py-1">
-            {children}
-        </h2>
-    ),
-    h3: ({ children }) => (
-        <h3 className="text-base font-bold text-gray-800 mt-5 mb-2 flex items-center gap-2">
-            {children}
-        </h3>
-    ),
-    p: ({ children }) => (
-        <p className="text-gray-700 leading-relaxed mb-3 text-[15px]">
-            {children}
-        </p>
-    ),
-    strong: ({ children }) => (
-        <strong className="font-bold text-gray-900">{children}</strong>
-    ),
-    em: ({ children }) => (
-        <em className="italic text-gray-600">{children}</em>
-    ),
-    blockquote: ({ children }) => (
-        <blockquote className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 my-4 text-gray-700 text-sm">
-            {children}
-        </blockquote>
-    ),
-    ul: ({ children }) => (
-        <ul className="list-disc pl-6 space-y-1 mb-3 text-gray-700 text-[15px]">
-            {children}
-        </ul>
-    ),
-    ol: ({ children }) => (
-        <ol className="list-decimal pl-6 space-y-1 mb-3 text-gray-700 text-[15px]">
-            {children}
-        </ol>
-    ),
-    li: ({ children }) => (
-        <li className="text-gray-700 leading-relaxed">{children}</li>
-    ),
-    table: ({ children }) => (
-        <div className="overflow-x-auto my-5 rounded-xl border border-gray-200 shadow-sm">
-            <table className="w-full border-collapse text-sm">{children}</table>
-        </div>
-    ),
-    thead: ({ children }) => (
-        <thead className="bg-gradient-to-r from-blue-600 to-blue-500 text-white">
-            {children}
-        </thead>
-    ),
-    tbody: ({ children }) => (
-        <tbody>{children}</tbody>
-    ),
-    tr: ({ children }) => (
-        <tr className="even:bg-blue-50/40 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0">
-            {children}
-        </tr>
-    ),
-    th: ({ children }) => (
-        <th className="px-4 py-3 text-left font-semibold text-white text-sm whitespace-nowrap">
-            {children}
-        </th>
-    ),
-    td: ({ children }) => (
-        <td className="px-4 py-2.5 text-gray-700">{children}</td>
-    ),
-    pre: ({ children }) => (
-        <pre className="bg-gray-900 text-green-300 rounded-xl p-4 overflow-x-auto text-sm my-4 font-mono leading-relaxed">
-            {children}
-        </pre>
-    ),
-    code: ({ children, className }) => (
-        className
-            ? <code className={`${className} font-mono`}>{children}</code>
-            : <code className="bg-gray-100 text-pink-600 px-1.5 py-0.5 rounded text-[13px] font-mono">{children}</code>
-    ),
-    hr: () => <hr className="my-6 border-t border-gray-200" />,
-    a: ({ href, children }) => (
-        <a href={href} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
-            {children}
-        </a>
-    ),
-};
-
-/**
- * Các tên header cột cần ẩn theo ngôn ngữ.
- * VD: khi lang=ja thì ẩn cột "VN", "VI", "Tiếng Việt"; giữ cột "JP", "JA".
- */
-const HIDE_COL_WHEN_JA = new Set(['vn', 'vi', 'vietnamese', 'tiếng việt']);
-const HIDE_COL_WHEN_VI = new Set(['jp', 'ja', 'japanese', 'tiếng nhật', '日本語']);
-
-const isHiddenColumn = (header: string, lang: string): boolean => {
-    const h = header.trim().toLowerCase();
-    // Exact match: "VN", "JP", ...
-    if (lang === 'ja' ? HIDE_COL_WHEN_JA.has(h) : HIDE_COL_WHEN_VI.has(h)) return true;
-    // Partial match: "Meaning (VN)", "VN Meaning", "JP Translation", etc.
-    // Extract words and parenthesised tokens from header
-    const tokens = h.match(/\(([^)]+)\)|[\w\u00C0-\u024F\u4E00-\u9FFF]+/g) || [];
-    for (const tok of tokens) {
-        const t = tok.replace(/[()]/g, '').trim();
-        if (lang === 'ja' && HIDE_COL_WHEN_JA.has(t)) return true;
-        if (lang !== 'ja' && HIDE_COL_WHEN_VI.has(t)) return true;
-    }
-    return false;
-};
-
-/**
- * Tự động ẩn cột VN/JP trong markdown table theo language setting.
- * Hoạt động với bất kỳ bảng nào có header tên "VN", "JP", "VI", "JA"...
- */
-const preprocessMarkdownTables = (content: string, lang: string): string => {
-    const lines = content.split('\n');
-    const result: string[] = [];
-    let i = 0;
-    while (i < lines.length) {
-        const line = lines[i];
-        const nextLine = i + 1 < lines.length ? lines[i + 1] : '';
-        const isTableHeader = line.trim().startsWith('|');
-        const nextIsAlignRow = /^\s*\|[\s\-:|]+\|\s*$/.test(nextLine);
-
-        if (isTableHeader && nextIsAlignRow) {
-            // Thu thập toàn bộ dòng của bảng
-            const tableLines: string[] = [];
-            let j = i;
-            while (j < lines.length && lines[j].trim().startsWith('|')) {
-                tableLines.push(lines[j]);
-                j++;
-            }
-            // Phân tích header row để tìm cột cần ẩn
-            const headerParts = tableLines[0].split('|');
-            const colsToHide = new Set<number>();
-            headerParts.forEach((cell, idx) => {
-                if (idx === 0 || idx === headerParts.length - 1) return;
-                if (isHiddenColumn(cell, lang)) colsToHide.add(idx - 1); // 0-based
-            });
-
-            if (colsToHide.size > 0) {
-                const processed = tableLines.map(tl => {
-                    const parts = tl.split('|');
-                    const filtered = parts.filter((_, idx) => {
-                        if (idx === 0 || idx === parts.length - 1) return true;
-                        return !colsToHide.has(idx - 1);
-                    });
-                    return filtered.join('|');
-                });
-                result.push(...processed);
-            } else {
-                result.push(...tableLines);
-            }
-            i = j;
-        } else {
-            result.push(line);
-            i++;
-        }
-    }
-    return result.join('\n');
-};
-
-/**
- * Chuyển đổi pattern kanji（ふりがな） → <ruby> HTML với tooltip hover.
- * Hỗ trợ cả dấu ngoặc full-width （） và half-width ().
- * RT bị ẩn mặc định, hiện khi hover qua CSS class .jp-ruby.
- */
-const preprocessFurigana = (content: string): string => {
-    return content.replace(
-        /([^\s（）()「」【】\n\r]+)[（(]([ぁ-ん]+)[）)]/g,
-        '<ruby class="jp-ruby" data-rt="$2">$1<rt>$2</rt></ruby>'
-    );
-};
-
-/**
- * Xử lý toàn bộ bilingual content:
- * 1. Tag [vi]...[/vi][ja]...[/ja] — dùng cho text inline/block
- * 2. Cột bảng có tên VN/JP — tự động ẩn theo language setting
- * 3. Furigana: 漢字（ふりがな） → ruby hover tooltip
- */
-const preprocessMarkdown = (content: string, lang: string): string => {
-    // Bước 1: xử lý tag bilingual
-    let processed = content;
-    if (lang === 'ja') {
-        processed = processed
-            .replace(/\[vi\][\s\S]*?\[\/vi\]/g, '')
-            .replace(/\[ja\]([\s\S]*?)\[\/ja\]/g, '$1');
-    } else {
-        processed = processed
-            .replace(/\[ja\][\s\S]*?\[\/ja\]/g, '')
-            .replace(/\[vi\]([\s\S]*?)\[\/vi\]/g, '$1');
-    }
-    // Bước 2: lọc cột bảng theo ngôn ngữ
-    processed = preprocessMarkdownTables(processed, lang);
-    // Bước 3: thêm hard line break (2 spaces) giữa các dòng hội thoại liên tiếp
-    // Markdown gộp dòng liên tiếp thành 1 đoạn → cần "  " cuối dòng để có <br>
-    // Pattern: **Tên：** hoặc **Tên:** ở đầu dòng (hội thoại JLPT)
-    const DIALOGUE_LINE_RE = /^\*\*[^*\n]+[：:]\*\*/;
-    const dialogLines = processed.split('\n');
-    for (let i = 0; i < dialogLines.length - 1; i++) {
-        if (DIALOGUE_LINE_RE.test(dialogLines[i]) && DIALOGUE_LINE_RE.test(dialogLines[i + 1])) {
-            dialogLines[i] = dialogLines[i].trimEnd() + '  ';
-        }
-    }
-    processed = dialogLines.join('\n');
-    // Bước 4: chuyển furigana trong ngoặc → ruby hover tooltip
-    processed = preprocessFurigana(processed);
-    return processed;
-};
-
-const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
-    const { i18n } = useTranslation();
-    const processed = preprocessMarkdown(content, i18n.language);
-    return (
-        <div className="markdown-body">
-            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
-                {processed}
-            </ReactMarkdown>
-        </div>
-    );
-};
 
 const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, index }) => {
     const { t } = useTranslation();
@@ -312,23 +86,22 @@ const InlineQuizItem: React.FC<{ quiz: BlockQuiz; index: number }> = ({ quiz, in
 
 const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden?: boolean }> = ({ url, caption, isDefaultHidden }) => {
     const { t } = useTranslation();
-    const [isExpanded, setIsExpanded] = useState(!isDefaultHidden); 
+    const [isExpanded, setIsExpanded] = useState(!isDefaultHidden);
 
     return (
         <div className="mb-6 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm transition-all">
-            <div 
+            <div
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="flex items-center justify-between p-3 bg-slate-800 cursor-pointer hover:bg-slate-500 transition border-b border-gray-100 select-none"
             >
                 <div className="flex-grow flex justify-center">
                     {caption ? (
-                        // [CHANGED] Màu đậm hơn (text-gray-900), font đậm hơn (font-extrabold)
                         <span className="text-base font-extrabold text-gray-900 text-center">
                             {caption}
                             {!isExpanded && <span className="text-xs text-gray-400 font-normal italic ml-2">({t('detail.image.collapsed')})</span>}
                         </span>
                     ) : (
-                        <div 
+                        <div
                             className="group flex flex-col items-center gap-1 opacity-50 hover:opacity-100 transition-opacity py-1"
                             title={isExpanded ? t('detail.image.collapse_tooltip') : t('detail.image.expand_tooltip')}
                         >
@@ -336,11 +109,11 @@ const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden
                         </div>
                     )}
                 </div>
-                <button 
+                <button
                     type="button"
                     className={`ml-3 p-1.5 rounded-full transition ${
-                        isExpanded 
-                        ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' 
+                        isExpanded
+                        ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                         : 'bg-blue-100 text-[#1A73E8] hover:bg-blue-200'
                     }`}
                 >
@@ -349,185 +122,13 @@ const ExpandableImage: React.FC<{ url: string; caption?: string; isDefaultHidden
             </div>
             {isExpanded && (
                 <div className="p-2 bg-gray-100 animate-in fade-in slide-in-from-top-1 duration-300">
-                    <img 
-                        src={url} 
-                        alt={caption || 'lesson-img'} 
+                    <img
+                        src={url}
+                        alt={caption || 'lesson-img'}
                         className="w-full h-auto rounded-lg object-contain bg-white border border-gray-200"
                     />
                 </div>
             )}
-        </div>
-    );
-};
-
-const AudioBlockItem: React.FC<{ url: string; name: string }> = ({ url, name }) => {
-    return (
-        <div className="flex items-center p-3 bg-blue-50 rounded-xl border border-blue-100 mb-3">
-            <div className="bg-[#1A73E8] p-2 rounded-full text-white mr-3 shadow-sm"><Volume2 size={20} /></div>
-            <div className="flex-grow min-w-0 mr-3"><p className="text-sm font-bold text-gray-700 truncate">{name}</p></div>
-            <audio controls className="h-8 w-32 md:w-64" controlsList="nodownload"><source src={url} /></audio>
-        </div>
-    );
-};
-
-/**
- * Renders markdown content with audio players injected inline next to each
- * conversation section. Matches `### Hội thoại N` / `### Conversation N` /
- * `### 会話 N` headings to audio files named `*-convN.*` (e.g. L01-conv1.mp3).
- * The audio player is inserted after the context blockquote (> 🎧 …) if present,
- * otherwise right below the heading — so the learner can listen before reading.
- * Falls back to listing all audios at the bottom when no convN naming is detected.
- */
-const MarkdownWithInlineAudio: React.FC<{
-    markdownContent?: string;
-    audios?: BlockAudio[];
-}> = ({ markdownContent, audios }) => {
-    const { i18n } = useTranslation();
-
-    if (!markdownContent && (!audios || audios.length === 0)) return null;
-
-    if (!markdownContent) {
-        return audios && audios.length > 0 ? (
-            <div className="space-y-2 mb-6">
-                {audios.map(a => <AudioBlockItem key={a.id} url={a.url} name={a.name} />)}
-            </div>
-        ) : null;
-    }
-
-    if (!audios || audios.length === 0) {
-        const processed = preprocessMarkdown(markdownContent, i18n.language);
-        return (
-            <div className="mb-6 markdown-body">
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
-                    {processed}
-                </ReactMarkdown>
-            </div>
-        );
-    }
-
-    // Build audio map: convN → BlockAudio
-    const audioMap = new Map<number, BlockAudio>();
-    const unindexed: BlockAudio[] = [];
-    audios.forEach(a => {
-        const m = a.name.match(/conv(\d+)/i);
-        if (m) audioMap.set(parseInt(m[1]), a);
-        else unindexed.push(a);
-    });
-
-    // No conv-numbered audios → fall back: markdown then all audios below
-    if (audioMap.size === 0) {
-        const processed = preprocessMarkdown(markdownContent, i18n.language);
-        return (
-            <div className="mb-6">
-                <div className="markdown-body">
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
-                        {processed}
-                    </ReactMarkdown>
-                </div>
-                <div className="space-y-2 mt-4">
-                    {audios.map(a => <AudioBlockItem key={a.id} url={a.url} name={a.name} />)}
-                </div>
-            </div>
-        );
-    }
-
-    // Split markdown at:
-    //   ### Hội thoại N / ### Conversation N (JLPT — markdown heading)
-    //   **Conversation N ...  (A2-KET — bold text heading)
-    const CONV_HEADING_RE = /^(?:#{1,4}\s+|\*{1,2}\s*)(?:Hội\s*thoại|Conversation|会話)\s+(\d+)/i;
-    const lines = markdownContent.split('\n');
-
-    interface Section { lines: string[]; convN: number | null; }
-    const sections: Section[] = [];
-    let currentLines: string[] = [];
-    let currentConvN: number | null = null;
-
-    for (const line of lines) {
-        const m = line.match(CONV_HEADING_RE);
-        if (m) {
-            sections.push({ lines: currentLines, convN: currentConvN });
-            currentLines = [line];
-            currentConvN = parseInt(m[1]);
-        } else {
-            currentLines.push(line);
-        }
-    }
-    if (currentLines.length > 0) {
-        sections.push({ lines: currentLines, convN: currentConvN });
-    }
-
-    const renderSection = (section: Section, idx: number) => {
-        const { lines: sLines, convN } = section;
-        const audio = convN !== null ? audioMap.get(convN) : undefined;
-        const md = sLines.join('\n');
-
-        if (!audio) {
-            const p = preprocessMarkdown(md, i18n.language);
-            return (
-                <div key={idx} className="markdown-body">
-                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{p}</ReactMarkdown>
-                </div>
-            );
-        }
-
-        // Find split point for audio insertion.
-        // Rules (in priority order):
-        //   1. If first blockquote after heading is context (🎧/🔊 or answer choices A/B/C)
-        //      → put audio AFTER that blockquote, before the dialogue.
-        //   2. If first blockquote is dialogue (**Name：** pattern)
-        //      → put audio right after heading (before everything).
-        //   3. No blockquote found → put audio after heading only.
-        let splitIdx = Math.min(1, sLines.length);
-        // Find first non-blank line index
-        let firstMeaningfulIdx = -1;
-        for (let i = 1; i < sLines.length; i++) {
-            if (sLines[i].trim() !== '') { firstMeaningfulIdx = i; break; }
-        }
-        if (firstMeaningfulIdx >= 0) {
-            const firstLine = sLines[firstMeaningfulIdx];
-            if (firstLine.startsWith('> ') || firstLine === '>') {
-                // Check if it's dialogue: > **Name：** or > **Name:**
-                const isDialogueLine = /^>\s*\*\*[^*]+[：:]\*\*/.test(firstLine);
-                if (!isDialogueLine) {
-                    // Context blockquote (🎧 situation or answer choices) → advance past it
-                    splitIdx = firstMeaningfulIdx + 1;
-                    while (splitIdx < sLines.length &&
-                           (sLines[splitIdx].startsWith('> ') || sLines[splitIdx] === '>')) {
-                        splitIdx++;
-                    }
-                    // Skip one trailing blank line
-                    if (splitIdx < sLines.length && sLines[splitIdx].trim() === '') {
-                        splitIdx++;
-                    }
-                }
-                // else: dialogue → leave splitIdx = 1 (audio before dialogue)
-            }
-        }
-
-        const beforeMd = preprocessMarkdown(sLines.slice(0, splitIdx).join('\n'), i18n.language);
-        const afterMd = preprocessMarkdown(sLines.slice(splitIdx).join('\n'), i18n.language);
-
-        return (
-            <div key={idx}>
-                {beforeMd.trim() && (
-                    <div className="markdown-body">
-                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{beforeMd}</ReactMarkdown>
-                    </div>
-                )}
-                <AudioBlockItem url={audio.url} name={audio.name} />
-                {afterMd.trim() && (
-                    <div className="markdown-body">
-                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>{afterMd}</ReactMarkdown>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    return (
-        <div className="mb-6">
-            {sections.map(renderSection)}
-            {unindexed.map(a => <AudioBlockItem key={a.id} url={a.url} name={a.name} />)}
         </div>
     );
 };
@@ -543,17 +144,8 @@ const VocabularySection: React.FC<{ vocabularies: BlockVocabulary[]; title?: str
     if (!vocabularies || vocabularies.length === 0) return null;
 
     const handleSpeak = (text: string, e: React.MouseEvent) => {
-        e.stopPropagation(); 
-        if (!window.speechSynthesis) {
-            alert("Trình duyệt của bạn không hềEtrợ phát âm.");
-            return;
-        }
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        const isJapanese = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(text);
-        utterance.lang = isJapanese ? 'ja-JP' : 'en-US';
-        utterance.rate = 0.9; 
-        window.speechSynthesis.speak(utterance);
+        e.stopPropagation();
+        speakText(text);
     };
 
     return (
