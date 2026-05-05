@@ -348,7 +348,7 @@ const QuizView: React.FC<{ data: string; title: string; onComplete?: () => void 
     if (showResult) {
         const percentage = Math.round((score / questions.length) * 100);
         return (
-            <div className="w-full h-full bg-white p-6 md:p-10 flex flex-col items-center justify-center overflow-y-auto">
+            <div className="w-full bg-white p-6 md:p-10 flex flex-col items-center justify-center">
                 <div className="w-full max-w-lg text-center space-y-6">
                     <div className="mb-4 inline-block p-4 bg-blue-50 rounded-full">{percentage >= 80 ? <CheckCircle2 size={64} className="text-green-500" /> : <AlertCircle size={64} className="text-orange-500" />}</div>
                     <h2 className="text-3xl font-bold text-gray-800 uppercase">{t('detail.quiz.result')}</h2>
@@ -371,7 +371,7 @@ const QuizView: React.FC<{ data: string; title: string; onComplete?: () => void 
                 <div className="flex items-center text-orange-600 font-bold"><HelpCircle className="mr-2" size={20}/><span className="truncate max-w-[200px]">{title}</span></div>
                 <div className="text-xs font-bold bg-white border px-3 py-1 rounded-full text-gray-500">{t('detail.quiz.question', { index: `${currentQIndex + 1}/${questions.length}` })}</div>
             </div>
-            <div className="flex-grow p-6 md:p-10 overflow-y-auto">
+            <div className="flex-grow p-6 md:p-10">
                 <div className="max-w-3xl mx-auto space-y-8">
                     <h3 className="text-xl md:text-2xl font-bold text-gray-900 leading-snug">{currentQ.question}</h3>
                     <div className="space-y-3">
@@ -522,7 +522,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
         if (selectedVideo.type === 'custom') {
             const blocks = selectedVideo.blockData || [];
             return (
-                <div className="w-full h-full bg-white py-8 px-6 md:px-10 overflow-y-auto custom-scrollbar">
+                <div className="w-full bg-white py-8 px-6 md:px-10">
                     <div className="pb-16">
                         <div className="border-b border-gray-100 pb-6 mb-8">
                             <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
@@ -590,7 +590,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 
         if (selectedVideo.type === 'audio') {
             return (
-                <div className="w-full h-full bg-white py-8 px-6 md:px-10 overflow-y-auto custom-scrollbar">
+                <div className="w-full bg-white py-8 px-6 md:px-10">
                     <div className="pb-10">
                         <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><Headphones className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.audio_lesson')}</p></div>
                         <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8 flex flex-col items-center justify-center"><div className="w-full max-w-md"><audio controls className="w-full" controlsList="nodownload"><source src={selectedVideo.audioUrl} type="audio/mpeg" /></audio></div></div>
@@ -603,7 +603,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 
         if (selectedVideo.type === 'text') {
             return (
-                <div className="w-full h-full bg-white py-8 px-6 md:px-10 overflow-y-auto custom-scrollbar">
+                <div className="w-full bg-white py-8 px-6 md:px-10">
                     <div className="pb-10">
                         <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><FileText className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.theory_lesson')}</p></div>
                         <MarkdownContent content={selectedVideo.content || t('detail.content_updating')} />
@@ -619,7 +619,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-[#1A73E8]" size={40} /></div>;
 
     const isVideoType = !selectedVideo || !selectedVideo.type || selectedVideo.type === 'video';
-    const contentContainerClass = isVideoType ? "aspect-video bg-gray-900" : "h-[600px] bg-white border-b lg:border-none"; 
+    const contentContainerClass = isVideoType ? "aspect-video bg-gray-900" : "bg-white border-b lg:border-none"; 
 
     return (
         <div className="min-h-screen bg-white flex flex-col font-sans">
@@ -807,3 +807,5 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 };
 
 export default CourseDetailPage;
+
+
