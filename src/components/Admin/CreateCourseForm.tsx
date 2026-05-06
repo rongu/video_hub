@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { type User } from 'firebase/auth';
 import { 
     type Course, 
@@ -153,7 +153,7 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
 
     return (
         // [UI UPDATE] Thêm khung trắng, đổ bóng để dễ nhìn hơn
-        <div className="argon-card overflow-hidden">
+        <div className="argon-card overflow-hidden w-full max-w-5xl my-4 max-h-[calc(100vh-2rem)] flex flex-col">
             {/* HEADER */}
             <div className="p-6 text-white flex justify-between items-center" style={{background: 'linear-gradient(195deg, #49A3F1, #1A73E8)'}}>
                 <div>
@@ -169,7 +169,7 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                 )}
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8">
+            <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
                 {error && (
                     <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-lg text-sm font-medium animate-pulse">
                         {error}
@@ -368,3 +368,4 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
 };
 
 export default CreateCourseForm;
+

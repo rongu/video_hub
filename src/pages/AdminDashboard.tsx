@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
 import { 
     LayoutDashboard, Users, LogOut, Plus, Search, 
@@ -284,23 +284,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
 
             {/* 1. Create Course */}
             {showCreateCourse && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 overflow-y-auto bg-black/50 backdrop-blur-sm">
                     <CreateCourseForm 
                         user={user} 
                         initialCourse={null}
-                        onCourseSaved={() => setShowCreateCourse(false)} 
-                    />
+                        onCourseSaved={() => setShowCreateCourse(false)} onCancel={() => setShowCreateCourse(false)} />
                 </div>
             )}
 
             {/* 2. Edit Course */}
             {editingCourse && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 overflow-y-auto bg-black/50 backdrop-blur-sm">
                     <CreateCourseForm 
                         user={user}
                         initialCourse={editingCourse}
-                        onCourseSaved={() => setEditingCourse(null)} 
-                    />
+                        onCourseSaved={() => setEditingCourse(null)} onCancel={() => setEditingCourse(null)} />
                 </div>
             )}
 
