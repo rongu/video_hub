@@ -70,6 +70,16 @@ const getTitleFromMd = (mdContent) => {
     return firstLine;
 };
 
+// ─── Helper: delete docs in batches of 500 ───────────────────────────────────
+async function deleteDocs(snapshotDocs) {
+    for (let i = 0; i < snapshotDocs.length; i += 490) {
+        const chunk = snapshotDocs.slice(i, i + 490);
+        const b = writeBatch(db);
+        chunk.forEach(d => b.delete(d.ref));
+        await b.commit();
+    }
+}
+
 // ── Helper: Upload video file ──────────────────────────────────────────────
 const uploadVideo = async (localPath, fileName, lessonUUID) => {
     const data = readFileSync(localPath);
@@ -101,6 +111,24 @@ for (const doc of courseSnap.docs) {
         console.log('📖 Found existing course:', COURSE_ID);
         break;
     }
+}
+
+if (COURSE_ID) {
+    console.log('Found existing course:', COURSE_ID);
+    console.log('Deleting existing videos and sessions...');
+
+    const videosSnap   = await getDocs(collection(db, BASE + '/courses/' + COURSE_ID + '/videos'));
+    const sessionsSnap = await getDocs(collection(db, BASE + '/courses/' + COURSE_ID + '/sessions'));
+
+    await deleteDocs(videosSnap.docs);
+    console.log(`  Deleted ${videosSnap.size} videos`);
+    await deleteDocs(sessionsSnap.docs);
+    console.log(`  Deleted ${sessionsSnap.size} sessions`);
+
+    // Reset videoCount on course
+    const b = writeBatch(db);
+    b.update(doc(db, BASE + '/courses/' + COURSE_ID), { videoCount: 0, updatedAt: serverTimestamp() });
+    await b.commit();
 }
 
 if (!COURSE_ID) {

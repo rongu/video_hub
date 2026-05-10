@@ -541,12 +541,22 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                         <div className="space-y-4 mb-8">
                                             {block.videos.map(video => (
                                                 <div key={video.id} className="rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-black">
-                                                    <video controls className="w-full aspect-video">
+                                                    <video 
+                                                        controls 
+                                                        className="w-full aspect-video"
+                                                        preload="metadata"       /* Chỉ load trước metadata để đỡ tốn data/pin */
+                                                        playsInline              /* Cực kỳ quan trọng: Cho phép play ngay tại chỗ trên iPhone, không ép mở fullscreen */
+                                                        webkit-playsinline="true" /* Hỗ trợ các bản iOS cũ hơn */
+                                                    >
                                                         <source src={video.url} type="video/mp4" />
+                                                        {/* Thêm một source dự phòng nếu URL không có đuôi file rõ ràng */}
+                                                        <source src={video.url} type="video/quicktime" /> 
                                                         Your browser does not support the video tag.
                                                     </video>
                                                     <div className="p-3 bg-gray-50 border-t border-gray-100">
-                                                        <p className="text-sm font-bold text-gray-700 flex items-center"><VideoIcon size={16} className="mr-2 text-pink-600"/> {video.name}</p>
+                                                        <p className="text-sm font-bold text-gray-700 flex items-center">
+                                                            <VideoIcon size={16} className="mr-2 text-pink-600"/> {video.name}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             ))}
