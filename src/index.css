@@ -217,3 +217,57 @@ html, body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #999;
 }
+
+/* ================================================================
+   ANTI-COPY / CONTENT PROTECTION
+   ================================================================ */
+
+/* Tắt user-select toàn bộ trang, bật lại cho input/textarea */
+body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.allow-select {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Tắt kéo-thả ảnh */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+  pointer-events: none;
+}
+
+/* Cho phép click ảnh nếu cần (override) */
+img.allow-pointer {
+  pointer-events: auto;
+}
+
+/* Chặn chụp màn hình qua CSS filter khi in (PrintScreen thường dùng @media print) */
+@media print {
+  body > * {
+    display: none !important;
+  }
+  body::after {
+    content: "Nội dung được bảo vệ — Không được phép sao chép.";
+    display: block;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    font-weight: bold;
+    color: #E53935;
+    text-align: center;
+    z-index: 99999;
+  }
+}

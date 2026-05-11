@@ -128,6 +128,55 @@ const App: React.FC = () => {
         onNavigate('landing');
     }, [onNavigate]);
 
+    // ── Bảo vệ nội dung: chặn copy toàn trang, cho phép copy 1 dòng ──────────
+    useEffect(() => {
+        // Giới hạn copy: tối đa 2 dòng hoặc 200 ký tự
+        const MAX_LINES = 2;
+        const MAX_CHARS = 200;
+
+        const handleCopy = (e: ClipboardEvent) => {
+            const selection = window.getSelection();
+            if (!selection) return;
+            const text = selection.toString();
+            const lines = text.split('\n').filter(l => l.trim().length > 0);
+            if (lines.length > MAX_LINES || text.length > MAX_CHARS) {
+                e.preventDefault();
+            }
+        };
+
+        // Chặn phím tắt: Ctrl+A (chọn tất cả), Ctrl+P (in), Ctrl+S (lưu)
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const ctrl = e.ctrlKey || e.metaKey;
+            if (ctrl && (e.key === 'a' || e.key === 'A')) {
+                e.preventDefault();
+            }
+            if (ctrl && (e.key === 'p' || e.key === 'P')) {
+                e.preventDefault();
+            }
+            if (ctrl && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+            }
+            // Xóa clipboard khi nhấn PrintScreen (Windows)
+            if (e.key === 'PrintScreen') {
+                navigator.clipboard?.writeText('').catch(() => {});
+            }
+        };
+
+        // Chặn chuột phải (context menu) trên toàn trang
+        const handleContextMenu = (e: MouseEvent) => {
+            e.preventDefault();
+        };
+
+        document.addEventListener('copy', handleCopy);
+        document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('contextmenu', handleContextMenu);
+        return () => {
+            document.removeEventListener('copy', handleCopy);
+            document.removeEventListener('keydown', handleKeyDown);
+            document.removeEventListener('contextmenu', handleContextMenu);
+        };
+    }, []);
+
     const renderContent = () => {
         if (!isAuthReady || !dbInstance) {
             return (
