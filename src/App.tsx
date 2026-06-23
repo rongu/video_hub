@@ -128,8 +128,10 @@ const App: React.FC = () => {
         onNavigate('landing');
     }, [onNavigate]);
 
-    // ── Bảo vệ nội dung: chặn copy toàn trang, cho phép copy 1 dòng ──────────
+    // ── Bảo vệ nội dung: chặn copy toàn trang (bỏ qua nếu là admin) ──────────
     useEffect(() => {
+        if (role === 'admin') return;
+
         // Giới hạn copy: tối đa 2 dòng hoặc 200 ký tự
         const MAX_LINES = 2;
         const MAX_CHARS = 200;
@@ -175,7 +177,7 @@ const App: React.FC = () => {
             document.removeEventListener('keydown', handleKeyDown);
             document.removeEventListener('contextmenu', handleContextMenu);
         };
-    }, []);
+    }, [role]);
 
     const renderContent = () => {
         if (!isAuthReady || !dbInstance) {
