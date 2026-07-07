@@ -87,7 +87,7 @@ const injectIPAButtons = (content: string): string => {
     const result: string[] = [];
     let headerCells: string[] = [];
     let inTable = false;
-    let ipaColIdx = -1;
+    let ipaColIdxs: number[] = [];
     let wordColIdx = -1;
 
     for (let i = 0; i < lines.length; i++) {
@@ -97,7 +97,7 @@ const injectIPAButtons = (content: string): string => {
         if (!isTableRow) {
             inTable = false;
             headerCells = [];
-            ipaColIdx = -1;
+            ipaColIdxs = [];
             wordColIdx = -1;
             result.push(line);
             continue;
@@ -105,10 +105,13 @@ const injectIPAButtons = (content: string): string => {
 
         const cells = line.split('|').slice(1, -1); // strip leading/trailing empty from | delimiters
 
-        // Header row — detect IPA column and Word column
+        // Header row — detect all IPA columns and Word column
         if (!inTable) {
             headerCells = cells.map(c => c.trim().toLowerCase());
-            ipaColIdx = headerCells.findIndex(h => h === 'ipa');
+            ipaColIdxs = headerCells.reduce<number[]>((acc, h, idx) => {
+                if (h.includes('ipa')) acc.push(idx);
+                return acc;
+            }, []);
             wordColIdx = headerCells.findIndex(h =>
                 h === 'word' || h === 'phrase' || h === 'kanji' || h === 'term' || h === 'vocabulary' || h === '単語' || h === '語彙'
             );
@@ -124,17 +127,23 @@ const injectIPAButtons = (content: string): string => {
             continue;
         }
 
-        // Data rows — inject IPA button if IPA column found
-        if (ipaColIdx >= 0 && ipaColIdx < cells.length) {
-            const ipaCell = cells[ipaColIdx].trim();
-            const ipa = extractIPA(ipaCell);
-            if (ipa) {
-                const word = wordColIdx >= 0 && wordColIdx < cells.length
-                    ? cells[wordColIdx].trim().replace(/\*+/g, '')  // strip bold markers
-                    : '';
-                // Replace IPA cell with injected span
-                const newCells = [...cells];
-                newCells[ipaColIdx] = `${ipaCell}<span class="md-ipa-btn" data-ipa="${ipa}" data-word="${word.replace(/"/g, '&quot;')}"></span>`;
+        // Data rows — inject IPA button for every IPA column found
+        if (ipaColIdxs.length > 0) {
+            const newCells = [...cells];
+            const word = wordColIdx >= 0 && wordColIdx < cells.length
+                ? cells[wordColIdx].trim().replace(/\*+/g, '')
+                : '';
+            let injected = false;
+            for (const idx of ipaColIdxs) {
+                if (idx >= cells.length) continue;
+                const ipaCell = cells[idx].trim();
+                const ipa = extractIPA(ipaCell);
+                if (ipa) {
+                    newCells[idx] = `${ipaCell}<span class="md-ipa-btn" data-ipa="${ipa}" data-word="${word.replace(/"/g, '&quot;')}"></span>`;
+                    injected = true;
+                }
+            }
+            if (injected) {
                 result.push('|' + newCells.join('|') + '|');
                 continue;
             }
