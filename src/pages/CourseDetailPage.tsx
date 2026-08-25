@@ -718,7 +718,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                                 onClick={() => toggleSession(session.id)}
                                                 className="px-3 py-2 text-xs font-bold uppercase text-gray-500 tracking-wide border-b border-gray-100 mb-2 flex justify-between items-center cursor-pointer hover:bg-blue-50 hover:text-[#1A73E8] transition-colors rounded-lg select-none"
                                             >
-                                                <span>{session.title}</span>
+                                                <span>{tr_h(session.title)}</span>
                                                 {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                             </div>
                                             

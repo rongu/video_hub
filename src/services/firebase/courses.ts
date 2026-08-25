@@ -3,7 +3,7 @@ import {
     updateDoc, getDocs, writeBatch, type Timestamp 
 } from 'firebase/firestore';
 import { ref, deleteObject, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getCourseDocRef, getCoursesCollectionRef, type MultilingualField } from './config';
+import { getFirestoreDb, getFirebaseStorage, getVideosCollectionRef, getSessionsCollectionRef, getCourseDocRef, getCoursesCollectionRef, type MultilingualField } from './config';
 import { type Video } from './videos';
 
 // [UPDATE] Cập nhật Interface Course để dùng MultilingualField
@@ -78,7 +78,10 @@ export const deleteCourse = async (courseId: string): Promise<void> => {
     
     const videosRef = getVideosCollectionRef(courseId);
     const videosSnapshot = await getDocs(videosRef);
-    
+
+    const sessionsSnapshot = await getDocs(getSessionsCollectionRef(courseId));
+    sessionsSnapshot.docs.forEach(docSnap => batch.delete(docSnap.ref));
+
     const storagePaths: string[] = [];
     
     if (courseData.imageUrl && courseData.imageUrl.includes('firebasestorage')) {

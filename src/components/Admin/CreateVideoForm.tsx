@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    addVideo, 
+import {
+    addVideo,
     updateVideo, // [NEW] Hàm update
-    ref, 
-    uploadBytesResumable, 
-    getDownloadURL, 
-    generateVideoId, 
+    ref,
+    uploadBytesResumable,
+    getDownloadURL,
+    generateVideoId,
     getFirebaseStorage,
+    tr_h,
     type LessonType,
     type LessonBlock,
-    type Video // [NEW] Import Video type
-} from '../../services/firebase'; 
+    type Video, // [NEW] Import Video type
+    type MultilingualField,
+    type LocalizedText
+} from '../../services/firebase';
 import { type User } from 'firebase/auth';
 import { 
     Loader2, X, UploadCloud, FileText, Zap, CheckCircle, 
@@ -48,9 +51,28 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
     // Tạo ID nháp hoặc dùng ID cũ nếu đang edit
     const [draftVideoId] = useState(initialVideo?.id || generateVideoId());
 
-    // State chung cho Text / Quiz / Audio Title
-    const [textTitle, setTextTitle] = useState('');
-    const [textContent, setTextContent] = useState(''); 
+    // State chung cho Text / Quiz / Audio Title (tách theo ngôn ngữ để không ghi đè bản dịch khác khi edit)
+    const [title, setTitle] = useState('');       // Tiếng Việt (bắt buộc)
+    const [titleJa, setTitleJa] = useState('');   // Tiếng Nhật (tùy chọn)
+    const [textContent, setTextContent] = useState('');
+
+    // Lấy text gốc theo từng ngôn ngữ từ field đa ngôn ngữ (string cũ hoặc object mới)
+    const getRaw = (field: MultilingualField | undefined, lang: 'vi' | 'ja'): string => {
+        if (!field) return '';
+        if (typeof field === 'string') {
+            return lang === 'vi' ? field : '';
+        }
+        return field[lang] || '';
+    };
+
+    // Merge lại thành object đa ngôn ngữ khi lưu, giữ nguyên "en" cũ nếu có (không có UI sửa en)
+    const buildTitleField = (): MultilingualField => {
+        const originalTitle = initialVideo?.title;
+        const originalEn = (originalTitle && typeof originalTitle === 'object') ? originalTitle.en : undefined;
+        const merged: LocalizedText = { vi: title, ja: titleJa || title };
+        if (originalEn) merged.en = originalEn;
+        return merged;
+    };
     
     // State riêng cho Lesson Builder (Mảng các Block)
     const [lessonBlocks, setLessonBlocks] = useState<LessonBlock[]>([]);
@@ -73,7 +95,8 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
     useEffect(() => {
         if (initialVideo) {
             setContentType(initialVideo.type || 'video');
-            setTextTitle(initialVideo.title);
+            setTitle(getRaw(initialVideo.title, 'vi'));
+            setTitleJa(getRaw(initialVideo.title, 'ja'));
             setSelectedSessionId(initialVideo.sessionId);
             setSelectedSessionTitle("Session hiện tại (Click để thay đổi)"); 
 
@@ -171,7 +194,7 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
         try {
             // [NEW] Logic Update chung cho các trường cơ bản
             const commonUpdateData = {
-                title: textTitle,
+                title: buildTitleField(),
                 sessionId: selectedSessionId,
                 type: contentType,
             };
@@ -202,12 +225,12 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                         setCurrentFileIndex(i + 1); 
                         setUploadProgress(0); 
                         
-                        const videoId = generateVideoId(); 
+                        const videoId = generateVideoId();
                         const { url, storagePath } = await uploadFile(file, videoId, 'videos');
-                        const title = file.name.replace(/\.[^/.]+$/, ""); 
-                        
+                        const fileTitle = file.name.replace(/\.[^/.]+$/, "");
+
                         await addVideo(
-                            courseId, selectedSessionId, title, url, storagePath, adminUser.uid, 
+                            courseId, selectedSessionId, fileTitle, url, storagePath, adminUser.uid,
                             videoId, 'video'
                         );
                         successCount++;
@@ -219,8 +242,8 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
             
             // CASE 2: AUDIO
             else if (contentType === 'audio') {
-                if (!textTitle.trim()) throw new Error("Vui lòng nhập tiêu đề Audio.");
-                
+                if (!title.trim()) throw new Error("Vui lòng nhập tiêu đề Audio.");
+
                 if (isEditing) {
                     const updateData: any = { ...commonUpdateData, content: textContent };
                     if (files.length > 0) {
@@ -234,17 +257,17 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                     if (files.length === 0) throw new Error("Chưa chọn file Audio.");
                     const { url, storagePath } = await uploadFile(files[0], draftVideoId, 'audios');
                     await addVideo(
-                        courseId, selectedSessionId, textTitle, '', storagePath, adminUser.uid, 
+                        courseId, selectedSessionId, buildTitleField(), '', storagePath, adminUser.uid,
                         draftVideoId, 'audio', textContent, '', [], url
                     );
                     setSuccess("Đã thêm bài Audio thành công!");
-                    setTextTitle(''); setTextContent(''); setFiles([]);
+                    setTitle(''); setTitleJa(''); setTextContent(''); setFiles([]);
                 }
             }
 
             // CASE 3: CUSTOM
             else if (contentType === 'custom') {
-                if (!textTitle.trim()) throw new Error("Vui lòng nhập tiêu đề bài học.");
+                if (!title.trim()) throw new Error("Vui lòng nhập tiêu đề bài học.");
                 if (lessonBlocks.length === 0) throw new Error("Bài học chưa có nội dung nào.");
 
                 const storageFolderPath = `artifacts/video-hub-prod-id/assets/${courseId}/${draftVideoId}`;
@@ -257,35 +280,35 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                     setSuccess("Cập nhật Bài học Tương tác thành công!");
                 } else {
                     await addVideo(
-                        courseId, selectedSessionId, textTitle, '', storageFolderPath, adminUser.uid,
+                        courseId, selectedSessionId, buildTitleField(), '', storageFolderPath, adminUser.uid,
                         draftVideoId, 'custom', '', '', lessonBlocks
                     );
                     setSuccess("Đã tạo Bài học Tương tác thành công!");
-                    setTextTitle(''); setLessonBlocks([]);
+                    setTitle(''); setTitleJa(''); setLessonBlocks([]);
                 }
             }
 
             // CASE 4: TEXT / QUIZ
             else {
-                if (!textTitle.trim()) throw new Error("Vui lòng nhập tiêu đề.");
-                
+                if (!title.trim()) throw new Error("Vui lòng nhập tiêu đề.");
+
                 if (isEditing) {
                     const updateData: any = { ...commonUpdateData };
                     if (contentType === 'text') updateData.content = textContent;
                     if (contentType === 'quiz') updateData.quizData = textContent;
-                    
+
                     await updateVideo(courseId, draftVideoId, updateData);
                     setSuccess("Cập nhật thành công!");
                 } else {
                     const id = generateVideoId();
                     await addVideo(
-                        courseId, selectedSessionId, textTitle, '', '', adminUser.uid, id,
-                        contentType, 
-                        contentType === 'text' ? textContent : '', 
-                        contentType === 'quiz' ? textContent : '' 
+                        courseId, selectedSessionId, buildTitleField(), '', '', adminUser.uid, id,
+                        contentType,
+                        contentType === 'text' ? textContent : '',
+                        contentType === 'quiz' ? textContent : ''
                     );
                     setSuccess(`Đã thêm ${contentType} thành công!`);
-                    setTextTitle(''); setTextContent('');
+                    setTitle(''); setTitleJa(''); setTextContent('');
                 }
             }
             
@@ -309,7 +332,7 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
             <div className="flex justify-between items-center mb-4 border-b border-gray-200 pb-3">
                 <h3 className="text-xl font-bold text-gray-700">
                     {/* [UPDATED] Tiêu đề thay đổi theo chế độ */}
-                    {isEditing ? `Chỉnh sửa: "${initialVideo?.title}"` : `Thêm Nội dung: "${courseTitle}"`}
+                    {isEditing ? `Chỉnh sửa: "${tr_h(initialVideo?.title)}"` : `Thêm Nội dung: "${courseTitle}"`}
                 </h3>
                 <button 
                     onClick={onClose} 
@@ -374,11 +397,15 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
                 <div className="min-h-[200px]">
                     {contentType === 'custom' ? (
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div>
+                            <div className="space-y-2">
                                 <label className="block text-sm font-bold text-gray-700 mb-1">2. Tiêu đề Bài học <span className="text-red-500">*</span></label>
-                                <input 
-                                    type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition" 
-                                    value={textTitle} onChange={(e) => setTextTitle(e.target.value)} placeholder="VD: Luyện nghe Part 1 (Có đáp án chi tiết)..." required
+                                <input
+                                    type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition"
+                                    value={title} onChange={(e) => setTitle(e.target.value)} placeholder="VD: Luyện nghe Part 1 (Có đáp án chi tiết)..." required
+                                />
+                                <input
+                                    type="text" className="w-full p-3 border border-blue-200 rounded-lg outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition bg-blue-50/50"
+                                    value={titleJa} onChange={(e) => setTitleJa(e.target.value)} placeholder="Tiêu đề tiếng Nhật (tùy chọn)..."
                                 />
                             </div>
                             <div className="border-t border-gray-200 pt-4">
@@ -449,9 +476,10 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
 
                     ) : contentType === 'audio' ? (
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div>
+                            <div className="space-y-2">
                                 <label className="block text-sm font-bold text-gray-700 mb-1">2. Tiêu đề Audio <span className="text-red-500">*</span></label>
-                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-amber-500 transition" value={textTitle} onChange={(e) => setTextTitle(e.target.value)} required placeholder="VD: Listening Test 1..." />
+                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-amber-500 transition" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="VD: Listening Test 1..." />
+                                <input type="text" className="w-full p-3 border border-blue-200 rounded-lg outline-none focus:border-amber-500 transition bg-blue-50/50" value={titleJa} onChange={(e) => setTitleJa(e.target.value)} placeholder="Tiêu đề tiếng Nhật (tùy chọn)..." />
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-2">
@@ -468,9 +496,10 @@ const CreateVideoForm: React.FC<CreateVideoFormProps> = ({
 
                     ) : (
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div>
+                            <div className="space-y-2">
                                 <label className="block text-sm font-bold text-gray-700 mb-1">2. Tiêu đề <span className="text-red-500">*</span></label>
-                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-[#1A73E8] transition" value={textTitle} onChange={(e) => setTextTitle(e.target.value)} required placeholder={`Nhập tên ${contentType}...`}/>
+                                <input type="text" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-[#1A73E8] transition" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder={`Nhập tên ${contentType}...`}/>
+                                <input type="text" className="w-full p-3 border border-blue-200 rounded-lg outline-none focus:border-[#1A73E8] transition bg-blue-50/50" value={titleJa} onChange={(e) => setTitleJa(e.target.value)} placeholder="Tiêu đề tiếng Nhật (tùy chọn)..." />
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">

@@ -90,7 +90,7 @@ export interface Video {
     id: string;
     courseId: string;
     sessionId: string;
-    title: string;
+    title: MultilingualField;
     adminId: string;
     createdAt: number;
     type?: LessonType;

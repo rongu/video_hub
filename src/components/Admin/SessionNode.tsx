@@ -1,28 +1,35 @@
 import React, { useState, } from 'react';
-import { type Session } from '../../services/firebase';
-import { 
-    Plus, Edit, Trash2, ChevronDown, ChevronRight, 
-    BookOpen, Folder, X, CheckCircle, Save, 
+import { type Session, tr_h, type MultilingualField } from '../../services/firebase';
+import {
+    Plus, Edit, Trash2, ChevronDown, ChevronRight,
+    BookOpen, Folder, X, CheckCircle, Save,
     Loader2, ArrowUp, ArrowDown // [NEW] Icons
-} from 'lucide-react'; 
-import ConfirmDeleteModal from './ConfirmDeleteModal'; 
+} from 'lucide-react';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 interface SessionNodeProps {
     session: Session & { children: SessionNodeProps['session'][] };
     courseId: string;
-    level: number; 
-    loading: boolean; 
+    level: number;
+    loading: boolean;
     selectedSessionId: string | null;
     onSessionSelected: (sessionId: string, sessionTitle: string) => void;
     onDelete: (sessionId: string) => Promise<void>;
-    onUpdate: (sessionId: string, newTitle: string) => Promise<void>;
-    onAddChild: (parentId: string, title: string, orderIndex: number) => Promise<void>; 
-    
+    onUpdate: (sessionId: string, newTitle: MultilingualField) => Promise<void>;
+    onAddChild: (parentId: string, title: MultilingualField, orderIndex: number) => Promise<void>;
+
     // [NEW] Props Move
     onMove: (session: Session, direction: 'up' | 'down') => Promise<void>;
     isFirst: boolean;
     isLast: boolean;
 }
+
+// Lấy text gốc theo từng ngôn ngữ từ field đa ngôn ngữ (string cũ hoặc object mới)
+const getRawTitle = (field: MultilingualField | undefined, lang: 'vi' | 'ja'): string => {
+    if (!field) return '';
+    if (typeof field === 'string') return lang === 'vi' ? field : '';
+    return field[lang] || '';
+};
 
 const SessionNode: React.FC<SessionNodeProps> = ({ 
     session, 
@@ -41,9 +48,13 @@ const SessionNode: React.FC<SessionNodeProps> = ({
     const [isExpanded, setIsExpanded] = useState(true);
     const [isAddingChild, setIsAddingChild] = useState(false);
     const [newChildTitle, setNewChildTitle] = useState('');
+    const [newChildTitleJa, setNewChildTitleJa] = useState('');
     const [isEditing, setIsEditing] = useState(false);
-    const [editTitle, setEditTitle] = useState(session.title);
+    const [editTitle, setEditTitle] = useState(() => getRawTitle(session.title, 'vi'));
+    const [editTitleJa, setEditTitleJa] = useState(() => getRawTitle(session.title, 'ja'));
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    const titleStr = tr_h(session.title);
 
     // Logic nghiệp vụ cũ
     const isSelectable = session.videoCount > 0 || session.children.length === 0;
@@ -52,12 +63,16 @@ const SessionNode: React.FC<SessionNodeProps> = ({
     const isSelected = session.id === selectedSessionId;
 
     const handleUpdateSubmit = async () => {
-        if (!editTitle.trim() || editTitle === session.title || loading) {
+        if (!editTitle.trim() || (editTitle === getRawTitle(session.title, 'vi') && editTitleJa === getRawTitle(session.title, 'ja')) || loading) {
             setIsEditing(false);
             return;
         }
         try {
-            await onUpdate(session.id, editTitle);
+            const originalTitle = session.title;
+            const originalEn = (originalTitle && typeof originalTitle === 'object') ? originalTitle.en : undefined;
+            const merged: MultilingualField = { vi: editTitle, ja: editTitleJa || editTitle };
+            if (originalEn) merged.en = originalEn;
+            await onUpdate(session.id, merged);
             setIsEditing(false);
         } catch (error) {
             console.error("Lỗi cập nhật tên Session:", error);
@@ -68,10 +83,12 @@ const SessionNode: React.FC<SessionNodeProps> = ({
         e.preventDefault();
         if (!newChildTitle.trim() || loading) return;
         try {
-            await onAddChild(session.id, newChildTitle, session.children.length);
+            const titleField: MultilingualField = { vi: newChildTitle.trim(), ja: newChildTitleJa.trim() || newChildTitle.trim() };
+            await onAddChild(session.id, titleField, session.children.length);
             setNewChildTitle('');
+            setNewChildTitleJa('');
             setIsAddingChild(false);
-            setIsExpanded(true); 
+            setIsExpanded(true);
         } catch (error) {
              console.error("Lỗi thêm Session con:", error);
         }
@@ -112,30 +129,38 @@ const SessionNode: React.FC<SessionNodeProps> = ({
 
                     {isEditing ? (
                         <div className="flex items-center space-x-2 flex-grow">
-                            <input 
+                            <input
                                 autoFocus
                                 value={editTitle}
                                 onChange={(e) => setEditTitle(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleUpdateSubmit()}
+                                placeholder="Tên (Tiếng Việt)"
+                                className="border-b-2 border-[#1A73E8] bg-transparent focus:outline-none text-sm font-bold w-full text-blue-800"
+                            />
+                            <input
+                                value={editTitleJa}
+                                onChange={(e) => setEditTitleJa(e.target.value)}
                                 onBlur={handleUpdateSubmit}
                                 onKeyDown={(e) => e.key === 'Enter' && handleUpdateSubmit()}
-                                className="border-b-2 border-[#1A73E8] bg-transparent focus:outline-none text-sm font-bold w-full text-blue-800"
+                                placeholder="日本語 (tùy chọn)"
+                                className="border-b-2 border-blue-200 bg-transparent focus:outline-none text-sm font-bold w-full text-gray-600"
                             />
                             <button onClick={handleUpdateSubmit} className="text-green-600 hover:text-green-700">
                                 <Save size={18}/>
                             </button>
                         </div>
                     ) : (
-                        <div 
+                        <div
                             className={`flex items-center flex-grow overflow-hidden ${isSelectable ? 'cursor-pointer' : 'cursor-default'}`}
-                            onClick={() => isSelectable && onSessionSelected(session.id, session.title)}
+                            onClick={() => isSelectable && onSessionSelected(session.id, titleStr)}
                         >
-                            <IconComponent 
-                                size={18} 
-                                className={`mr-2 flex-shrink-0 ${level === 0 ? 'text-[#1A73E8]' : 'text-amber-500'}`} 
+                            <IconComponent
+                                size={18}
+                                className={`mr-2 flex-shrink-0 ${level === 0 ? 'text-[#1A73E8]' : 'text-amber-500'}`}
                             />
-                            
+
                             <span className={`text-sm truncate ${isSelected ? 'font-bold text-[#1A73E8]' : 'text-gray-700 font-medium'}`}>
-                                {session.title}
+                                {titleStr}
                                 {session.videoCount > 0 && (
                                     <span className="text-xs font-normal text-green-600 ml-2 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
                                         {session.videoCount} video
@@ -202,11 +227,18 @@ const SessionNode: React.FC<SessionNodeProps> = ({
 
             {isAddingChild && (
                 <form onSubmit={handleAddChildSubmit} className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg" style={{ marginLeft: `calc(${paddingLeft} + 24px)` }}>
-                    <input 
+                    <input
                         autoFocus
-                        placeholder="Tên chương con mới..."
+                        placeholder="Tên chương con (Tiếng Việt)..."
                         value={newChildTitle}
                         onChange={(e) => setNewChildTitle(e.target.value)}
+                        className="flex-grow text-xs border border-blue-200 rounded p-1.5 focus:ring-1 focus:ring-[#1A73E8]"
+                        disabled={loading}
+                    />
+                    <input
+                        placeholder="日本語 (tùy chọn)"
+                        value={newChildTitleJa}
+                        onChange={(e) => setNewChildTitleJa(e.target.value)}
                         className="flex-grow text-xs border border-blue-200 rounded p-1.5 focus:ring-1 focus:ring-[#1A73E8]"
                         disabled={loading}
                     />
@@ -249,7 +281,7 @@ const SessionNode: React.FC<SessionNodeProps> = ({
                     onClose={() => setShowDeleteModal(false)}
                     onConfirm={handleConfirmDelete}
                     title="Xác nhận xóa chương?"
-                    description={`Bạn có chắc chắn muốn xóa chương "${session.title}"? Mọi nội dung bên trong cũng sẽ bềExóa bềE`}
+                    description={`Bạn có chắc chắn muốn xóa chương "${titleStr}"? Mọi nội dung bên trong cũng sẽ bềExóa bềE`}
                     isProcessing={loading}
                 />
             )}

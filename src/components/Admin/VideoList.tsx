@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { type Video, type Session, deleteVideo, updateVideo } from '../../services/firebase';
+import { useTranslation } from 'react-i18next';
+import { type Video, type Session, deleteVideo, updateVideo, tr_h, type MultilingualField } from '../../services/firebase';
 import { FolderOpen, ChevronRight, ChevronDown, Video as VideoIcon} from 'lucide-react'; 
 import VideoListItem from '../common/VideoListItem'; 
 import ConfirmDeleteModal from './ConfirmDeleteModal'; 
@@ -44,8 +45,9 @@ const buildSessionTree = (flatSessions: Session[], flatVideos: Video[]): Content
 };
 
 const VideoList: React.FC<VideoListProps> = ({ courseId, sessions, videos, onVideoChanged, onEditVideoRequest }) => {
+    const { i18n } = useTranslation();
     const [error, setError] = useState<string | null>(null);
-    const [openSessions, setOpenSessions] = useState<Set<string>>(new Set()); 
+    const [openSessions, setOpenSessions] = useState<Set<string>>(new Set());
     const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
@@ -59,14 +61,22 @@ const VideoList: React.FC<VideoListProps> = ({ courseId, sessions, videos, onVid
     }, []);
 
     const sessionTree = useMemo(() => buildSessionTree(sessions, videos), [sessions, videos]);
-    
-    // Fallback handler cho inline edit (ít dùng nếu đã có onEditVideoRequest)
-    const handleInlineEditVideo = useCallback(async (videoId: string, newTitle: string) => { 
+
+    // Fallback handler cho inline edit (ít dùng nếu đã có onEditVideoRequest).
+    // `newTitle` chỉ là bản dịch của ngôn ngữ admin đang xem (tr_h) nên phải merge
+    // đúng vào key ngôn ngữ đó, không ghi đè cả field bằng 1 string (mất bản dịch khác).
+    const handleInlineEditVideo = useCallback(async (videoId: string, newTitle: string) => {
         try {
-             await updateVideo(courseId, videoId, { title: newTitle });
-             onVideoChanged?.();
+            const existing = videos.find(v => v.id === videoId);
+            const originalTitle = existing?.title;
+            const lang: 'vi' | 'ja' = i18n.language === 'ja' ? 'ja' : 'vi';
+            const merged: MultilingualField = (originalTitle && typeof originalTitle === 'object')
+                ? { ...originalTitle, [lang]: newTitle }
+                : (lang === 'vi' ? newTitle : { vi: (originalTitle as string) || '', ja: newTitle });
+            await updateVideo(courseId, videoId, { title: merged });
+            onVideoChanged?.();
         } catch(e) { setError("Lỗi cập nhật video."); }
-    }, [courseId, onVideoChanged]);
+    }, [courseId, onVideoChanged, videos, i18n.language]);
 
     const handleDeleteClick = useCallback((video: Video) => { setVideoToDelete(video); }, []); 
     
@@ -109,7 +119,7 @@ const VideoList: React.FC<VideoListProps> = ({ courseId, sessions, videos, onVid
                     <span className={`flex items-center space-x-2 ${isParentNode ? 'font-bold' : 'font-medium'}`}>
                         {showToggleIcon ? <Icon className="h-4 w-4 text-[#1A73E8]" /> : <span className="h-4 w-4 mr-1"></span>}
                         {isParentNode ? <FolderOpen className="h-5 w-5 text-[#1A73E8]" /> : <VideoIcon className="h-5 w-5 text-green-600" />}
-                        <span>{node.title} <span className="text-sm font-normal text-gray-500 ml-2">({totalVideoCount} video)</span></span>
+                        <span>{tr_h(node.title)} <span className="text-sm font-normal text-gray-500 ml-2">({totalVideoCount} video)</span></span>
                     </span>
                 </div>
                 {isOpen && isParentNode && (
@@ -152,7 +162,7 @@ const VideoList: React.FC<VideoListProps> = ({ courseId, sessions, videos, onVid
             <div className="space-y-4">
                 {sessionTree.map(parentSession => <SessionNodeRenderer key={parentSession.id} node={parentSession} />)}
             </div>
-            <ConfirmDeleteModal isOpen={!!videoToDelete} onClose={() => setVideoToDelete(null)} onConfirm={handleConfirmDelete} title={`Xác nhận xóa Video: "${videoToDelete?.title || ''}"`} description="Hành động này không thể hoàn tác." isProcessing={isDeleting} />
+            <ConfirmDeleteModal isOpen={!!videoToDelete} onClose={() => setVideoToDelete(null)} onConfirm={handleConfirmDelete} title={`Xác nhận xóa Video: "${tr_h(videoToDelete?.title)}"`} description="Hành động này không thể hoàn tác." isProcessing={isDeleting} />
         </div>
     );
 };

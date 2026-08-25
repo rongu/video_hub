@@ -2,15 +2,16 @@ import {
     query, orderBy, onSnapshot, doc, serverTimestamp, writeBatch, increment, getDocs, updateDoc, 
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
-import { 
-    getFirestoreDb, getFirebaseStorage, 
-    getSessionsCollectionRef, getVideosCollectionRef, getCourseDocRef 
+import {
+    getFirestoreDb, getFirebaseStorage,
+    getSessionsCollectionRef, getVideosCollectionRef, getCourseDocRef,
+    type MultilingualField
 } from './config';
 
 export interface Session {
     id: string;
     courseId: string;
-    title: string;
+    title: MultilingualField;
     orderIndex: number;
     videoCount: number;
     parentId: string | null;
@@ -29,7 +30,7 @@ export const subscribeToSessions = (courseId: string, callback: (sessions: Sessi
     });
 };
 
-export async function addSession(courseId: string, title: string, orderIndex: number, parentId: string | null = null): Promise<void> {
+export async function addSession(courseId: string, title: MultilingualField, orderIndex: number, parentId: string | null = null): Promise<void> {
     const sessionRef = doc(getSessionsCollectionRef(courseId));
     const batch = writeBatch(getFirestoreDb());
     batch.set(sessionRef, {
@@ -39,7 +40,7 @@ export async function addSession(courseId: string, title: string, orderIndex: nu
     await batch.commit();
 }
 
-export async function updateSession(courseId: string, sessionId: string, newTitle: string): Promise<void> {
+export async function updateSession(courseId: string, sessionId: string, newTitle: MultilingualField): Promise<void> {
     const sRef = doc(getSessionsCollectionRef(courseId), sessionId);
     await updateDoc(sRef, { title: newTitle, updatedAt: serverTimestamp() });
 }

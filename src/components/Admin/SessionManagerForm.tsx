@@ -1,6 +1,6 @@
 import React, { useState, useMemo, type FormEvent, useCallback } from 'react';
 import { X, Plus, Loader2, BookOpen, Layers } from 'lucide-react'; 
-import { type Session, addSession, deleteSession, updateSession, swapSessionOrder } from '../../services/firebase'; 
+import { type Session, addSession, deleteSession, updateSession, swapSessionOrder, tr_h, type MultilingualField } from '../../services/firebase';
 import useCourseSessions from '../../hooks/useCourseSessions';
 import SessionNode from './SessionNode';
 
@@ -33,8 +33,9 @@ const buildSessionTree = (sessions: Session[]): SessionNodeStructure[] => {
 const SessionManagerForm: React.FC<SessionManagerFormProps> = ({ 
     courseId, courseTitle, onClose, onSessionSelected, selectedSessionId,
 }) => {
-    const [sessions, isLoadingSessions, errorSessions] = useCourseSessions(courseId); 
+    const [sessions, isLoadingSessions, errorSessions] = useCourseSessions(courseId);
     const [newSessionTitle, setNewSessionTitle] = useState('');
+    const [newSessionTitleJa, setNewSessionTitleJa] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -46,22 +47,22 @@ const SessionManagerForm: React.FC<SessionManagerFormProps> = ({
         try {
             // Tính orderIndex mới = sềElượng root hiện tại
             const currentRootCount = sessions.filter(s => s.parentId === null).length;
-            await addSession(courseId, newSessionTitle.trim(), currentRootCount, null);
-            setNewSessionTitle('');
+            const titleField: MultilingualField = { vi: newSessionTitle.trim(), ja: newSessionTitleJa.trim() || newSessionTitle.trim() };
+            await addSession(courseId, titleField, currentRootCount, null);
+            setNewSessionTitle(''); setNewSessionTitleJa('');
         } catch (err) { setError("Lỗi tạo Session gốc."); } finally { setLoading(false); }
     };
 
-    const handleAddChildSession = useCallback(async (parentId: string, title: string, orderIndex: number) => {
-        setLoading(true); try { await addSession(courseId, title.trim(), orderIndex, parentId); } catch (err) { setError("Lỗi tạo Session con."); } finally { setLoading(false); }
+    const handleAddChildSession = useCallback(async (parentId: string, title: MultilingualField, orderIndex: number) => {
+        setLoading(true); try { await addSession(courseId, title, orderIndex, parentId); } catch (err) { setError("Lỗi tạo Session con."); } finally { setLoading(false); }
     }, [courseId]);
 
     const handleDeleteSession = useCallback(async (sessionId: string) => {
         setLoading(true); try { await deleteSession(courseId, sessionId); if (sessionId === selectedSessionId) onSessionSelected('', ''); } catch (err) { setError("Lỗi xóa Session."); } finally { setLoading(false); }
     }, [courseId, selectedSessionId, onSessionSelected]);
 
-    const handleUpdateSession = useCallback(async (sessionId: string, newTitle: string) => {
-        if (!newTitle.trim()) return;
-        setLoading(true); try { await updateSession(courseId, sessionId, newTitle.trim()); if (sessionId === selectedSessionId) onSessionSelected(sessionId, newTitle.trim()); } catch (err) { setError("Lỗi cập nhật Session."); } finally { setLoading(false); }
+    const handleUpdateSession = useCallback(async (sessionId: string, newTitle: MultilingualField) => {
+        setLoading(true); try { await updateSession(courseId, sessionId, newTitle); if (sessionId === selectedSessionId) onSessionSelected(sessionId, tr_h(newTitle)); } catch (err) { setError("Lỗi cập nhật Session."); } finally { setLoading(false); }
     }, [courseId, selectedSessionId, onSessionSelected]);
 
     // [NEW] Logic di chuyển vềEtrí Session
@@ -114,9 +115,10 @@ const SessionManagerForm: React.FC<SessionManagerFormProps> = ({
 
                 {/* Body: Form tạo & List */}
                 <div className="p-6 bg-white border-b border-gray-100 flex-shrink-0">
-                    <form onSubmit={handleAddRootSession} className="flex gap-4 items-center w-full">
-                         <div className="flex-grow relative">
-                            <input type="text" placeholder="Nhập tên Session gốc..." value={newSessionTitle} onChange={(e) => setNewSessionTitle(e.target.value)} className="w-full pl-4 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#1A73E8] outline-none transition font-medium" disabled={loading} autoFocus />
+                    <form onSubmit={handleAddRootSession} className="flex gap-4 items-start w-full">
+                         <div className="flex-grow flex gap-3">
+                            <input type="text" placeholder="Nhập tên Session gốc (Tiếng Việt)..." value={newSessionTitle} onChange={(e) => setNewSessionTitle(e.target.value)} className="w-full pl-4 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#1A73E8] outline-none transition font-medium" disabled={loading} autoFocus />
+                            <input type="text" placeholder="Tên Session (Tiếng Nhật, tùy chọn)..." value={newSessionTitleJa} onChange={(e) => setNewSessionTitleJa(e.target.value)} className="w-full pl-4 pr-4 py-3 border-2 border-blue-100 rounded-xl focus:border-[#1A73E8] outline-none transition font-medium bg-blue-50/50" disabled={loading} />
                         </div>
                         <button type="submit" disabled={loading || !newSessionTitle.trim()} className="px-6 py-3 bg-[#1A73E8] text-white font-bold rounded-xl hover:bg-blue-700 transition flex items-center whitespace-nowrap">
                             {loading ? <Loader2 className="animate-spin mr-2"/> : <Plus className="mr-2"/>} Tạo Session

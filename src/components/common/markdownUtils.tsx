@@ -229,12 +229,18 @@ const preprocessFurigana = (content: string): string =>
 export const preprocessMarkdown = (content: string, lang: string): string => {
     let p = content;
 
-    // 1. Bilingual tags
-    if (lang === 'ja') {
-        p = p.replace(/\[vi\][\s\S]*?\[\/vi\]/g, '').replace(/\[ja\]([\s\S]*?)\[\/ja\]/g, '$1');
-    } else {
-        p = p.replace(/\[ja\][\s\S]*?\[\/ja\]/g, '').replace(/\[vi\]([\s\S]*?)\[\/vi\]/g, '$1');
-    }
+    // 1. Bilingual tags — [vi]/[ja] pair (either order): keep the requested language.
+    // A lone/unpaired tag (author forgot the other language) is unwrapped as-is below,
+    // so missing translations fall back to whatever language was actually written
+    // instead of being stripped to blank.
+    const pairRe = /\[(vi|ja)\]([\s\S]*?)\[\/\1\]\s*\[(vi|ja)\]([\s\S]*?)\[\/\3\]/g;
+    p = p.replace(pairRe, (match, tag1: string, body1: string, tag2: string, body2: string) => {
+        if (tag1 === tag2) return match;
+        const viBody = tag1 === 'vi' ? body1 : body2;
+        const jaBody = tag1 === 'ja' ? body1 : body2;
+        return lang === 'ja' ? jaBody : viBody;
+    });
+    p = p.replace(/\[(vi|ja)\]([\s\S]*?)\[\/\1\]/g, '$2');
 
     // 2. Strip audio placeholder lines (local .mp3 links / Audio: labels)
     p = p.replace(/^>[ \t]+[^\n]*\[[^\]\n]*\.mp3[^\]\n]*\][^\n]*(\n|$)/gimu, '');
