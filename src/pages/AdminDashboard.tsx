@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { type User } from 'firebase/auth';
-import { 
-    LayoutDashboard, Users, LogOut, Plus, Search, 
-    PlusCircle, Globe, BarChart2, Tag
+import {
+    LayoutDashboard, Users, LogOut, Plus, Search,
+    PlusCircle, Globe, BarChart2, Tag, Menu, X
 } from 'lucide-react';
 
 import CourseCard from '../components/Admin/CourseCard';
@@ -76,7 +76,8 @@ interface AdminDashboardProps {
 // --- COMPONENT CHÍNH ---
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavigate }) => {
     const [activeTab, setActiveTab] = useState<'courses' | 'users' | 'stats' | 'categories'>('courses');
-    
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
     const [courses, setCourses] = useState<Course[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [loadingCourses, setLoadingCourses] = useState(true);
@@ -223,38 +224,82 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
         );
     };
 
+    // Nội dung menu dùng chung cho cả sidebar desktop và drawer mobile
+    const navItems = (
+        <>
+            <button onClick={() => { setActiveTab('courses'); setMobileMenuOpen(false); }} className={`argon-nav-item w-full ${activeTab === 'courses' ? 'active' : ''}`}>
+                <LayoutDashboard size={22} /><span className="ml-3">Quản lý Khóa học</span>
+            </button>
+            <button onClick={() => { setActiveTab('users'); setMobileMenuOpen(false); }} className={`argon-nav-item w-full ${activeTab === 'users' ? 'active' : ''}`}>
+                <Users size={22} /><span className="ml-3">Học viên</span>
+            </button>
+            <button onClick={() => { setActiveTab('stats'); setMobileMenuOpen(false); }} className={`argon-nav-item w-full ${activeTab === 'stats' ? 'active' : ''}`}>
+                <BarChart2 size={22} /><span className="ml-3">Thống kê</span>
+            </button>
+            <button onClick={() => { setActiveTab('categories'); setMobileMenuOpen(false); }} className={`argon-nav-item w-full ${activeTab === 'categories' ? 'active' : ''}`}>
+                <Tag size={22} /><span className="ml-3">Danh mục</span>
+            </button>
+
+            <div className="pt-2 mt-2 border-t border-gray-200">
+                <button
+                    onClick={() => { setMobileMenuOpen(false); onNavigate('landing'); }}
+                    className="argon-nav-item w-full"
+                >
+                    <Globe size={22} />
+                    <span className="ml-3">Xem Trang Chủ</span>
+                </button>
+            </div>
+        </>
+    );
+
     return (
         <div className="min-h-screen bg-[#F8F9FA] font-sans text-gray-700 flex">
-            {/* SIDEBAR */}
+            {/* MOBILE TOP BAR (chỉ hiện dưới md, thay thế sidebar) */}
+            <div className="md:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
+                <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:text-[#1A73E8]" aria-label="Mở menu">
+                    <Menu size={24} />
+                </button>
+                <div className="flex items-center">
+                    <div className="argon-icon-badge primary" style={{width:'2rem',height:'2rem',fontSize:'0.875rem',fontWeight:700}}>V</div>
+                    <span className="ml-2 font-bold text-gray-700 tracking-tight">VIDEO HUB</span>
+                </div>
+                <button onClick={onLogout} className="p-2 -mr-2 text-red-400 hover:text-red-500" aria-label="Đăng xuất">
+                    <LogOut size={22} />
+                </button>
+            </div>
+
+            {/* MOBILE DRAWER + BACKDROP */}
+            {mobileMenuOpen && (
+                <div className="md:hidden fixed inset-0 z-40 flex">
+                    <div className="fixed inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
+                    <aside className="relative w-72 max-w-[80vw] bg-white h-full flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
+                        <div className="p-4 flex items-center justify-between border-b border-gray-200">
+                            <span className="font-bold text-lg text-gray-700 tracking-tight">Menu</span>
+                            <button onClick={() => setMobileMenuOpen(false)} className="p-1 text-gray-500 hover:text-gray-800">
+                                <X size={22} />
+                            </button>
+                        </div>
+                        <nav className="flex-grow p-4 space-y-2 overflow-y-auto">
+                            {navItems}
+                        </nav>
+                        <div className="p-4 border-t border-gray-200">
+                            <button onClick={onLogout} className="w-full flex items-center p-3 text-red-400 hover:bg-red-50 hover:text-red-500 rounded-lg transition font-semibold">
+                                <LogOut size={22} /><span className="ml-3">Đăng xuất</span>
+                            </button>
+                        </div>
+                    </aside>
+                </div>
+            )}
+
+            {/* SIDEBAR (desktop) */}
             <aside className="w-20 lg:w-64 bg-white border-r border-gray-200 flex-shrink-0 fixed h-full z-20 hidden md:flex flex-col">
                 <div className="p-6 flex items-center justify-center lg:justify-start border-b border-gray-200">
                     <div className="argon-icon-badge primary" style={{fontSize:'1.125rem',fontWeight:700}}>V</div>
                     <span className="ml-3 font-bold text-xl hidden lg:block text-gray-700 tracking-tight">VIDEO HUB</span>
                 </div>
-                
-                <nav className="flex-grow p-4 space-y-2">
-                    <button onClick={() => setActiveTab('courses')} className={`argon-nav-item w-full ${activeTab === 'courses' ? 'active' : ''}`}>
-                        <LayoutDashboard size={22} /><span className="ml-3 hidden lg:block">Quản lý Khóa học</span>
-                    </button>
-                    <button onClick={() => setActiveTab('users')} className={`argon-nav-item w-full ${activeTab === 'users' ? 'active' : ''}`}>
-                        <Users size={22} /><span className="ml-3 hidden lg:block">Học viên</span>
-                    </button>
-                    <button onClick={() => setActiveTab('stats')} className={`argon-nav-item w-full ${activeTab === 'stats' ? 'active' : ''}`}>
-                        <BarChart2 size={22} /><span className="ml-3 hidden lg:block">Thống kê</span>
-                    </button>
-                    <button onClick={() => setActiveTab('categories')} className={`argon-nav-item w-full ${activeTab === 'categories' ? 'active' : ''}`}>
-                        <Tag size={22} /><span className="ml-3 hidden lg:block">Danh mục</span>
-                    </button>
 
-                    <div className="pt-2 mt-2 border-t border-gray-200">
-                        <button 
-                            onClick={() => onNavigate('landing')} 
-                            className="argon-nav-item w-full"
-                        >
-                            <Globe size={22} />
-                            <span className="ml-3 hidden lg:block">Xem Trang Chủ</span>
-                        </button>
-                    </div>
+                <nav className="flex-grow p-4 space-y-2 [&_span]:hidden [&_span]:lg:block">
+                    {navItems}
                 </nav>
 
                 <div className="p-4 border-t border-gray-200">
@@ -265,7 +310,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
             </aside>
 
             {/* MAIN CONTENT */}
-            <main className="flex-grow md:ml-20 lg:ml-64 p-6 lg:p-10">
+            <main className="flex-grow md:ml-20 lg:ml-64 p-6 lg:p-10 pt-20 md:pt-6 lg:pt-10">
                 <header className="flex justify-between items-center mb-10">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-700">
@@ -273,7 +318,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                         </h1>
                         <p className="text-gray-600 font-normal text-sm mt-1">Xin chào, {user.email}</p>
                     </div>
-                    <div className="argon-icon-badge primary" style={{width:'2.5rem',height:'2.5rem',fontSize:'0.875rem',fontWeight:700}}>
+                    <div className="argon-icon-badge primary hidden md:flex" style={{width:'2.5rem',height:'2.5rem',fontSize:'0.875rem',fontWeight:700}}>
                         {user.email?.charAt(0).toUpperCase()}
                     </div>
                 </header>
