@@ -79,3 +79,9 @@ export const getVideosCollectionRef = (courseId: string) => collection(getCourse
 export const getEnrollmentsCollectionRef = () => collection(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/enrollments`);
 export const getCategoriesCollectionRef = () => collection(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/categories`);
 export const getCategoryDocRef = (categoryId: string) => doc(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/categories`, categoryId);
+
+// --- SECURE CONTENTS (nội dung text/markdown mã hoá, lưu trong Firestore) ---
+export const getSecureContentsCollectionRef = () => collection(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/secureContents`);
+export const getSecureContentDocRef = (contentId: string) => doc(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/secureContents`, contentId);
+// Document chứa key mã hoá AES dùng chung — chỉ admin đọc/ghi
+export const getSecureConfigDocRef = () => doc(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/secureConfig`, 'encryptionKey');

@@ -2,7 +2,7 @@
 import { type User } from 'firebase/auth';
 import {
     LayoutDashboard, Users, LogOut, Plus, Search,
-    PlusCircle, Globe, BarChart2, Tag, Menu, X
+    PlusCircle, Globe, BarChart2, Tag, Menu, X, FileLock2
 } from 'lucide-react';
 
 import CourseCard from '../components/Admin/CourseCard';
@@ -18,6 +18,7 @@ import useCourseSessions from '../hooks/useCourseSessions';
 import { subscribeToVideos, type Video as IVideo, tr_h } from '../services/firebase';
 import StatsDashboardPage from '../components/Admin/StatsDashboardPage';
 import CategoryManagerPage from '../components/Admin/CategoryManagerPage';
+import SecureContentPage from '../components/Admin/SecureContentPage';
 import { subscribeToCategories, type Category } from '../services/firebase/categories';
 
 // ✅ ĐỊNH NGHĨA LẠI PageType CHO KHỚP VỚI APP.TSX
@@ -75,7 +76,7 @@ interface AdminDashboardProps {
 
 // --- COMPONENT CHÍNH ---
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavigate }) => {
-    const [activeTab, setActiveTab] = useState<'courses' | 'users' | 'stats' | 'categories'>('courses');
+    const [activeTab, setActiveTab] = useState<'courses' | 'users' | 'stats' | 'categories' | 'secure'>('courses');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const [courses, setCourses] = useState<Course[]>([]);
@@ -149,6 +150,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
         }
         if (activeTab === 'categories') {
             return <CategoryManagerPage />;
+        }
+        if (activeTab === 'secure') {
+            return <SecureContentPage user={user} />;
         }
 
         return (
@@ -239,6 +243,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
             <button onClick={() => { setActiveTab('categories'); setMobileMenuOpen(false); }} className={`argon-nav-item w-full ${activeTab === 'categories' ? 'active' : ''}`}>
                 <Tag size={22} /><span className="ml-3">Danh mục</span>
             </button>
+            <button onClick={() => { setActiveTab('secure'); setMobileMenuOpen(false); }} className={`argon-nav-item w-full ${activeTab === 'secure' ? 'active' : ''}`}>
+                <FileLock2 size={22} /><span className="ml-3">Nội dung mã hoá</span>
+            </button>
 
             <div className="pt-2 mt-2 border-t border-gray-200">
                 <button
@@ -314,7 +321,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, onNavig
                 <header className="flex justify-between items-center mb-10">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-700">
-                            {activeTab === 'stats' ? 'Thống kê hệ thống' : activeTab === 'users' ? 'Quản lý học viên' : activeTab === 'categories' ? 'Danh mục khóa học' : 'Quản lý khóa học'}
+                            {activeTab === 'stats' ? 'Thống kê hệ thống' : activeTab === 'users' ? 'Quản lý học viên' : activeTab === 'categories' ? 'Danh mục khóa học' : activeTab === 'secure' ? 'Nội dung mã hoá' : 'Quản lý khóa học'}
                         </h1>
                         <p className="text-gray-600 font-normal text-sm mt-1">Xin chào, {user.email}</p>
                     </div>
