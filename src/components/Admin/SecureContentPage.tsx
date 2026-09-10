@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    FileLock2, Plus, Trash2, Download, Eye, X, Loader2, Check, ShieldCheck, FileText,
+    FileLock2, Plus, Trash2, Download, Eye, X, Loader2, Check, FileText,
 } from 'lucide-react';
 import { type User } from 'firebase/auth';
 import {
@@ -110,9 +110,6 @@ const CreateContentForm: React.FC<{
                                 placeholder={format === 'markdown' ? '# Tiêu đề\n\nNội dung markdown...' : 'Nhập nội dung text bất kỳ...'}
                             />
                         )}
-                        <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
-                            <ShieldCheck size={12} /> Nội dung được mã hoá AES-256 ngay trên trình duyệt (key lưu riêng, chỉ admin đọc) trước khi gửi lên server.
-                        </p>
                     </div>
 
                     <div className="flex gap-3 pt-2">
