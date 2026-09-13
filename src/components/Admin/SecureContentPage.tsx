@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-    FileLock2, Plus, Trash2, Download, Eye, X, Loader2, Check, FileText,
+    FileLock2, Plus, Trash2, Download, Eye, X, Loader2, Check, FileText, Lock,
 } from 'lucide-react';
-import { type User } from 'firebase/auth';
+import { EmailAuthProvider, reauthenticateWithCredential, type User } from 'firebase/auth';
 import {
     subscribeToSecureContents,
     addSecureContent,
@@ -128,6 +128,74 @@ const CreateContentForm: React.FC<{
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Modal xác nhận mật khẩu (yêu cầu trước khi Xem / Tải xuống)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PasswordConfirmModal: React.FC<{
+    user: User;
+    actionLabel: string;
+    onSuccess: () => void;
+    onCancel: () => void;
+}> = ({ user, actionLabel, onSuccess, onCancel }) => {
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user.email) { setError('Tài khoản không có email để xác thực.'); return; }
+        if (!password) { setError('Vui lòng nhập mật khẩu.'); return; }
+        setLoading(true);
+        setError('');
+        try {
+            const credential = EmailAuthProvider.credential(user.email, password);
+            await reauthenticateWithCredential(user, credential);
+            onSuccess();
+        } catch (err) {
+            const code = (err as { code?: string }).code;
+            setError(
+                code === 'auth/wrong-password' || code === 'auth/invalid-credential'
+                    ? 'Mật khẩu không đúng.'
+                    : 'Xác thực thất bại. Vui lòng thử lại.',
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                <div className="p-5 text-white flex items-center gap-2" style={{ background: 'linear-gradient(195deg, #49A3F1, #1A73E8)' }}>
+                    <Lock size={18} /> <h3 className="font-bold text-lg">Xác nhận mật khẩu</h3>
+                </div>
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <p className="text-sm text-gray-500">Nhập lại mật khẩu đăng nhập để {actionLabel}.</p>
+                    {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+                    <input
+                        type="password"
+                        autoFocus
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="argon-input w-full"
+                        placeholder="Mật khẩu"
+                    />
+                    <div className="flex gap-3 pt-1">
+                        <button type="button" onClick={onCancel} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-semibold hover:bg-gray-50 transition">
+                            Hủy
+                        </button>
+                        <button type="submit" disabled={loading} className="flex-1 argon-button-gradient flex items-center justify-center gap-2">
+                            {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                            Xác nhận
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Modal xem nội dung đã giải mã
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -199,6 +267,7 @@ const SecureContentPage: React.FC<{ user: User }> = ({ user }) => {
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [rowError, setRowError] = useState('');
+    const [pendingAction, setPendingAction] = useState<{ type: 'view' | 'download'; item: SecureContent } | null>(null);
 
     useEffect(() => {
         const unsub = subscribeToSecureContents((list) => {
@@ -219,6 +288,14 @@ const SecureContentPage: React.FC<{ user: User }> = ({ user }) => {
         } finally {
             setBusyId(null);
         }
+    };
+
+    const handlePasswordConfirmed = () => {
+        if (!pendingAction) return;
+        const { type, item } = pendingAction;
+        setPendingAction(null);
+        if (type === 'view') setViewing(item);
+        else handleDownload(item);
     };
 
     const handleDelete = async () => {
@@ -274,11 +351,11 @@ const SecureContentPage: React.FC<{ user: User }> = ({ user }) => {
                                 </p>
                             </div>
                             <div className="flex gap-1.5 flex-shrink-0">
-                                <button onClick={() => setViewing(item)} title="Xem"
+                                <button onClick={() => setPendingAction({ type: 'view', item })} title="Xem"
                                     className="p-2 text-gray-400 hover:text-[#1A73E8] hover:bg-blue-50 rounded-lg transition">
                                     <Eye size={16} />
                                 </button>
-                                <button onClick={() => handleDownload(item)} disabled={busyId === item.id} title="Tải xuống"
+                                <button onClick={() => setPendingAction({ type: 'download', item })} disabled={busyId === item.id} title="Tải xuống"
                                     className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition disabled:opacity-50">
                                     {busyId === item.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                                 </button>
@@ -294,6 +371,15 @@ const SecureContentPage: React.FC<{ user: User }> = ({ user }) => {
 
             {showCreate && (
                 <CreateContentForm adminId={user.uid} onClose={() => setShowCreate(false)} />
+            )}
+
+            {pendingAction && (
+                <PasswordConfirmModal
+                    user={user}
+                    actionLabel={pendingAction.type === 'view' ? 'xem nội dung' : 'tải nội dung xuống'}
+                    onSuccess={handlePasswordConfirmed}
+                    onCancel={() => setPendingAction(null)}
+                />
             )}
 
             {viewing && (
