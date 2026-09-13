@@ -233,7 +233,8 @@ body {
 input,
 textarea,
 [contenteditable="true"],
-.allow-select {
+.allow-select,
+body.is-admin {
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
@@ -248,16 +249,22 @@ img {
 }
 
 /* Cho phép click ảnh nếu cần (override) */
-img.allow-pointer {
+img.allow-pointer,
+body.is-admin img {
   pointer-events: auto;
+}
+body.is-admin img {
+  -webkit-user-drag: auto;
+  user-drag: auto;
 }
 
 /* Chặn chụp màn hình qua CSS filter khi in (PrintScreen thường dùng @media print) */
+/* Admin (body.is-admin) được loại trừ, có thể in bình thường */
 @media print {
-  body > * {
+  body:not(.is-admin) > * {
     display: none !important;
   }
-  body::after {
+  body:not(.is-admin)::after {
     content: "Nội dung được bảo vệ — Không được phép sao chép.";
     display: block;
     position: fixed;

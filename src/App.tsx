@@ -128,6 +128,12 @@ const App: React.FC = () => {
         onNavigate('landing');
     }, [onNavigate]);
 
+    // ── Cho phép admin copy/chọn text/kéo ảnh bình thường ─────────────────────
+    // (index.css khoá user-select/drag mặc định cho toàn trang; class này mở lại cho admin)
+    useEffect(() => {
+        document.body.classList.toggle('is-admin', role === 'admin');
+    }, [role]);
+
     // ── Bảo vệ nội dung: chặn copy toàn trang (bỏ qua nếu là admin) ──────────
     useEffect(() => {
         if (role === 'admin') return;
