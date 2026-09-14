@@ -181,6 +181,9 @@ const preprocessMarkdownTables = (content: string, lang: string): string => {
                 if (idx === 0 || idx === headerParts.length - 1) return;
                 if (isHiddenColumn(cell, lang)) colsToHide.add(idx - 1);
             });
+            // Dọn thẻ [VN]/[JP] khỏi tiêu đề cột còn lại (vd. "Nghĩa [VN]" -> "Nghĩa")
+            tableLines[0] = headerParts.map(cell => cell.replace(/\s*\[(?:VN|JP)\]/gi, '')).join('|');
+
             if (colsToHide.size > 0) {
                 const processed = tableLines.map(tl => {
                     const parts = tl.split('|');
@@ -204,6 +207,74 @@ const preprocessMarkdownTables = (content: string, lang: string): string => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Triple-line bilingual labels: dòng gốc / [VN] .../ [JP] ... (không cần thẻ đóng)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Nhận diện "khung" của 1 dòng: heading (theo cấp độ), bullet, blockquote, hay dòng
+ * thường — có tách riêng phần thụt lề đầu dòng (dòng tiếp nối của 1 bullet, ví dụ
+ * `  → ...` / `  [VN] ...`) để `[VN]`/`[JP]` vẫn nhận ra được dù không nằm sát lề trái.
+ */
+const classifyLine = (line: string): { kind: string; marker: string; rest: string } => {
+    const indentMatch = line.match(/^[ \t]*/);
+    const indent = indentMatch ? indentMatch[0] : '';
+    const body = line.slice(indent.length);
+
+    let m: RegExpMatchArray | null;
+    if ((m = body.match(/^(#{1,6})\s+(.*)$/))) return { kind: `h${m[1].length}`, marker: `${indent}${m[1]} `, rest: m[2] };
+    if ((m = body.match(/^([-*])\s+(.*)$/))) return { kind: 'bullet', marker: `${indent}${m[1]} `, rest: m[2] };
+    if ((m = body.match(/^>\s?(.*)$/))) return { kind: 'quote', marker: `${indent}> `, rest: m[1] };
+    return { kind: `plain:${indent.length}`, marker: indent, rest: body };
+};
+
+const LABEL_VN_RE = /^\[VN\]\s*(.*)$/i;
+const LABEL_JP_RE = /^\[JP\]\s*(.*)$/i;
+
+const matchLabel = (text: string, re: RegExp): string | null => {
+    const m = text.match(re);
+    return m ? m[1] : null;
+};
+
+/**
+ * Xử lý format: mỗi dòng (heading bất kỳ cấp độ, bullet, dòng trong blockquote hội
+ * thoại, hoặc dòng thường) được lặp lại 3 lần liên tiếp — bản gốc (tiếng Anh), rồi
+ * `[VN] ...`, rồi `[JP] ...` — không cần thẻ đóng như `[vi]...[/vi]`.
+ * Dòng gốc (tiếng Anh) LUÔN được giữ lại; chỉ dòng bản dịch phía dưới mới đổi theo
+ * ngôn ngữ đang chọn (VN hoặc JP), dòng còn lại bị bỏ.
+ * Thứ tự [VN]/[JP] trong 2 dòng sau có thể hoán đổi, miễn cùng "khung" với dòng gốc.
+ */
+const resolveTripleLanguageLines = (content: string, lang: string): string => {
+    const lines = content.split('\n');
+    const out: string[] = [];
+    let i = 0;
+    while (i < lines.length) {
+        const base = classifyLine(lines[i]);
+        const baseAlreadyLabeled = LABEL_VN_RE.test(base.rest) || LABEL_JP_RE.test(base.rest);
+
+        if (!baseAlreadyLabeled && i + 2 < lines.length) {
+            const l2 = classifyLine(lines[i + 1]);
+            const l3 = classifyLine(lines[i + 2]);
+            const sameKind = l2.kind === base.kind && l3.kind === base.kind;
+
+            if (sameKind) {
+                const vn = matchLabel(l2.rest, LABEL_VN_RE) ?? matchLabel(l3.rest, LABEL_VN_RE);
+                const jp = matchLabel(l2.rest, LABEL_JP_RE) ?? matchLabel(l3.rest, LABEL_JP_RE);
+                if (vn !== null && jp !== null) {
+                    out.push(lines[i]); // giữ nguyên dòng tiếng Anh gốc
+                    out.push(base.marker + (lang === 'ja' ? jp : vn)); // + bản dịch theo ngôn ngữ đang chọn
+                    i += 3;
+                    continue;
+                }
+            }
+        }
+
+        out.push(lines[i]);
+        i++;
+    }
+    return out.join('\n');
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Furigana
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -219,6 +290,8 @@ const preprocessFurigana = (content: string): string =>
 
 /**
  * Apply all markdown transformations in order:
+ * 0. Triple-line [VN]/[JP] label resolution (heading/bullet/blockquote/plain) —
+ *    giữ dòng tiếng Anh gốc, chỉ đổi dòng dịch bên dưới theo VN/JP
  * 1. Bilingual [vi]/[ja] tag stripping
  * 2. Audio placeholder link removal
  * 3. Table column filtering (VN/JP hide)
@@ -228,6 +301,9 @@ const preprocessFurigana = (content: string): string =>
  */
 export const preprocessMarkdown = (content: string, lang: string): string => {
     let p = content;
+
+    // 0. Triple-line labels — dòng gốc / [VN] .../ [JP] ... không thẻ đóng.
+    p = resolveTripleLanguageLines(p, lang);
 
     // 1. Bilingual tags — [vi]/[ja] pair (either order): keep the requested language.
     // A lone/unpaired tag (author forgot the other language) is unwrapped as-is below,
