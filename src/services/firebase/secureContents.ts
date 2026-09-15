@@ -1,5 +1,5 @@
 import {
-    query, orderBy, onSnapshot, getDoc, setDoc, deleteDoc,
+    query, orderBy, onSnapshot, getDoc, setDoc, updateDoc, deleteDoc,
     serverTimestamp, type Timestamp,
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
@@ -7,6 +7,8 @@ import {
     getSecureContentsCollectionRef,
     getSecureContentDocRef,
     getSecureConfigDocRef,
+    getSecureFoldersCollectionRef,
+    getSecureFolderDocRef,
 } from './config';
 
 // =================================================================
@@ -21,6 +23,15 @@ export interface SecureContent {
     format: SecureContentFormat;
     cipher: string;   // base64 của (IV[12] || ciphertext AES-GCM)
     size: number;     // độ dài nội dung gốc (bytes UTF-8)
+    adminId: string;
+    createdAt: number;
+    folderId: string | null; // null = nằm ở thư mục gốc
+}
+
+export interface SecureFolder {
+    id: string;
+    name: string;
+    parentId: string | null; // null = thư mục gốc, có id khác = folder con
     adminId: string;
     createdAt: number;
 }
@@ -125,6 +136,7 @@ export const subscribeToSecureContents = (
         callback(snap.docs.map(d => ({
             id: d.id,
             ...(d.data() as Omit<SecureContent, 'id' | 'createdAt'>),
+            folderId: (d.data().folderId as string | null | undefined) ?? null, // dữ liệu cũ chưa có field này
             createdAt: (d.data().createdAt as Timestamp)?.toMillis() || Date.now(),
         } as SecureContent)));
     }, (error) => {
@@ -139,6 +151,7 @@ export async function addSecureContent(
     format: SecureContentFormat,
     plaintext: string,
     adminId: string,
+    folderId: string | null = null,
 ): Promise<void> {
     const id = uuidv4();
     const cipher = await encryptToBase64(plaintext);
@@ -154,12 +167,62 @@ export async function addSecureContent(
         cipher,
         size: new TextEncoder().encode(plaintext).length,
         adminId,
+        folderId,
         createdAt: serverTimestamp(),
     });
 }
 
 export async function deleteSecureContent(item: SecureContent): Promise<void> {
     await deleteDoc(getSecureContentDocRef(item.id));
+}
+
+/** Chuyển 1 nội dung sang thư mục khác (hoặc về gốc nếu folderId = null). */
+export async function moveSecureContent(contentId: string, folderId: string | null): Promise<void> {
+    await updateDoc(getSecureContentDocRef(contentId), { folderId });
+}
+
+// =================================================================
+// FOLDERS
+// =================================================================
+
+export const subscribeToSecureFolders = (
+    callback: (folders: SecureFolder[]) => void,
+): (() => void) => {
+    const q = query(getSecureFoldersCollectionRef(), orderBy('createdAt', 'asc'));
+    return onSnapshot(q, (snap) => {
+        callback(snap.docs.map(d => ({
+            id: d.id,
+            ...(d.data() as Omit<SecureFolder, 'id' | 'createdAt'>),
+            parentId: (d.data().parentId as string | null | undefined) ?? null,
+            createdAt: (d.data().createdAt as Timestamp)?.toMillis() || Date.now(),
+        } as SecureFolder)));
+    }, (error) => {
+        console.warn('subscribeToSecureFolders: không đọc được, trả về danh sách rỗng.', error.code);
+        callback([]);
+    });
+};
+
+export async function createSecureFolder(
+    name: string,
+    parentId: string | null,
+    adminId: string,
+): Promise<void> {
+    const id = uuidv4();
+    await setDoc(getSecureFolderDocRef(id), {
+        name: name.trim(),
+        parentId,
+        adminId,
+        createdAt: serverTimestamp(),
+    });
+}
+
+export async function renameSecureFolder(folderId: string, name: string): Promise<void> {
+    await updateDoc(getSecureFolderDocRef(folderId), { name: name.trim() });
+}
+
+/** Chỉ xoá được thư mục rỗng (không còn folder con lẫn nội dung bên trong). */
+export async function deleteSecureFolder(folderId: string): Promise<void> {
+    await deleteDoc(getSecureFolderDocRef(folderId));
 }
 
 /** Giải mã nội dung của một mục, trả về chuỗi gốc. */

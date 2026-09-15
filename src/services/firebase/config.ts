@@ -85,3 +85,6 @@ export const getSecureContentsCollectionRef = () => collection(getFirestoreDb(),
 export const getSecureContentDocRef = (contentId: string) => doc(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/secureContents`, contentId);
 // Document chứa key mã hoá AES dùng chung — chỉ admin đọc/ghi
 export const getSecureConfigDocRef = () => doc(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/secureConfig`, 'encryptionKey');
+// Thư mục (có thể lồng folder con) để gom nhóm secureContents
+export const getSecureFoldersCollectionRef = () => collection(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/secureFolders`);
+export const getSecureFolderDocRef = (folderId: string) => doc(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/secureFolders`, folderId);
