@@ -88,3 +88,6 @@ export const getSecureConfigDocRef = () => doc(getFirestoreDb(), `artifacts/${AP
 // Thư mục (có thể lồng folder con) để gom nhóm secureContents
 export const getSecureFoldersCollectionRef = () => collection(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/secureFolders`);
 export const getSecureFolderDocRef = (folderId: string) => doc(getFirestoreDb(), `artifacts/${APP_ID_ROOT}/public/data/secureFolders`, folderId);
+// Ciphertext lớn được chia nhỏ thành nhiều document con (mỗi doc < 1 MiB giới hạn Firestore)
+export const getSecureContentChunksCollectionRef = (contentId: string) => collection(getSecureContentDocRef(contentId), 'chunks');
+export const getSecureContentChunkDocRef = (contentId: string, index: number) => doc(getSecureContentChunksCollectionRef(contentId), String(index));

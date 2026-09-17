@@ -36,7 +36,8 @@ service cloud.firestore {
     }
 
     // 4b. Nội dung mã hoá (text / markdown) — CHỈ ADMIN đọc & ghi
-    match /artifacts/{appId}/public/data/secureContents/{contentId} {
+    // {document=**} để bao luôn subcollection "chunks" (ciphertext lớn bị chia nhỏ)
+    match /artifacts/{appId}/public/data/secureContents/{document=**} {
       allow read, write: if isAdmin();
     }
 

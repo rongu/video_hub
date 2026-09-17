@@ -1,14 +1,16 @@
 import {
-    query, orderBy, onSnapshot, getDoc, setDoc, updateDoc, deleteDoc,
+    query, orderBy, onSnapshot, getDoc, setDoc, updateDoc, deleteDoc, writeBatch,
     serverTimestamp, type Timestamp,
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import {
+    getFirestoreDb,
     getSecureContentsCollectionRef,
     getSecureContentDocRef,
     getSecureConfigDocRef,
     getSecureFoldersCollectionRef,
     getSecureFolderDocRef,
+    getSecureContentChunkDocRef,
 } from './config';
 
 // =================================================================
@@ -21,8 +23,9 @@ export interface SecureContent {
     id: string;
     title: string;
     format: SecureContentFormat;
-    cipher: string;   // base64 của (IV[12] || ciphertext AES-GCM)
-    size: number;     // độ dài nội dung gốc (bytes UTF-8)
+    cipher?: string;       // (dữ liệu cũ) toàn bộ ciphertext nằm ngay trong doc này
+    chunkCount?: number;   // (dữ liệu mới) ciphertext được chia thành N doc con trong subcollection "chunks"
+    size: number;          // độ dài nội dung gốc (bytes UTF-8)
     adminId: string;
     createdAt: number;
     folderId: string | null; // null = nằm ở thư mục gốc
@@ -100,6 +103,18 @@ export async function getOrCreateEncryptionKey(): Promise<CryptoKey> {
     return cachedKey;
 }
 
+// Giới hạn nội dung gốc trước khi mã hoá. Ciphertext (base64) lớn hơn ~1.37 lần
+// bản gốc và được chia thành nhiều chunk ≤ CHUNK_SIZE ký tự (mỗi chunk là 1 doc,
+// an toàn dưới giới hạn cứng 1 MiB/document của Firestore).
+const MAX_CONTENT_BYTES = 5 * 1024 * 1024; // 5MB
+const CHUNK_SIZE = 700_000;
+
+const splitIntoChunks = (text: string, size: number): string[] => {
+    const chunks: string[] = [];
+    for (let i = 0; i < text.length; i += size) chunks.push(text.slice(i, i + size));
+    return chunks.length > 0 ? chunks : [''];
+};
+
 /** Mã hoá plaintext -> base64 của (IV || ciphertext). */
 async function encryptToBase64(plaintext: string): Promise<string> {
     const key = await getOrCreateEncryptionKey();
@@ -145,7 +160,7 @@ export const subscribeToSecureContents = (
     });
 };
 
-/** Mã hoá nội dung bằng key trong Firestore rồi lưu document nội dung. */
+/** Mã hoá nội dung bằng key trong Firestore rồi lưu document nội dung (chia chunk nếu lớn). */
 export async function addSecureContent(
     title: string,
     format: SecureContentFormat,
@@ -153,27 +168,38 @@ export async function addSecureContent(
     adminId: string,
     folderId: string | null = null,
 ): Promise<void> {
-    const id = uuidv4();
-    const cipher = await encryptToBase64(plaintext);
-
-    // Firestore giới hạn ~1 MiB / document
-    if (cipher.length > 900_000) {
-        throw new Error('Nội dung quá lớn (giới hạn ~700KB text). Hãy chia nhỏ.');
+    const plaintextBytes = new TextEncoder().encode(plaintext).length;
+    if (plaintextBytes > MAX_CONTENT_BYTES) {
+        throw new Error(`Nội dung quá lớn (tối đa ${MAX_CONTENT_BYTES / (1024 * 1024)}MB). Hãy chia nhỏ.`);
     }
 
-    await setDoc(getSecureContentDocRef(id), {
+    const id = uuidv4();
+    const cipher = await encryptToBase64(plaintext);
+    const chunks = splitIntoChunks(cipher, CHUNK_SIZE);
+
+    const batch = writeBatch(getFirestoreDb());
+    batch.set(getSecureContentDocRef(id), {
         title: title.trim(),
         format,
-        cipher,
-        size: new TextEncoder().encode(plaintext).length,
+        chunkCount: chunks.length,
+        size: plaintextBytes,
         adminId,
         folderId,
         createdAt: serverTimestamp(),
     });
+    chunks.forEach((chunk, index) => {
+        batch.set(getSecureContentChunkDocRef(id, index), { data: chunk });
+    });
+    await batch.commit();
 }
 
 export async function deleteSecureContent(item: SecureContent): Promise<void> {
-    await deleteDoc(getSecureContentDocRef(item.id));
+    const batch = writeBatch(getFirestoreDb());
+    for (let i = 0; i < (item.chunkCount ?? 0); i++) {
+        batch.delete(getSecureContentChunkDocRef(item.id, i));
+    }
+    batch.delete(getSecureContentDocRef(item.id));
+    await batch.commit();
 }
 
 /** Chuyển 1 nội dung sang thư mục khác (hoặc về gốc nếu folderId = null). */
@@ -225,12 +251,22 @@ export async function deleteSecureFolder(folderId: string): Promise<void> {
     await deleteDoc(getSecureFolderDocRef(folderId));
 }
 
-/** Giải mã nội dung của một mục, trả về chuỗi gốc. */
+/** Giải mã nội dung của một mục, trả về chuỗi gốc. Tự ghép lại nếu ciphertext bị chia chunk. */
 export async function decryptSecureContent(item: SecureContent): Promise<string> {
-    if (!item.cipher) {
+    let cipher: string;
+
+    if (item.chunkCount && item.chunkCount > 0) {
+        const chunkSnaps = await Promise.all(
+            Array.from({ length: item.chunkCount }, (_, i) => getDoc(getSecureContentChunkDocRef(item.id, i))),
+        );
+        cipher = chunkSnaps.map(snap => (snap.data()?.data as string | undefined) ?? '').join('');
+    } else if (item.cipher) {
+        cipher = item.cipher; // dữ liệu cũ, chưa chia chunk
+    } else {
         throw new Error('Mục này không có dữ liệu mã hoá (có thể là dữ liệu cũ) — hãy xoá và tạo lại.');
     }
-    return decryptFromBase64(item.cipher);
+
+    return decryptFromBase64(cipher);
 }
 
 // =================================================================
