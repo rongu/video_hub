@@ -235,12 +235,15 @@ const matchLabel = (text: string, re: RegExp): string | null => {
     return m ? m[1] : null;
 };
 
+const isBlankLine = (line: string): boolean => line.trim() === '';
+
 /**
  * Xử lý format: mỗi dòng (heading bất kỳ cấp độ, bullet, dòng trong blockquote hội
- * thoại, hoặc dòng thường) được lặp lại 3 lần liên tiếp — bản gốc (tiếng Anh), rồi
- * `[VN] ...`, rồi `[JP] ...` — không cần thẻ đóng như `[vi]...[/vi]`.
+ * thoại, hoặc dòng thường) được lặp lại 3 lần — bản gốc (tiếng Anh), rồi `[VN] ...`,
+ * rồi `[JP] ...` — không cần thẻ đóng như `[vi]...[/vi]`. Giữa 3 dòng có thể có
+ * (hoặc không có) dòng trống xen giữa — cả 2 kiểu soạn thảo đều được hỗ trợ.
  * Dòng gốc (tiếng Anh) LUÔN được giữ lại; chỉ dòng bản dịch phía dưới mới đổi theo
- * ngôn ngữ đang chọn (VN hoặc JP), dòng còn lại bị bỏ.
+ * ngôn ngữ đang chọn (VN hoặc JP), dòng còn lại (và các dòng trống xen giữa) bị bỏ.
  * Thứ tự [VN]/[JP] trong 2 dòng sau có thể hoán đổi, miễn cùng "khung" với dòng gốc.
  */
 const resolveTripleLanguageLines = (content: string, lang: string): string => {
@@ -251,19 +254,29 @@ const resolveTripleLanguageLines = (content: string, lang: string): string => {
         const base = classifyLine(lines[i]);
         const baseAlreadyLabeled = LABEL_VN_RE.test(base.rest) || LABEL_JP_RE.test(base.rest);
 
-        if (!baseAlreadyLabeled && i + 2 < lines.length) {
-            const l2 = classifyLine(lines[i + 1]);
-            const l3 = classifyLine(lines[i + 2]);
-            const sameKind = l2.kind === base.kind && l3.kind === base.kind;
+        if (!baseAlreadyLabeled && !isBlankLine(lines[i])) {
+            // Tìm 2 dòng "có nội dung" tiếp theo, bỏ qua các dòng trống xen giữa
+            let j = i + 1;
+            while (j < lines.length && isBlankLine(lines[j])) j++;
+            const idx2 = j;
+            j++;
+            while (j < lines.length && isBlankLine(lines[j])) j++;
+            const idx3 = j;
 
-            if (sameKind) {
-                const vn = matchLabel(l2.rest, LABEL_VN_RE) ?? matchLabel(l3.rest, LABEL_VN_RE);
-                const jp = matchLabel(l2.rest, LABEL_JP_RE) ?? matchLabel(l3.rest, LABEL_JP_RE);
-                if (vn !== null && jp !== null) {
-                    out.push(lines[i]); // giữ nguyên dòng tiếng Anh gốc
-                    out.push(base.marker + (lang === 'ja' ? jp : vn)); // + bản dịch theo ngôn ngữ đang chọn
-                    i += 3;
-                    continue;
+            if (idx2 < lines.length && idx3 < lines.length) {
+                const l2 = classifyLine(lines[idx2]);
+                const l3 = classifyLine(lines[idx3]);
+                const sameKind = l2.kind === base.kind && l3.kind === base.kind;
+
+                if (sameKind) {
+                    const vn = matchLabel(l2.rest, LABEL_VN_RE) ?? matchLabel(l3.rest, LABEL_VN_RE);
+                    const jp = matchLabel(l2.rest, LABEL_JP_RE) ?? matchLabel(l3.rest, LABEL_JP_RE);
+                    if (vn !== null && jp !== null) {
+                        out.push(lines[i]); // giữ nguyên dòng tiếng Anh gốc
+                        out.push(base.marker + (lang === 'ja' ? jp : vn)); // + bản dịch theo ngôn ngữ đang chọn
+                        i = idx3 + 1;
+                        continue;
+                    }
                 }
             }
         }
@@ -290,22 +303,27 @@ const preprocessFurigana = (content: string): string =>
 
 /**
  * Apply all markdown transformations in order:
- * 0. Triple-line [VN]/[JP] label resolution (heading/bullet/blockquote/plain) —
+ * 0. Line-ending normalization (\r\n / lone \r -> \n)
+ * 1. Triple-line [VN]/[JP] label resolution (heading/bullet/blockquote/plain) —
  *    giữ dòng tiếng Anh gốc, chỉ đổi dòng dịch bên dưới theo VN/JP
- * 1. Bilingual [vi]/[ja] tag stripping
- * 2. Audio placeholder link removal
- * 3. Table column filtering (VN/JP hide)
- * 4. Dialogue line hard-break injection
- * 5. IPA play button injection
- * 6. Furigana ruby conversion
+ * 2. Bilingual [vi]/[ja] tag stripping
+ * 3. Audio placeholder link removal
+ * 4. Table column filtering (VN/JP hide)
+ * 5. Dialogue line hard-break injection
+ * 6. IPA play button injection
+ * 7. Furigana ruby conversion
  */
 export const preprocessMarkdown = (content: string, lang: string): string => {
-    let p = content;
+    // 0. Chuẩn hoá line-ending kiểu Windows (\r\n / \r lẻ) -> \n. Bắt buộc phải làm
+    // TRƯỚC mọi bước khác: các bước dưới đều xử lý theo từng dòng bằng regex có `$`,
+    // mà `\r` còn sót lại ở cuối dòng làm `$` không khớp -> cả dòng rơi vào nhánh
+    // "dòng thường" (mất luôn tiền tố #/-/> lẫn nhãn [VN]/[JP]).
+    let p = content.replace(/\r\n?/g, '\n');
 
-    // 0. Triple-line labels — dòng gốc / [VN] .../ [JP] ... không thẻ đóng.
+    // 1. Triple-line labels — dòng gốc / [VN] .../ [JP] ... không thẻ đóng.
     p = resolveTripleLanguageLines(p, lang);
 
-    // 1. Bilingual tags — [vi]/[ja] pair (either order): keep the requested language.
+    // 2. Bilingual tags — [vi]/[ja] pair (either order): keep the requested language.
     // A lone/unpaired tag (author forgot the other language) is unwrapped as-is below,
     // so missing translations fall back to whatever language was actually written
     // instead of being stripped to blank.
@@ -318,14 +336,14 @@ export const preprocessMarkdown = (content: string, lang: string): string => {
     });
     p = p.replace(/\[(vi|ja)\]([\s\S]*?)\[\/\1\]/g, '$2');
 
-    // 2. Strip audio placeholder lines (local .mp3 links / Audio: labels)
+    // 3. Strip audio placeholder lines (local .mp3 links / Audio: labels)
     p = p.replace(/^>[ \t]+[^\n]*\[[^\]\n]*\.mp3[^\]\n]*\][^\n]*(\n|$)/gimu, '');
     p = p.replace(/^>[ \t]+[^\n]*\*\*[Aa]udio\b[^*\n]*\*\*[^\n]*(\n|$)/gimu, '');
 
-    // 3. Table column filter
+    // 4. Table column filter
     p = preprocessMarkdownTables(p, lang);
 
-    // 4. Dialogue hard line-break between consecutive **Name：** lines
+    // 5. Dialogue hard line-break between consecutive **Name：** lines
     const DIALOGUE_LINE_RE = /^\*\*[^*\n]+[：:]\*\*/;
     const dLines = p.split('\n');
     for (let i = 0; i < dLines.length - 1; i++) {
@@ -335,10 +353,10 @@ export const preprocessMarkdown = (content: string, lang: string): string => {
     }
     p = dLines.join('\n');
 
-    // 5. IPA play button injection
+    // 6. IPA play button injection
     p = injectIPAButtons(p);
 
-    // 6. Furigana
+    // 7. Furigana
     p = preprocessFurigana(p);
 
     return p;
