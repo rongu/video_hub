@@ -123,10 +123,11 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
                     ja: descJa || desc // Fallback JA -> VI
                 } as MultilingualField,
                 adminId: user.uid,
-                imageUrl: imageUrl, 
                 updatedAt: Date.now(),
                 categoryIds: selectedCategoryIds,
             };
+            // Firestore không chấp nhận giá trị undefined
+            if (imageUrl) courseData.imageUrl = imageUrl;
 
             if (isEditing && initialCourse?.id) {
                 await updateCourse(initialCourse.id, courseData);
@@ -143,7 +144,7 @@ const CreateCourseForm: React.FC<CreateCourseFormProps> = ({ user, initialCourse
         } finally {
             setLoading(false);
         }
-    }, [title, desc, titleJa, descJa, imageFile, isEditing, initialCourse, user, onCourseSaved]);
+    }, [title, desc, titleJa, descJa, imageFile, selectedCategoryIds, isEditing, initialCourse, user, onCourseSaved]);
 
     const toggleCategory = (id: string) => {
         setSelectedCategoryIds(prev =>

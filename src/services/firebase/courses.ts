@@ -56,8 +56,9 @@ export async function updateCourse(
     courseId: string, 
     data: { 
         title?: MultilingualField; 
-        description?: MultilingualField; 
-        imageUrl?: string 
+        description?: MultilingualField;
+        imageUrl?: string;
+        categoryIds?: string[];
     }
 ): Promise<void> {
     await updateDoc(getCourseDocRef(courseId), { ...data, updatedAt: serverTimestamp() });
