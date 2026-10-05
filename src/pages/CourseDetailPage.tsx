@@ -2,7 +2,7 @@
 import { 
     ChevronLeft, List, Loader2, CheckCircle2, Circle, Lock, X, Phone, MessageCircle, ArrowRight, 
     PlayCircle, FileText, HelpCircle, AlertCircle, RefreshCcw, Check, ChevronRight, 
-    Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronUp, ChevronDown, BookOpen, Menu
+    Volume2, LayoutTemplate, Headphones, Plus, Minus, Video as VideoIcon, Languages, ChevronUp, ChevronDown, BookOpen, Menu, Layers
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { 
@@ -417,7 +417,15 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
     const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
     const hasAutoResumed = useRef(false);
     const { completedVideoIds } = useUserProgress(user?.uid, courseId);
-    
+
+    // Toggle "Hiện bản gốc": hiện nguyên văn English + [VN] + [JP] song song, không gộp theo ngôn ngữ đang chọn
+    const [showOriginal, setShowOriginal] = useState<boolean>(() => {
+        try { return localStorage.getItem('videohub_show_original') === '1'; } catch { return false; }
+    });
+    useEffect(() => {
+        try { localStorage.setItem('videohub_show_original', showOriginal ? '1' : '0'); } catch { /* ignore */ }
+    }, [showOriginal]);
+
     useEffect(() => {
         if (!user?.uid) { setEnrolledCourseIds([]); return; }
         const unsub = subscribeToUserEnrollments(user.uid, (enrollments) => { setEnrolledCourseIds(enrollments.map(e => e.courseId)); });
@@ -534,7 +542,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                             {blocks.length === 0 && <p className="text-gray-400 italic text-center">{t('detail.content_updating')}</p>}
                             {blocks.map((block) => (
                                 <div key={block.id} className="animate-in fade-in duration-500">
-                                    {block.description && <div className="mb-6"><MarkdownContent content={block.description} /></div>}
+                                    {block.description && <div className="mb-6"><MarkdownContent content={block.description} showOriginal={showOriginal} /></div>}
                                     
                                     {/* Render Videos */}
                                     {block.videos && block.videos.length > 0 && (
@@ -588,7 +596,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                     />
 
                                     {/* Markdown + inline audio (conv-aware) */}
-                                    <MarkdownWithInlineAudio markdownContent={block.markdownContent} audios={block.audios} />
+                                    <MarkdownWithInlineAudio markdownContent={block.markdownContent} audios={block.audios} showOriginal={showOriginal} />
                                     {block.images && block.images.length > 0 && <div className="grid grid-cols-1 gap-6 mb-6">{block.images.map(img => <ExpandableImage key={img.id} url={img.url} caption={img.caption} isDefaultHidden={img.isSpoiler}/>)}</div>}
                                     {block.quizzes && block.quizzes.length > 0 && <div className="mt-6 border-t border-dashed pt-6">{block.quizzes.map((q, idx) => <InlineQuizItem key={q.id} quiz={q} index={idx} />)}</div>}
                                 </div>
@@ -606,7 +614,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                     <div className="pb-10">
                         <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><Headphones className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.audio_lesson')}</p></div>
                         <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8 flex flex-col items-center justify-center"><div className="w-full max-w-md"><audio controls className="w-full" controlsList="nodownload"><source src={selectedVideo.audioUrl} type="audio/mpeg" /></audio></div></div>
-                        {selectedVideo.content && <div className="mb-6"><h3 className="font-bold uppercase text-gray-400 text-xs tracking-wide mb-4">Nội dung chi tiết</h3><MarkdownContent content={selectedVideo.content} /></div>}
+                        {selectedVideo.content && <div className="mb-6"><h3 className="font-bold uppercase text-gray-400 text-xs tracking-wide mb-4">Nội dung chi tiết</h3><MarkdownContent content={selectedVideo.content} showOriginal={showOriginal} /></div>}
                         <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-[#1A73E8] text-white hover:bg-blue-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
                     </div>
                 </div>
@@ -618,7 +626,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                 <div className="w-full bg-white py-8 px-6 md:px-10">
                     <div className="pb-10">
                         <div className="border-b border-gray-100 pb-6 mb-8"><h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center"><FileText className="mr-3 text-[#1A73E8]" size={32}/> {tr_h(selectedVideo.title as any)}</h2><p className="text-gray-500 font-medium text-sm">{t('detail.theory_lesson')}</p></div>
-                        <MarkdownContent content={selectedVideo.content || t('detail.content_updating')} />
+                        <MarkdownContent content={selectedVideo.content || t('detail.content_updating')} showOriginal={showOriginal} />
                         <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center"><button onClick={() => handleMarkComplete(selectedVideo.id, true)} disabled={completedVideoIds.includes(selectedVideo.id)} className={`px-8 py-3 rounded-full font-bold transition flex items-center ${completedVideoIds.includes(selectedVideo.id) ? 'bg-green-100 text-green-700 cursor-default' : 'bg-[#1A73E8] text-white hover:bg-blue-700 shadow-lg'}`}>{completedVideoIds.includes(selectedVideo.id) ? <><CheckCircle2 className="mr-2"/> {t('detail.completed')}</> : <><Check className="mr-2"/> {t('detail.mark_complete')}</>}</button></div>
                     </div>
                 </div>
@@ -635,12 +643,25 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
 
     return (
         <div className="min-h-screen bg-white flex flex-col font-sans">
-            <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
+            <header className="bg-white border-b border-gray-100 fixed top-0 inset-x-0 z-30 shadow-sm">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
                     <button onClick={() => onNavigate(user && isEnrolled ? 'home' : 'landing')} className="flex items-center text-gray-500 font-bold hover:text-[#1A73E8] transition text-sm uppercase tracking-tight"><ChevronLeft size={18} className="mr-1"/> {t('detail.back')}</button>
                     
                     <div className="flex items-center gap-3">
                         <LanguageSwitcher />
+
+                        <button
+                            onClick={() => setShowOriginal(o => !o)}
+                            className={`flex items-center space-x-1 transition font-semibold text-sm px-3 py-1 rounded-lg border ${
+                                showOriginal
+                                    ? 'bg-blue-50 text-[#1A73E8] border-blue-200'
+                                    : 'text-gray-600 border-transparent hover:text-[#1A73E8] hover:bg-blue-50'
+                            }`}
+                            title="Hiện bản gốc: English + VN + JP song song, không gộp theo ngôn ngữ"
+                        >
+                            <Layers size={18} />
+                            <span>{showOriginal ? 'Gốc' : 'Dịch'}</span>
+                        </button>
 
                         {isEnrolled && <div className="flex items-center space-x-3 bg-blue-50 p-2 px-4 rounded-full border border-blue-100"><div className="bg-gray-200 rounded-full h-1.5 w-24 overflow-hidden"><div className="bg-green-500 h-full transition-all duration-700" style={{ width: `${progressPercentage}%` }} /></div><span className="text-[10px] font-bold text-[#1A73E8] uppercase">{t('detail.completed_percent', { percent: progressPercentage })}</span></div>}
                         
@@ -657,7 +678,8 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
             </header>
 
             {/* [UPDATED] Layout chính: Grid 1 cột rộng rãi (max-w-7xl) */}
-            <main className="flex-grow p-6 md:p-10 max-w-7xl mx-auto w-full flex flex-col gap-10">
+            {/* pt-24: bù khoảng trống cho header fixed ở trên (header không còn chiếm chỗ trong luồng layout) */}
+            <main className="flex-grow px-6 pb-6 pt-24 md:px-10 md:pb-10 md:pt-28 max-w-7xl mx-auto w-full flex flex-col gap-10">
                 <div className="w-full space-y-8">
                     {/* Media Container */}
                     <div className={`rounded-xl overflow-hidden shadow-lg relative border border-gray-100 w-full ${contentContainerClass}`}>

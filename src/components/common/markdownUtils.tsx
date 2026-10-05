@@ -312,36 +312,44 @@ const preprocessFurigana = (content: string): string =>
  * 5. Dialogue line hard-break injection
  * 6. IPA play button injection
  * 7. Furigana ruby conversion
+ *
+ * `showOriginal`: khi true, bỏ qua các bước chọn-ngôn-ngữ (1, 2, 4) để hiển thị
+ * nguyên văn bản gốc — English, `[VN] ...`, `[JP] ...` (và cột VN lẫn JP trong bảng)
+ * đều hiện đầy đủ, không gộp/ẩn gì cả. Dùng cho nút "Hiện bản gốc" on/off.
  */
-export const preprocessMarkdown = (content: string, lang: string): string => {
+export const preprocessMarkdown = (content: string, lang: string, showOriginal: boolean = false): string => {
     // 0. Chuẩn hoá line-ending kiểu Windows (\r\n / \r lẻ) -> \n. Bắt buộc phải làm
     // TRƯỚC mọi bước khác: các bước dưới đều xử lý theo từng dòng bằng regex có `$`,
     // mà `\r` còn sót lại ở cuối dòng làm `$` không khớp -> cả dòng rơi vào nhánh
     // "dòng thường" (mất luôn tiền tố #/-/> lẫn nhãn [VN]/[JP]).
     let p = content.replace(/\r\n?/g, '\n');
 
-    // 1. Triple-line labels — dòng gốc / [VN] .../ [JP] ... không thẻ đóng.
-    p = resolveTripleLanguageLines(p, lang);
+    if (!showOriginal) {
+        // 1. Triple-line labels — dòng gốc / [VN] .../ [JP] ... không thẻ đóng.
+        p = resolveTripleLanguageLines(p, lang);
 
-    // 2. Bilingual tags — [vi]/[ja] pair (either order): keep the requested language.
-    // A lone/unpaired tag (author forgot the other language) is unwrapped as-is below,
-    // so missing translations fall back to whatever language was actually written
-    // instead of being stripped to blank.
-    const pairRe = /\[(vi|ja)\]([\s\S]*?)\[\/\1\]\s*\[(vi|ja)\]([\s\S]*?)\[\/\3\]/g;
-    p = p.replace(pairRe, (match, tag1: string, body1: string, tag2: string, body2: string) => {
-        if (tag1 === tag2) return match;
-        const viBody = tag1 === 'vi' ? body1 : body2;
-        const jaBody = tag1 === 'ja' ? body1 : body2;
-        return lang === 'ja' ? jaBody : viBody;
-    });
-    p = p.replace(/\[(vi|ja)\]([\s\S]*?)\[\/\1\]/g, '$2');
+        // 2. Bilingual tags — [vi]/[ja] pair (either order): keep the requested language.
+        // A lone/unpaired tag (author forgot the other language) is unwrapped as-is below,
+        // so missing translations fall back to whatever language was actually written
+        // instead of being stripped to blank.
+        const pairRe = /\[(vi|ja)\]([\s\S]*?)\[\/\1\]\s*\[(vi|ja)\]([\s\S]*?)\[\/\3\]/g;
+        p = p.replace(pairRe, (match, tag1: string, body1: string, tag2: string, body2: string) => {
+            if (tag1 === tag2) return match;
+            const viBody = tag1 === 'vi' ? body1 : body2;
+            const jaBody = tag1 === 'ja' ? body1 : body2;
+            return lang === 'ja' ? jaBody : viBody;
+        });
+        p = p.replace(/\[(vi|ja)\]([\s\S]*?)\[\/\1\]/g, '$2');
+    }
 
     // 3. Strip audio placeholder lines (local .mp3 links / Audio: labels)
     p = p.replace(/^>[ \t]+[^\n]*\[[^\]\n]*\.mp3[^\]\n]*\][^\n]*(\n|$)/gimu, '');
     p = p.replace(/^>[ \t]+[^\n]*\*\*[Aa]udio\b[^*\n]*\*\*[^\n]*(\n|$)/gimu, '');
 
-    // 4. Table column filter
-    p = preprocessMarkdownTables(p, lang);
+    // 4. Table column filter — bỏ qua khi showOriginal để giữ cả 2 cột VN và JP
+    if (!showOriginal) {
+        p = preprocessMarkdownTables(p, lang);
+    }
 
     // 5. Dialogue hard line-break between consecutive **Name：** lines
     const DIALOGUE_LINE_RE = /^\*\*[^*\n]+[：:]\*\*/;
@@ -467,9 +475,9 @@ export const markdownComponents: Components = {
 // MarkdownContent — drop-in renderer
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const MarkdownContent: React.FC<{ content: string }> = ({ content }) => {
+export const MarkdownContent: React.FC<{ content: string; showOriginal?: boolean }> = ({ content, showOriginal = false }) => {
     const { i18n } = useTranslation();
-    const processed = preprocessMarkdown(content, i18n.language);
+    const processed = preprocessMarkdown(content, i18n.language, showOriginal);
     return (
         <div className="markdown-body">
             <ReactMarkdown
@@ -505,8 +513,8 @@ export const AudioBlockItem: React.FC<{ url: string; name: string }> = ({ url, n
 // MarkdownWithInlineAudio
 // ─────────────────────────────────────────────────────────────────────────────
 
-const RENDER_MD = (md: string, lang: string) => {
-    const p = preprocessMarkdown(md, lang);
+const RENDER_MD = (md: string, lang: string, showOriginal: boolean) => {
+    const p = preprocessMarkdown(md, lang, showOriginal);
     return (
         <div className="markdown-body">
             <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
@@ -525,7 +533,8 @@ const RENDER_MD = (md: string, lang: string) => {
 export const MarkdownWithInlineAudio: React.FC<{
     markdownContent?: string;
     audios?: BlockAudio[];
-}> = ({ markdownContent, audios }) => {
+    showOriginal?: boolean;
+}> = ({ markdownContent, audios, showOriginal = false }) => {
     const { i18n } = useTranslation();
     const lang = i18n.language;
 
@@ -540,7 +549,7 @@ export const MarkdownWithInlineAudio: React.FC<{
     }
 
     if (!audios || audios.length === 0) {
-        return <div className="mb-6">{RENDER_MD(markdownContent, lang)}</div>;
+        return <div className="mb-6">{RENDER_MD(markdownContent, lang, showOriginal)}</div>;
     }
 
     // Build conv-number → audio map
@@ -556,7 +565,7 @@ export const MarkdownWithInlineAudio: React.FC<{
     if (audioMap.size === 0) {
         return (
             <div className="mb-6">
-                {RENDER_MD(markdownContent, lang)}
+                {RENDER_MD(markdownContent, lang, showOriginal)}
                 <div className="space-y-2 mt-4">
                     {audios.map(a => <AudioBlockItem key={a.id} url={a.url} name={a.name} />)}
                 </div>
@@ -591,7 +600,7 @@ export const MarkdownWithInlineAudio: React.FC<{
         const audio = convN !== null ? audioMap.get(convN) : undefined;
 
         if (!audio) {
-            return <React.Fragment key={idx}>{RENDER_MD(sLines.join('\n'), lang)}</React.Fragment>;
+            return <React.Fragment key={idx}>{RENDER_MD(sLines.join('\n'), lang, showOriginal)}</React.Fragment>;
         }
 
         // Find split point: after context blockquote (🎧/answer-choices), before dialogue
@@ -619,9 +628,9 @@ export const MarkdownWithInlineAudio: React.FC<{
 
         return (
             <React.Fragment key={idx}>
-                {beforeMd.trim() && RENDER_MD(beforeMd, lang)}
+                {beforeMd.trim() && RENDER_MD(beforeMd, lang, showOriginal)}
                 <AudioBlockItem url={audio.url} name={audio.name} />
-                {afterMd.trim() && RENDER_MD(afterMd, lang)}
+                {afterMd.trim() && RENDER_MD(afterMd, lang, showOriginal)}
             </React.Fragment>
         );
     };
