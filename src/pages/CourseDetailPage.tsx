@@ -557,7 +557,7 @@ const CourseDetailPage: React.FC<CourseDetailPageProps> = ({ courseId, onNavigat
                                                         /* @ts-ignore – webkit-playsinline needed for iOS < 10 */
                                                         webkit-playsinline="true"
                                                         x-webkit-airplay="allow"
-                                                        controlsList="nodownload nofullscreen"
+                                                        controlsList="nodownload"
                                                         disablePictureInPicture
                                                     >
                                                         <source src={video.url} type="video/mp4" />
